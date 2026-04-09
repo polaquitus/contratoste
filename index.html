@@ -405,7 +405,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
   </nav>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v4 listas editables</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v5 IA listas base</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1039,8 +1039,9 @@ async function setTar(t){const c=DB.find(x=>x.id===detId);if(c){c.tarifarios=t;c
 const TAR_STD_COLS=['N° Item','Descripción','Unidad','Precio'];
 function getDefaultTarBasePeriod(c){return c?.btar||c?.fechaIni?.substring(0,7)||new Date().toISOString().slice(0,7);}
 function openTarImportPicker(){const inp=document.getElementById('tarXlsIn');if(!inp){toast('No se encontró el selector de Excel','er');return;}inp.click();}
+function openTarAIImportPicker(){const inp=document.getElementById('tarAiXlsIn');if(!inp){toast('No se encontró el selector de Excel IA','er');return;}inp.click();}
 function saveTarifarios(){const c=DB.find(x=>x.id===detId);if(!c)return;c.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast('Tarifarios guardados','ok');}
-function hasTarHeaderLike(row){return (row||[]).some(v=>/item|n°|descripcion|detalle|unidad|u\/?m|um|precio|valor/i.test(String(v||'')));}
+function hasTarHeaderLike(row){return (row||[]).some(v=>/item|n°|descripcion|detalle|unidad|u\/?m|um|precio|valor|tarifa/i.test(String(v||'')));}
 function createBaseTarTable(){
   const c=DB.find(x=>x.id===detId);if(!c)return;
   if(!c.tarifarios)c.tarifarios=[];
@@ -1050,6 +1051,75 @@ function createBaseTarTable(){
   c.tarifarios.push({name,period,isBase:true,sourceTableName:'COTIZACION_INICIAL',cols:[...TAR_STD_COLS],rows:[['','','','']]});
   c.updatedAt=new Date().toISOString();
   save();renderDet();renderList();updNav();toast('Tarifario base creado','ok');
+}
+function buildTarAISummaryFromWorkbook(wb){
+  const isInteresting = v => /tarif|precio|tarifa|item|descripcion|unidad|servicio|equipo|canon|m3|mensual|eventual|calc[aá]reo|provisi[oó]n|diurno|nocturno|vigencia/i.test(String(v||''));
+  const blocks=[];
+  wb.SheetNames.forEach(sn=>{
+    const ws=wb.Sheets[sn];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''})
+      .map(r=>(Array.isArray(r)?r:[]).slice(0,10).map(v=>typeof v==='number'?String(v):String(v||'').replace(/\s+/g,' ').trim()))
+      .filter(r=>r.some(v=>v!==''));
+    if(!rows.length) return;
+    const keep=new Set();
+    rows.forEach((r,idx)=>{
+      if(idx<20 || r.some(isInteresting)){ for(let j=Math.max(0,idx-1); j<=Math.min(rows.length-1, idx+2); j++) keep.add(j); }
+    });
+    const selected=[...keep].sort((a,b)=>a-b).slice(0,140);
+    const txt=selected.map(i=>rows[i].join('\t')).join('\n');
+    blocks.push(`### HOJA: ${sn}\n${txt}`);
+  });
+  return blocks.join('\n\n').slice(0,120000);
+}
+function normalizeTarAIResult(aiObj, cc, defaultPeriod){
+  const listas = Array.isArray(aiObj?.listas) ? aiObj.listas : [];
+  return listas.map((lp,idx)=>({
+    name: String(lp.name||lp.nombre||('Lista IA '+(idx+1))).trim(),
+    period: String(lp.periodo||lp.period||defaultPeriod||getDefaultTarBasePeriod(cc)).slice(0,7),
+    isBase: lp.isBase !== false,
+    sourceTableName: 'IA_BASE_XLSX',
+    aiExtracted: true,
+    cols:[...TAR_STD_COLS],
+    rows:(Array.isArray(lp.items)?lp.items:[]).map(it=>[
+      String(it.item||it.codigo||''),
+      String(it.descripcion||it.description||''),
+      String(it.unidad||it.unit||''),
+      it.precio!=null && it.precio!=='' ? Number(String(it.precio).replace(/[^\d,.-]/g,'').replace(',', '.')) : ''
+    ])
+  })).filter(t=>t.rows.length);
+}
+async function importTarExcelAI(input){
+  const file=input.files[0]; if(!file) return;
+  const cc=DB.find(x=>x.id===detId); if(!cc) return;
+  try{
+    toast('Analizando Excel con IA...','ok');
+    const arr = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsArrayBuffer(file); });
+    const wb = XLSX.read(new Uint8Array(arr), {type:'array'});
+    const workbookSummary = buildTarAISummaryFromWorkbook(wb);
+    const defaultPeriod = getDefaultTarBasePeriod(cc);
+    const prompt = `Sos un analista experto en contratos de petróleo y gas en Argentina. Recibís el contenido resumido de un Excel de cotización/tarifario base. Tu tarea es identificar SOLO las listas finales de precios y devolver ÚNICAMENTE un JSON válido, sin markdown, sin texto adicional.\n\nFormato de salida obligatorio:\n{\n  "listas": [\n    {\n      "name": "nombre corto de la lista",\n      "periodo": "YYYY-MM",\n      "isBase": true,\n      "items": [\n        {"item":"1.1","descripcion":"texto","unidad":"MES|DIA|M3|Por cada 10 km|UN","precio":123.45}\n      ]\n    }\n  ]\n}\n\nReglas: \n- Priorizá hojas y bloques tipo 'TARIFARIO FINAL', 'PLANILLA DE COTIZACION' o equivalentes finales.\n- Ignorá hojas auxiliares de cálculo: incidencias, prorrateo, comparativas, ingresos, ajuste, etc., salvo que ayuden a entender el tarifario final.\n- Si hay múltiples tablas dentro de una hoja (por ejemplo 'Servicio Básico Mensual', 'Equipos Eventuales con Operador', 'Servicio de Provisión de Calcáreo'), devolvelas como listas separadas.\n- Convertí el Excel al esquema del sistema: item / descripcion / unidad / precio.\n- Si un bloque tiene varias columnas de precio (por ejemplo diurno/nocturno o 0-15 días / >15 días), generá múltiples ítems diferenciando la descripción, por ejemplo: 'Camión Batea - Diurno 0 a 15 días'.\n- Usá período ${defaultPeriod} salvo que el Excel muestre claramente otro período final.\n- No inventes ítems que no aparezcan en el Excel.\n- Si identificás una lista base contractual, marcala con isBase=true.\n\nContenido resumido del Excel:\n${workbookSummary}`;
+    const response = await callGeminiForEnm([{text: prompt}]);
+    if(!response || !response.ok){
+      const errText = response ? await response.text().catch(()=> '') : '';
+      throw new Error(`Gemini/proxy error ${response?response.status:'N/A'} ${errText.slice(0,150)}`);
+    }
+    const data = await response.json();
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const txt = parts.map(p=>p.text||'').join('\n').trim();
+    const obj = extractJsonFromGeminiText(txt);
+    const listas = normalizeTarAIResult(obj, cc, defaultPeriod);
+    if(!listas.length) throw new Error('La IA no pudo identificar listas de precios válidas.');
+    if(!cc.tarifarios) cc.tarifarios=[];
+    cc.tarifarios.push(...listas);
+    cc.updatedAt=new Date().toISOString();
+    save(); renderDet(); renderList(); updNav();
+    toast(`IA importó ${listas.length} lista(s) de precios ✅`,'ok');
+  }catch(err){
+    console.error('importTarExcelAI', err);
+    toast('No se pudo analizar el Excel con IA: '+(err.message||err),'er');
+  } finally {
+    input.value='';
+  }
 }
 
 
@@ -1123,10 +1193,7 @@ function importTarExcel(input){
         let body=useHeader ? json.slice(1) : json;
         const rows=body.filter(r=>Array.isArray(r) && r.some(v=>String(v??'').trim()!=='' )).map(r=>{
           const clean=r.map(v=>v!=null?v:'');
-          if(useHeader){
-            const row=[]; for(let i=0;i<cols.length;i++) row.push(clean[i]??''); return row;
-          }
-          // Sin encabezados claros: mapear a Item / Descripción / Unidad / Precio
+          if(useHeader){ const row=[]; for(let i=0;i<cols.length;i++) row.push(clean[i]??''); return row; }
           return [clean[0]??'', clean[1]??'', clean[2]??'', clean[3]??''];
         });
         c.tarifarios.push({name:sn,cols,rows,period,isBase,sourceTableName:isBase?'COTIZACION_INICIAL':'IMPORTADO_XLSX'});
@@ -1679,9 +1746,9 @@ function renderTarifario(){
   const box=document.getElementById('tarContainer');if(!box)return;
   const cc=DB.find(x=>x.id===detId);if(!cc)return;
   const raw=getTar();
-  const actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Crear tarifario base</button><button class="btn btn-s btn-sm" onclick="openTarImportPicker()">📥 Importar Excel</button><button class="btn btn-g btn-sm" onclick="saveTarifarios()">💾 Guardar cambios</button><button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button><input type="file" id="tarXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcel(this)"></div>`;
+  const actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Crear tarifario base</button><button class="btn btn-s btn-sm" onclick="openTarImportPicker()">📥 Importar Excel</button><button class="btn btn-a btn-sm" onclick="openTarAIImportPicker()">🧠 Agregar lista con IA</button><button class="btn btn-g btn-sm" onclick="saveTarifarios()">💾 Guardar cambios</button><button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button><input type="file" id="tarXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcel(this)"><input type="file" id="tarAiXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcelAI(this)"></div>`;
   if(!raw.length){
-    box.innerHTML = actions + '<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin listas de precios registradas</p><p style="font-size:12px;color:var(--g500);margin-top:8px">Cargá el Excel inicial de cotización del contrato o creá el tarifario base de forma manual.</p></div>';
+    box.innerHTML = actions + '<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin listas de precios registradas</p><p style="font-size:12px;color:var(--g500);margin-top:8px">Cargá el Excel inicial de cotización del contrato, analizalo con IA o creá el tarifario base de forma manual.</p></div>';
     return;
   }
   const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));
@@ -1699,7 +1766,7 @@ function renderTarifario(){
   h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Contrato: ${esc(cc.num||'')}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'lista':'listas'}</span></div>`;
   h+='<div class="tar-tabs">';
   visible.forEach((tab,vi)=>{
-    const label=`${esc(tab.name||('Lista '+(vi+1)))}${tab.isBase?' · BASE':''}`;
+    const label=`${esc(tab.name||('Lista '+(vi+1)))}${tab.isBase?' · BASE':''}${tab.aiExtracted?' · IA':''}`;
     h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${label}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;
   });
   h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';
