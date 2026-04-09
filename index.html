@@ -1056,6 +1056,19 @@ function renderDet(){
 function getTar(){const c=DB.find(x=>x.id===detId);return c?.tarifarios||[];}
 async function setTar(t){const c=DB.find(x=>x.id===detId);if(c){c.tarifarios=t;c.updatedAt=new Date().toISOString();save();}}
 
+const TAR_BASE_DEFAULT_COLS=['N Item','Descripcion','Categoria','Unidad','Valor Unitario'];
+const TAR_BASE_PLACEHOLDER_ITEMS=['1.1','1.2','1.3','2.1','2.2','2.3','3.1','3.2'];
+function getDefaultTarPeriod(c){return c?.btar||c?.fechaIni?.substring(0,7)||new Date().toISOString().slice(0,7);}
+function getDefaultTarBaseRows(){return TAR_BASE_PLACEHOLDER_ITEMS.map(code=>[code,'','','','']);}
+function normalizeTarTableMeta(c,t,opts={}){const cols=Array.isArray(t?.cols)&&t.cols.length?t.cols.map(v=>String(v??'').trim()||'Col'):[...TAR_BASE_DEFAULT_COLS];const rows=(Array.isArray(t?.rows)?t.rows:[]).map(r=>{const row=Array.isArray(r)?[...r]:[];while(row.length<cols.length)row.push('');return row.slice(0,cols.length);});return {...t,name:opts.name||t?.name||'Tabla Tarifaria',cols,rows,period:opts.period||t?.period||t?.basePeriodo||t?.nuevoPeriodo||getDefaultTarPeriod(c),isBase:opts.isBase!=null?!!opts.isBase:!!t?.isBase||!t?.enmNum,sourceKind:opts.sourceKind||t?.sourceKind||(t?.enmNum?'ENMIENDA':'MANUAL'),sourceTableName:opts.sourceTableName||t?.sourceTableName||'',placeholder:!!t?.placeholder};}
+function normalizeTarifariosForContract(c){if(!c)return[];c.tarifarios=(c.tarifarios||[]).map(t=>normalizeTarTableMeta(c,t));return c.tarifarios;}
+function hasHeaderLikeTarCols(firstRow){return(firstRow||[]).some(h=>/item|descrip|categor|unidad|precio|valor/i.test(String(h||'')));}
+function createBaseTarTable(){const c=DB.find(x=>x.id===detId);if(!c)return;if(!c.tarifarios)c.tarifarios=[];const period=(prompt('Periodo base del tarifario (YYYY-MM):',getDefaultTarPeriod(c))||getDefaultTarPeriod(c)).trim();const name=(prompt('Nombre del tarifario base:','Tarifario Base '+period)||('Tarifario Base '+period)).trim();c.tarifarios.push(normalizeTarTableMeta(c,{name,cols:[...TAR_BASE_DEFAULT_COLS],rows:getDefaultTarBaseRows(),period,isBase:true,sourceKind:'BASE_STARTER'}));_tarPeriod=period;_tarTab=Math.max(0,c.tarifarios.length-1);setTar(c.tarifarios);renderTarifario();toast('Tarifario base creado','ok');}
+function applyDefaultTarItems(ti){const c=DB.find(x=>x.id===detId);if(!c)return;const tars=normalizeTarifariosForContract(c);const t=tars[ti];if(!t)return;if(t.cols.length<TAR_BASE_DEFAULT_COLS.length)t.cols=[...TAR_BASE_DEFAULT_COLS];const existing=new Set((t.rows||[]).map(r=>String(r?.[0]||'').trim()).filter(Boolean));TAR_BASE_PLACEHOLDER_ITEMS.forEach(code=>{if(!existing.has(code))t.rows.push([code,'','','','']);});t.isBase=true;t.sourceKind=t.sourceKind||'BASE_STARTER';t.period=t.period||getDefaultTarPeriod(c);setTar(tars);renderTarifario();toast('Items predefinidos cargados','ok');}
+function markTarAsBase(ti){const c=DB.find(x=>x.id===detId);if(!c)return;const tars=normalizeTarifariosForContract(c);const t=tars[ti];if(!t)return;t.isBase=true;t.sourceKind='BASE';t.period=t.period||getDefaultTarPeriod(c);setTar(tars);renderTarifario();toast('Tabla marcada como base','ok');}
+function getApplicableTariffs(c,basePer){const all=normalizeTarifariosForContract(c).filter(t=>!t.placeholder&&Array.isArray(t.rows));if(!all.length)return[];const periods=[...new Set(all.map(t=>t.period).filter(Boolean))].sort();const target=basePer||getDefaultTarPeriod(c);let chosen=periods.filter(p=>p<=target).sort().pop();if(!chosen)chosen=periods[periods.length-1];return JSON.parse(JSON.stringify(all.filter(t=>t.period===chosen)));}
+
+
 
 function addTarTable(){
   const c=DB.find(x=>x.id===detId);if(!c)return;
