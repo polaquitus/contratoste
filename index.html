@@ -401,11 +401,11 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
     <div class="sb-sec" style="margin-top:18px">Módulos adicionales</div>
     <a class="nv" onclick="go('idx')" href="#"><span class="ni">📊</span><span>Índices</span></a>
     <a class="nv" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
-    <a class="nv" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Contratistas</span><span class="badge" id="provCnt">0</span></a>
+    <a class="nv" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
   </nav>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v10.2 full merge</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos</h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -660,7 +660,6 @@ async function initApp() {
   const fz=document.getElementById('fz');fz.ondragover=e=>{e.preventDefault()};fz.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};
   ['f_ini','f_fin'].forEach(id=>document.getElementById(id).onchange=calcPlazo);
 
-  let coreLoaded = false;
   try {
     showLoader('Cargando contratos...');
     DB = await sbLoadTable('contratos');
@@ -672,39 +671,21 @@ async function initApp() {
     if (idxObj) IDX_STORE = idxObj;
     showLoader('Cargando licitaciones...');
     LICIT_DB = await sbLoadTable('licitaciones');
-    coreLoaded = true;
+    showLoader('Cargando proveedores...');
+    PROV_DB = await sbLoadTable('proveedores');
     SB_OK = true;
     setSBStatus(true);
   } catch(e) {
-    console.warn('Supabase core error:', e);
+    console.warn('Supabase error:', e);
+    // Fallback to localStorage
     try{DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!DB.length)DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){DB=[];}
     try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
     try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
     try{LICIT_DB=JSON.parse(localStorage.getItem('licit_v1'))||[];}catch(ex){LICIT_DB=[];}
+    try{PROV_DB=JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(ex){PROV_DB=[];}
     SB_OK = false;
     setSBStatus(false);
     toast('Sin conexión a Supabase — modo local activo','er');
-  }
-
-  try {
-    showLoader('Cargando contratistas...');
-    if (coreLoaded) {
-      try {
-        PROV_DB = await sbLoadTable('contratistas');
-      } catch(e1) {
-        console.warn('Tabla contratistas no disponible, intentando proveedores...', e1);
-        try {
-          PROV_DB = await sbLoadTable('proveedores');
-        } catch(e2) {
-          console.warn('Sin tabla proveedores/contratistas en Supabase, usando localStorage', e2);
-          PROV_DB = JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];
-        }
-      }
-    } else {
-      PROV_DB = JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];
-    }
-  } catch(ex) {
-    try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];}
   }
 
   hideLoader();
@@ -741,22 +722,9 @@ async function saveLicit() {
 }
 
 async function saveProv() {
-  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
-  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
-  if (!SB_OK) { return; }
+  if (!SB_OK) { localStorage.setItem('prov_v1', JSON.stringify(PROV_DB)); return; }
   const last = PROV_DB[PROV_DB.length-1];
-  if (!last) return;
-  try {
-    await sbUpsertItem('contratistas', last);
-  } catch(e1) {
-    console.warn('No se pudo guardar en contratistas, intentando proveedores...', e1);
-    try {
-      await sbUpsertItem('proveedores', last);
-    } catch(e2) {
-      console.warn('No se pudo guardar en proveedores/contratistas; queda guardado local', e2);
-      toast('Contratista guardado localmente; falta tabla en Supabase','er');
-    }
-  }
+  if (last) await sbUpsertItem('proveedores', last);
 }
 
 function updNav(){document.getElementById('cnt').textContent=DB.length;document.getElementById('poCnt').textContent=Object.keys(ME2N).length;document.getElementById('provCnt').textContent=PROV_DB.length;}
@@ -783,7 +751,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Contratista</button></div>';renderProv();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';renderProv();}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -963,7 +931,28 @@ function purgeDB(){
 // DETAIL
 
 
-function renderTarSection(c){return `<div id="tarContainer"></div>`;}
+function renderTarSection(c){
+  const tars=(c.tarifarios||[]);
+  if(!tars.length){
+    return `<div class="empty"><div class="ei">📋</div><p>Sin listas de precios registradas</p></div>`;
+  }
+  let tabs='';
+  tars.forEach((t,idx)=>{
+    const label = `${esc(t.name||('Tabla '+(idx+1)))}${t.enmNum?` · Enm.${t.enmNum}`:''}${t.period?` · ${formatMonth(t.period)}`:''}`;
+    tabs += `<div class="tar-tab ${idx===0?'act':''}" data-i="${idx}" onclick="showTarTab(${idx})">${label}</div>`;
+  });
+  let panes='';
+  tars.forEach((t,idx)=>{
+    const cols=t.cols||[]; const rows=t.rows||[];
+    const th = cols.map(c=>`<th>${esc(c)}</th>`).join('');
+    const body = rows.length ? rows.map(r=>`<tr>${cols.map((_,ci)=>`<td>${esc(r[ci]??'')}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${Math.max(cols.length,1)}" style="text-align:center;color:var(--g500);padding:12px">Tabla vacía</td></tr>`;
+    panes += `<div class="tar-pane" id="tarPane_${idx}" style="display:${idx===0?'block':'none'}"><div class="tar-wrap"><div class="tar-actions"><span class="tar-period-tag">${esc(t.name||'Tabla')}</span>${t.enmNum?`<span class="tar-period-tag neutral">Enm.${t.enmNum}</span>`:''}${t.period?`<span class="tar-period-tag neutral">${formatMonth(t.period)}</span>`:''}${t.sourceTableName?`<span class="tar-period-tag neutral">Base: ${esc(t.sourceTableName)}</span>`:''}</div><div class="tar-preview"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div></div></div>`;
+  });
+  return `<div class="tar-tabs">${tabs}</div>${panes}
+    <div style="margin-top:12px">
+      <button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button>
+    </div>`;
+}
 function showTarTab(i){ document.querySelectorAll('.tar-tab').forEach((e,idx)=>e.classList.toggle('act', idx===i)); document.querySelectorAll('.tar-pane').forEach((e,idx)=>e.style.display = idx===i?'block':'none'); }
 function renderDet(){
   try {
@@ -1057,7 +1046,6 @@ function renderDet(){
         </div>
       </div>
     </div>`;
-    try{ renderTarifario(); }catch(e){ console.error('renderTarifario error', e); }
   } catch(err) {
     console.error('renderDet error', err);
     document.getElementById('detCard').innerHTML = `<div class="card" style="padding:24px"><div style="background:#fde8ea;border:1px solid #dc3545;color:#dc3545;border-radius:8px;padding:16px;font-size:13px"><strong>⚠ Error al renderizar el detalle</strong><br>${esc(err.message||String(err))}</div></div>`;
@@ -1068,20 +1056,15 @@ function renderDet(){
 function getTar(){const c=DB.find(x=>x.id===detId);return c?.tarifarios||[];}
 async function setTar(t){const c=DB.find(x=>x.id===detId);if(c){c.tarifarios=t;c.updatedAt=new Date().toISOString();save();}}
 
-const TAR_STD_COLS=['N° Item','Descripción','Unidad','Precio'];
-function getDefaultTarBasePeriod(c){return c?.btar||c?.fechaIni?.substring(0,7)||new Date().toISOString().slice(0,7);}
-function openTarImportPicker(){const inp=document.getElementById('tarXlsIn');if(!inp){toast('No se encontró el selector de Excel','er');return;}inp.click();}
-function openTarAIImportPicker(){const inp=document.getElementById('tarAiXlsIn');if(!inp){toast('No se encontró el selector de Excel IA','er');return;}inp.click();}
-function saveTarifarios(){const c=DB.find(x=>x.id===detId);if(!c)return;c.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast('Tarifarios guardados','ok');}
-function hasTarHeaderLike(row){return (row||[]).some(v=>/item|n°|descripcion|detalle|unidad|u\/?m|um|precio|valor|tarifa/i.test(String(v||'')));}
-function createBaseTarTable(){const c=DB.find(x=>x.id===detId);if(!c)return;if(!c.tarifarios)c.tarifarios=[];const period=(prompt('Período base del tarifario (YYYY-MM):',getDefaultTarBasePeriod(c))||getDefaultTarBasePeriod(c)).trim();const name=(prompt('Nombre del tarifario base:','Tarifario Base '+period)||('Tarifario Base '+period)).trim();if(!name)return;c.tarifarios.push({name,period,isBase:true,sourceTableName:'COTIZACION_INICIAL',cols:[...TAR_STD_COLS],rows:[['','','','']]});c.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast('Tarifario base creado','ok');}
-function buildTarAISummaryFromWorkbook(wb){const isInteresting=v=>/tarif|precio|tarifa|item|descripcion|unidad|servicio|equipo|canon|m3|mensual|eventual|calc[aá]reo|provisi[oó]n|diurno|nocturno|vigencia/i.test(String(v||''));const blocks=[];wb.SheetNames.forEach(sn=>{const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}).map(r=>(Array.isArray(r)?r:[]).slice(0,10).map(v=>typeof v==='number'?String(v):String(v||'').replace(/\s+/g,' ').trim())).filter(r=>r.some(v=>v!==''));if(!rows.length)return;const keep=new Set();rows.forEach((r,idx)=>{if(idx<20||r.some(isInteresting)){for(let j=Math.max(0,idx-1);j<=Math.min(rows.length-1,idx+2);j++)keep.add(j);}});const selected=[...keep].sort((a,b)=>a-b).slice(0,140);const txt=selected.map(i=>rows[i].join('\t')).join('\n');blocks.push(`### HOJA: ${sn}\n${txt}`);});return blocks.join('\n\n').slice(0,120000);}
-function normalizeTarAIResult(aiObj, cc, defaultPeriod){const listas=Array.isArray(aiObj?.listas)?aiObj.listas:[];return listas.map((lp,idx)=>({name:String(lp.name||lp.nombre||('Lista IA '+(idx+1))).trim(),period:String(lp.periodo||lp.period||defaultPeriod||getDefaultTarBasePeriod(cc)).slice(0,7),isBase:lp.isBase!==false,sourceTableName:'IA_BASE_XLSX',aiExtracted:true,cols:[...TAR_STD_COLS],rows:(Array.isArray(lp.items)?lp.items:[]).map(it=>[String(it.item||it.codigo||''),String(it.descripcion||it.description||''),String(it.unidad||it.unit||''),it.precio!=null&&it.precio!==''?Number(String(it.precio).replace(/[^\d,.-]/g,'').replace(',', '.')):''])})).filter(t=>t.rows.length);}
-async function importTarExcelAI(input){const file=input.files[0]; if(!file) return; const cc=DB.find(x=>x.id===detId); if(!cc) return; try{toast('Analizando Excel con IA...','ok');const arr=await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsArrayBuffer(file);});const wb=XLSX.read(new Uint8Array(arr),{type:'array'});const workbookSummary=buildTarAISummaryFromWorkbook(wb);const defaultPeriod=getDefaultTarBasePeriod(cc);const prompt=`Sos un analista experto en contratos de petróleo y gas en Argentina. Recibís el contenido resumido de un Excel de cotización/tarifario base. Tu tarea es identificar SOLO las listas finales de precios y devolver ÚNICAMENTE un JSON válido, sin markdown, sin texto adicional.\n\nFormato de salida obligatorio:\n{\n  "listas": [\n    {\n      "name": "nombre corto de la lista",\n      "periodo": "YYYY-MM",\n      "isBase": true,\n      "items": [\n        {"item":"1.1","descripcion":"texto","unidad":"MES|DIA|M3|Por cada 10 km|UN","precio":123.45}\n      ]\n    }\n  ]\n}\n\nReglas:\n- Priorizá hojas y bloques tipo 'TARIFARIO FINAL', 'PLANILLA DE COTIZACION' o equivalentes finales.\n- Ignorá hojas auxiliares de cálculo: incidencias, prorrateo, comparativas, ingresos, ajuste, etc., salvo que ayuden a entender el tarifario final.\n- Si hay múltiples tablas dentro de una hoja (por ejemplo 'Servicio Básico Mensual', 'Equipos Eventuales con Operador', 'Servicio de Provisión de Calcáreo'), devolvelas como listas separadas.\n- Convertí el Excel al esquema del sistema: item / descripcion / unidad / precio.\n- Si un bloque tiene varias columnas de precio, generá múltiples ítems diferenciando la descripción.\n- Usá período ${defaultPeriod} salvo que el Excel muestre claramente otro período final.\n- No inventes ítems que no aparezcan en el Excel.\n- Si identificás una lista base contractual, marcala con isBase=true.\n\nContenido resumido del Excel:\n${workbookSummary}`;const response=await callGeminiForEnm([{text:prompt}]);if(!response||!response.ok){const errText=response?await response.text().catch(()=> ''):'';throw new Error(`Gemini/proxy error ${response?response.status:'N/A'} ${errText.slice(0,150)}`);}const data=await response.json();const parts=data?.candidates?.[0]?.content?.parts||[];const txt=parts.map(p=>p.text||'').join('\n').trim();const obj=extractJsonFromGeminiText(txt);const listas=normalizeTarAIResult(obj,cc,defaultPeriod);if(!listas.length) throw new Error('La IA no pudo identificar listas de precios válidas.');if(!cc.tarifarios) cc.tarifarios=[];cc.tarifarios.push(...listas);cc.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast(`IA importó ${listas.length} lista(s) de precios ✅`,'ok');}catch(err){console.error('importTarExcelAI',err);toast('No se pudo analizar el Excel con IA: '+(err.message||err),'er');}finally{input.value='';}}
 
-
-
-function addTarTable(){const c=DB.find(x=>x.id===detId);if(!c)return;if(!c.tarifarios)c.tarifarios=[];const period=(prompt('Período de esta lista (YYYY-MM):',_tarPeriod||getDefaultTarBasePeriod(c))||_tarPeriod||getDefaultTarBasePeriod(c)).trim();const name=prompt('Nombre de la lista:','Lista '+(getTar().length+1));if(!name)return;c.tarifarios.push({name,period,isBase:false,cols:[...TAR_STD_COLS],rows:[['','','','']]});_tarPeriod=period;_tarTab=0;setTar(c.tarifarios);renderTarifario();toast('Lista creada','ok');}
+function addTarTable(){
+  const c=DB.find(x=>x.id===detId);if(!c)return;
+  const name=prompt('Nombre de la tabla:','Tabla '+(getTar().length+1));if(!name)return;
+  if(!c.tarifarios)c.tarifarios=[];
+  c.tarifarios.push({name,cols:['N° Item','Descripción','Categoría','Unidad','Valor Unitario'],rows:[['','','','','']]});
+  _tarTab=c.tarifarios.length-1;
+  setTar(c.tarifarios);renderTarifario();toast('Tabla creada','ok');
+}
 
 function delTarTable(i){
   if(!confirm('¿Eliminar esta tabla del tarifario?'))return;
@@ -1121,7 +1104,35 @@ function editTarCell(ti,ri,ci,val){
   const tars=getTar();tars[ti].rows[ri][ci]=val;setTar(tars);
 }
 
-function importTarExcel(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=function(e){try{const data=new Uint8Array(e.target.result);const wb=XLSX.read(data,{type:'array'});const c=DB.find(x=>x.id===detId);if(!c)return;if(!c.tarifarios)c.tarifarios=[];const period=(prompt('Período aplicable del Excel (YYYY-MM):',_tarPeriod||getDefaultTarBasePeriod(c))||_tarPeriod||getDefaultTarBasePeriod(c)).trim();const isBase=confirm('¿Este Excel corresponde a la cotización inicial / tarifario base del contrato?');wb.SheetNames.forEach(sn=>{const ws=wb.Sheets[sn];const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!json.length)return;const first=(json[0]||[]).map(v=>String(v||'').trim());const useHeader=hasTarHeaderLike(first);let cols=useHeader?first:[...TAR_STD_COLS];let body=useHeader?json.slice(1):json;const rows=body.filter(r=>Array.isArray(r)&&r.some(v=>String(v??'').trim()!=='' )).map(r=>{const clean=r.map(v=>v!=null?v:'');if(useHeader){const row=[];for(let i=0;i<cols.length;i++)row.push(clean[i]??'');return row;}return [clean[0]??'', clean[1]??'', clean[2]??'', clean[3]??''];});c.tarifarios.push({name:sn,cols,rows,period,isBase,sourceTableName:isBase?'COTIZACION_INICIAL':'IMPORTADO_XLSX'});});c.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast('Excel importado — '+wb.SheetNames.length+' hoja(s)','ok');}catch(err){toast('Error leyendo Excel','er');console.error(err);}};reader.readAsArrayBuffer(file);input.value='';}
+function importTarExcel(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const c=DB.find(x=>x.id===detId);if(!c)return;
+      if(!c.tarifarios)c.tarifarios=[];
+      wb.SheetNames.forEach(sn=>{
+        const ws=wb.Sheets[sn];
+        const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(json.length<1)return;
+        // First row = headers
+        const cols=json[0].map(h=>String(h||'').trim()||'Col');
+        const rows=json.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>{
+          // Ensure each row has same number of cols
+          const row=[];for(let i=0;i<cols.length;i++)row.push(r[i]!=null?r[i]:'');return row;
+        });
+        c.tarifarios.push({name:sn,cols,rows});
+      });
+      _tarTab=Math.max(0,c.tarifarios.length-1);
+      setTar(c.tarifarios);renderTarifario();
+      toast('Excel importado — '+wb.SheetNames.length+' hoja(s)','ok');
+    }catch(err){toast('Error leyendo Excel','er');console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
 
 function togglePanel(id){document.getElementById(id).classList.toggle('vis');}
 
@@ -1658,7 +1669,7 @@ let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};
 function getTarPeriodValue(cc,t){return t?.period||cc?.btar||cc?.fechaIni?.substring(0,7)||'';}
 function getTarEnmLabel(cc,enmNum){if(!enmNum)return 'Base contractual';const enm=(cc.enmiendas||[]).find(e=>e.num===enmNum);if(!enm)return 'Enm.N°'+enmNum;const tipo=enm.tipo==='ACTUALIZACION_TARIFAS'?'Actualización de Tarifas':enm.tipo==='EXTENSION'?'Extensión':enm.tipo==='SCOPE'?'Scope':enm.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return 'Enm.N°'+enmNum+' · '+tipo;}
 function setTarPeriod(period){_tarPeriod=period;_tarTab=0;renderTarifario();}
-function renderTarifario(){const box=document.getElementById('tarContainer');if(!box)return;const cc=DB.find(x=>x.id===detId);if(!cc)return;const raw=getTar();const actions=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Crear tarifario base</button><button class="btn btn-s btn-sm" onclick="openTarImportPicker()">📥 Importar Excel</button><button class="btn btn-a btn-sm" onclick="openTarAIImportPicker()">🧠 Agregar lista con IA</button><button class="btn btn-g btn-sm" onclick="saveTarifarios()">💾 Guardar cambios</button><button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button><input type="file" id="tarXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcel(this)"><input type="file" id="tarAiXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcelAI(this)"></div>`;if(!raw.length){box.innerHTML=actions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin listas de precios registradas</p><p style="font-size:12px;color:var(--g500);margin-top:8px">Cargá el Excel inicial de cotización del contrato, analizalo con IA o creá el tarifario base de forma manual.</p></div>';return;}const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;const visible=all.filter(t=>t._period===_tarPeriod);if(!visible.length){box.innerHTML=actions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';let h=actions;h+='<div class="tar-period-nav">';periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});h+='</div>';h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Contrato: ${esc(cc.num||'')}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'lista':'listas'}</span></div>`;h+='<div class="tar-tabs">';visible.forEach((tab,vi)=>{const label=`${esc(tab.name||('Lista '+(vi+1)))}${tab.isBase?' · BASE':''}${tab.aiExtracted?' · IA':''}`;h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${label}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';let rows=[...(t.rows||[])];if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';(t.cols||[]).forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';rows.forEach((row,ri)=>{const origRi=(t.rows||[]).indexOf(row);h+='<tr>';(t.cols||[]).forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});h+='</tbody></table></div>';h+=`<div class="tar-actions"><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Ítem / fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar lista</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems editables · guardado automático al editar</span></div></div>`;box.innerHTML=h;}
+function renderTarifario(){const box=document.getElementById('tarContainer');if(!box)return;const cc=DB.find(x=>x.id===detId);if(!cc)return;const raw=getTar();if(!raw.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tarifario. Importá un Excel o creá una tabla.</p></div>';return;}const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;const visible=all.filter(t=>t._period===_tarPeriod);if(!visible.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];const enmLabel=enmNums.length===1?getTarEnmLabel(cc,enmNums[0]):enmNums.length>1?'Múltiples enmiendas':'Base contractual';const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';let h='<div class="tar-period-nav">';periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});h+='</div>';h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Origen: ${enmLabel}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span></div>`;h+='<div class="tar-tabs">';visible.forEach((tab,vi)=>{h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';if(t&&t.cols&&t.rows){let rows=[...t.rows];if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';t.cols.forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';rows.forEach((row,ri)=>{const origRi=t.rows.indexOf(row);h+='<tr>';t.cols.forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});h+='</tbody></table></div>';h+=`<div class="tar-actions"><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems</span></div></div>`;}box.innerHTML=h;}
 function switchTarTab(i){_tarTab=i;renderTarifario();}
 function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_tarSort.dir=1;}renderTarifario();}
 
@@ -1667,47 +1678,47 @@ function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_t
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── Definición estática de índices del sistema ─────────────────────────
-const AUTO_IDX_DAY = 15;
 const IDX_CATALOG = [
-  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',  cat:'ipc',  catLabel:'IPC', src:'INDEC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.indec.gob.ar/indec/web/Calendario-Fecha-0', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',       cat:'ipc',  catLabel:'IPC', src:'INDEC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.indec.gob.ar/', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)', cat:'ipc',  catLabel:'IPC', src:'INDEC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.indec.gob.ar/', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipc_nqn',   name:'IPC Neuquén (Nivel General)',   cat:'ipc',  catLabel:'IPC', src:'DPEyC Neuquén', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.estadisticaneuquen.gob.ar/', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipc_nqnab', name:'IPC Neuquén (Alim. y Bebidas)', cat:'ipc',  catLabel:'IPC', src:'DPEyC Neuquén', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.estadisticaneuquen.gob.ar/', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipim_gral', name:'IPIM (Nivel General)',          cat:'ipim', catLabel:'IPIM', src:'INDEC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-32', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)', cat:'ipim', catLabel:'IPIM', src:'INDEC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-32', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'fadeaac',   name:'FADEEAC (Equipo Vial)',         cat:'ipim', catLabel:'FADEEAC', src:'FADEEAC', sourceKind:'official', searchMode:'ai_search', metric:'pct', officialUrl:'https://www.fadeeac.org.ar/estudios-economicos-y-costos/', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',       cat:'fuel', catLabel:'Combustible', src:'YPF', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'https://www.ypf.com', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',       cat:'fuel', catLabel:'Combustible', src:'YPF', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'https://www.ypf.com', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'usd_div',   name:'USD Divisa Vendedor BNA',       cat:'usd',  catLabel:'USD', src:'BNA', sourceKind:'official', searchMode:'ai_search', metric:'value', officialUrl:'https://www.bna.com.ar/', targetRule:'last_business_day_previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'usd_bill',  name:'USD Billete Vendedor BNA',      cat:'usd',  catLabel:'USD', src:'BNA', sourceKind:'official', searchMode:'ai_search', metric:'value', officialUrl:'https://www.bna.com.ar/', targetRule:'last_business_day_previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',   cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)',cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_uocra',  name:'UOCRA (Construcción General)',   cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°76/75',  src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_uocrayac',name:'UOCRA Yacimiento',              cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°1024/16',src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_com',    name:'Comercio (FAECYS)',              cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°130/75', src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_cam',    name:'Camioneros (FCTA)',              cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°40/89',  src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_uom10',  name:'UOM Rama N°10',                  cat:'mo',  catLabel:'Mano de Obra', cct:'UOM R°10',     src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY},
-  {id:'mo_uom17',  name:'UOM Rama N°17',                  cat:'mo',  catLabel:'Mano de Obra', cct:'UOM R°17',     src:'RRLL', sourceKind:'guided', searchMode:'manual_guided', metric:'pct', officialUrl:'', targetRule:'previous_month', expectedDay:AUTO_IDX_DAY}
+  // ── IPC ──────────────────────────────────────────────────────────
+  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  // ── IPIM ─────────────────────────────────────────────────────────
+  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
+  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice'},
+  // ── Combustible ─────────────────────────────────────────────────
+  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com'},
+  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com'},
+  // ── USD / Tipo de Cambio ─────────────────────────────────────────
+  {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp'},
+  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp'},
+  // ── Mano de Obra — CCT ──────────────────────────────────────────
+  {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', srcLink:''},
+  {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo', catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', srcLink:''},
+  {id:'mo_uocra',  name:'UOCRA (Construcción General)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°76/75',  src:'RRLL', srcLink:''},
+  {id:'mo_uocrayac',name:'UOCRA Yacimiento',               cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°1024/16',src:'RRLL', srcLink:''},
+  {id:'mo_com',    name:'Comercio (FAECYS)',               cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°130/75', src:'RRLL', srcLink:''},
+  {id:'mo_cam',    name:'Camioneros (FCTA)',               cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°40/89',  src:'RRLL', srcLink:''},
+  {id:'mo_uom10',  name:'UOM Rama N°10',                   cat:'mo',  catLabel:'Mano de Obra', cct:'UOM R°10',     src:'RRLL', srcLink:''},
+  {id:'mo_uom17',  name:'UOM Rama N°17',                   cat:'mo',  catLabel:'Mano de Obra', cct:'UOM R°17',     src:'RRLL', srcLink:''},
 ];
 
+// ── Paleta por categoría ───────────────────────────────────────────────
 const CAT_CSS = {mo:'mo-c',ipc:'ipc-c',ipim:'ipim-c',fuel:'fuel-c',usd:'usd-c'};
 const CAT_PILL = {mo:'mo',ipc:'ipc',ipim:'ipim',fuel:'fuel',usd:'usd'};
 
 // ── Storage ────────────────────────────────────────────────────────────
 // IDX_STORE = { [idxId]: { rows:[{ym,pct,confirmed,note,files:[{name,data}]}] } }
-let IDX_STORE = {__sys:{lastBulkRunAt:null,lastBulkRunMode:null,lastBulkRunStatus:null,lastAutoRunDate:null}};
-function normalizeIdxStore(){if(!IDX_STORE||typeof IDX_STORE!=='object')IDX_STORE={};if(!IDX_STORE.__sys||typeof IDX_STORE.__sys!=='object')IDX_STORE.__sys={lastBulkRunAt:null,lastBulkRunMode:null,lastBulkRunStatus:null,lastAutoRunDate:null};IDX_CATALOG.forEach(def=>{if(!IDX_STORE[def.id]||typeof IDX_STORE[def.id]!=='object')IDX_STORE[def.id]={rows:[],meta:{}};if(!Array.isArray(IDX_STORE[def.id].rows))IDX_STORE[def.id].rows=[];if(!IDX_STORE[def.id].meta||typeof IDX_STORE[def.id].meta!=='object')IDX_STORE[def.id].meta={};});}
-function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};}normalizeIdxStore();}
-function saveIdx(){normalizeIdxStore();localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
+let IDX_STORE = {};
+function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};}}
+function saveIdx(){localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
 (function(){loadIdx();})();
-function idxRows(id){normalizeIdxStore();return (IDX_STORE[id]||{}).rows||[];}
-function idxMeta(id){normalizeIdxStore();return (IDX_STORE[id]||{}).meta||{};}
+
+function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
-function idxSys(){normalizeIdxStore();return IDX_STORE.__sys;}
-function setIdxMeta(id,patch){normalizeIdxStore();IDX_STORE[id].meta={...IDX_STORE[id].meta,...patch};saveIdx();}
-function setIdxSys(patch){normalizeIdxStore();IDX_STORE.__sys={...IDX_STORE.__sys,...patch};saveIdx();}
-function upsertIdxRow(id,row){normalizeIdxStore();const rows=IDX_STORE[id].rows||[];const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym||'').localeCompare(String(b.ym||'')));IDX_STORE[id].rows=rows;IDX_STORE[id].meta={...IDX_STORE[id].meta,lastUpdatedYm:merged.ym,lastUpdatedAt:merged.updatedAt||new Date().toISOString(),lastStatus:merged.status||'updated'};saveIdx();return merged;}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 function pctColor(v){return v===null||v===undefined?'zero':v>0?'pos':v<0?'neg':'zero';}
@@ -1718,28 +1729,120 @@ function acumCompound(rows){return rows.reduce((prod,r)=>prod*(1+(r.pct||0)/100)
 let _idxSel = null;   // currently open detail
 let _idxEntryId = null; // entry modal target
 
-let _idxAutoRunning = false;
-function idxTargetYm(def, now=new Date()){if(def?.targetRule==='last_business_day_previous_month'||def?.targetRule==='previous_month'){return new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().substring(0,7);}return new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().substring(0,7);}
-function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m) return null; return new Date(y,m-2,1).toISOString().substring(0,7);}
-function idxLastBusinessDayOfPreviousMonth(base=new Date()){let d=new Date(base.getFullYear(), base.getMonth(), 0); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1); return d.toISOString().substring(0,10);}
-function idxDisplayValue(def,row){if(!row) return '—'; if(def.metric==='value') return row.value!=null ? fN(row.value) : '—'; return pctStr(row.pct);}
-function idxStatusLabel(meta,targetYm){if(!meta||!meta.lastStatus) return 'Sin ejecutar'; if(meta.lastStatus==='updated'&&meta.lastUpdatedYm===targetYm) return 'Actualizado'; if(meta.lastStatus==='waiting_release') return 'Esperando publicación'; if(meta.lastStatus==='needs_guidance') return 'Requiere guía'; if(meta.lastStatus==='error') return 'Error'; if(meta.lastStatus==='running') return 'Procesando'; return meta.lastStatus;}
-function idxCanAutoRunToday(){const now=new Date(); if(now.getDate()<AUTO_IDX_DAY) return false; const today=now.toISOString().substring(0,10); const sys=idxSys(); return sys.lastAutoRunDate!==today;}
-async function maybeAutoRunIdxUpdates(){if(_idxAutoRunning||!idxCanAutoRunToday()) return; _idxAutoRunning=true; try{await runAllIdxUpdates('auto');}finally{_idxAutoRunning=false;}}
-function idxBuildPrompt(def,targetYm,mode='manual'){const targetDate = def.targetRule==='last_business_day_previous_month' ? idxLastBusinessDayOfPreviousMonth(new Date()) : targetYm+' (mes calendario)'; return `Sos un agente extractor de índices económicos de Argentina. Necesito el valor oficial más reciente para el índice "${def.name}" (id: ${def.id}) correspondiente al período objetivo ${targetYm}.\n\nReglas de extracción:\n- Fuente oficial primaria: ${def.officialUrl||'sin URL'}\n- Organismo/fuente: ${def.src}\n- Tipo de métrica esperada: ${def.metric==='value'?'valor absoluto':'variación porcentual mensual'}\n- Si ${def.id} es USD, usar cotización vendedor BNA del último día hábil del mes anterior: ${targetDate}.\n- Si el dato todavía no fue publicado, devolver status=waiting_release.\n- Si la fuente no es accesible o no estás seguro, devolver status=needs_guidance.\n- No inventes datos.\n\nDevolvé ÚNICAMENTE JSON válido con este esquema:\n{\n  "status": "updated" | "waiting_release" | "needs_guidance" | "error",\n  "ym": "${targetYm}",\n  "value": número o null,\n  "pct": número o null,\n  "publishedAt": "YYYY-MM-DD" o null,\n  "sourceUrl": "url" o null,\n  "evidence": "texto corto con evidencia",\n  "confidence": número entre 0 y 1 o null,\n  "message": "texto breve"\n}`;}
-async function resolveIdxViaAI(def,targetYm,mode='manual'){if(typeof callGeminiForEnm!=='function') throw new Error('Gemini proxy no disponible');const response=await callGeminiForEnm([{text: idxBuildPrompt(def,targetYm,mode)}]);if(!response||!response.ok){const errText=response?await response.text().catch(()=> ''):'';throw new Error(`Gemini/proxy error ${response?response.status:'N/A'} ${String(errText).slice(0,140)}`);}const data=await response.json();const parts=data?.candidates?.[0]?.content?.parts||[];const txt=parts.map(p=>p.text||'').join('\n').trim();return extractJsonFromGeminiText(txt);}
-async function runIdxUpdate(id,mode='manual'){const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return; const targetYm=idxTargetYm(def); setIdxMeta(id,{lastRunAt:new Date().toISOString(),lastRunMode:mode,lastTargetYm:targetYm,lastStatus:'running',lastMessage:'Buscando dato…'}); try{if(def.searchMode==='manual_guided'){setIdxMeta(id,{lastStatus:'needs_guidance',lastMessage:'Índice con resolución guiada / manual'});renderIdxView();return;}const rs=await resolveIdxViaAI(def,targetYm,mode);const result={status:rs?.status||'needs_guidance',ym:rs?.ym||targetYm,pct:rs?.pct!=null?Number(rs.pct):null,value:rs?.value!=null?Number(rs.value):null,publishedAt:rs?.publishedAt||null,sourceUrl:rs?.sourceUrl||def.officialUrl||'',evidence:rs?.evidence||'',confidence:rs?.confidence!=null?Number(rs.confidence):null,message:rs?.message||''};if(result.status==='updated'){if(result.pct==null&&result.value!=null){const prev=idxRows(id).find(r=>r.ym===idxPrevYm(result.ym));if(prev?.value){result.pct=((result.value/prev.value)-1)*100;}}upsertIdxRow(id,{ym:result.ym,pct:result.pct,value:result.value,confirmed:false,updatedAt:new Date().toISOString(),publishedAt:result.publishedAt,runType:mode,status:'updated',source:def.src,sourceUrl:result.sourceUrl,evidence:result.evidence,confidence:result.confidence,files:[]});setIdxMeta(id,{lastRunAt:new Date().toISOString(),lastRunMode:mode,lastTargetYm:targetYm,lastStatus:'updated',lastMessage:result.message||'Actualizado',lastUpdatedYm:result.ym,lastUpdatedAt:new Date().toISOString()});toast(`${def.name} actualizado`,'ok');}else{setIdxMeta(id,{lastRunAt:new Date().toISOString(),lastRunMode:mode,lastTargetYm:targetYm,lastStatus:result.status,lastMessage:result.message||result.evidence||'Sin dato publicado todavía'});toast(`${def.name}: ${result.message||idxStatusLabel({lastStatus:result.status},targetYm)}`, result.status==='waiting_release'?'ok':'er');}}catch(err){console.error('runIdxUpdate',id,err);setIdxMeta(id,{lastRunAt:new Date().toISOString(),lastRunMode:mode,lastTargetYm:targetYm,lastStatus:'error',lastMessage:err.message||String(err)});toast(`Error actualizando ${def.name}`,'er');}renderIdxView();}
-async function runAllIdxUpdates(mode='manual'){const targetYm=new Date(new Date().getFullYear(), new Date().getMonth()-1, 1).toISOString().substring(0,7);setIdxSys({lastBulkRunAt:new Date().toISOString(),lastBulkRunMode:mode,lastBulkRunStatus:'running'});const defs=IDX_CATALOG.filter(d=>d.cat!=='mo');for(const def of defs){const meta=idxMeta(def.id);if(mode==='auto'&&meta.lastUpdatedYm===targetYm) continue;await runIdxUpdate(def.id,mode);}setIdxSys({lastBulkRunAt:new Date().toISOString(),lastBulkRunMode:mode,lastBulkRunStatus:'done',lastAutoRunDate:mode==='auto'?new Date().toISOString().substring(0,10):idxSys().lastAutoRunDate});renderIdxView();}
-function decorateIdxDet(id){const box=document.getElementById('idxDetPanel'); if(!box) return; if(box.querySelector('.idx-auto-head')) return; const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return; const targetYm=idxTargetYm(def), meta=idxMeta(id); const top=document.createElement('div'); top.className='idx-auto-head'; top.style.cssText='display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:12px 14px;border:1px solid var(--g200);border-radius:12px;background:#f8fafc'; top.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;flex:1;min-width:420px"><div><div style="font-size:10px;text-transform:uppercase;color:var(--g500);font-weight:800">Mes objetivo</div><div style="font-size:13px;font-weight:700">${formatMonth(targetYm)}</div></div><div><div style="font-size:10px;text-transform:uppercase;color:var(--g500);font-weight:800">Último mes cargado</div><div style="font-size:13px;font-weight:700">${meta.lastUpdatedYm?formatMonth(meta.lastUpdatedYm):'—'}</div></div><div><div style="font-size:10px;text-transform:uppercase;color:var(--g500);font-weight:800">Última ejecución</div><div style="font-size:13px;font-weight:700">${meta.lastRunAt?new Date(meta.lastRunAt).toLocaleString('es-AR'):'—'}</div></div><div><div style="font-size:10px;text-transform:uppercase;color:var(--g500);font-weight:800">Estado</div><div style="font-size:13px;font-weight:700">${idxStatusLabel(meta,targetYm)}</div></div></div><div style="display:flex;gap:8px;align-items:center"><button class="btn btn-p btn-sm" onclick="runIdxUpdate('${id}','manual')">🔄 Actualizar</button>${def.officialUrl?`<a class="btn btn-s btn-sm" href="${def.officialUrl}" target="_blank" rel="noopener noreferrer">🔗 Fuente</a>`:''}</div>`; box.prepend(top);}
-
 // ═══════════════════════════════════════════════════════════════════════
 //  MAIN RENDER
 // ═══════════════════════════════════════════════════════════════════════
-function renderIdxView(){loadIdx();renderIdxDash();if(_idxSel){document.getElementById('idxDetPanel').style.display='';document.getElementById('idxCardsGrid').style.display='none';renderIdxDet(_idxSel);decorateIdxDet(_idxSel);}else{document.getElementById('idxDetPanel').style.display='none';document.getElementById('idxCardsGrid').style.display='';renderIdxCards();}maybeAutoRunIdxUpdates();}
+function renderIdxView(){
+  loadIdx();
+  renderIdxDash();
+  if(_idxSel){
+    document.getElementById('idxDetPanel').style.display='';
+    document.getElementById('idxCardsGrid').style.display='none';
+    renderIdxDet(_idxSel);
+  } else {
+    document.getElementById('idxDetPanel').style.display='none';
+    document.getElementById('idxCardsGrid').style.display='';
+    renderIdxCards();
+  }
+}
 
 // ── Top KPI row ────────────────────────────────────────────────────────
-function renderIdxDash(){const box=document.getElementById('idxDashTop');if(!box)return;const totalIdx=IDX_CATALOG.length;const now=new Date();const ymTarget=(new Date(now.getFullYear(),now.getMonth()-1,1)).toISOString().substring(0,7);let upToDate=0,pending=0,needsGuide=0,withHistory=0;IDX_CATALOG.forEach(def=>{const rows=idxRows(def.id),meta=idxMeta(def.id);if(rows.length)withHistory++;if(meta.lastUpdatedYm===ymTarget)upToDate++;else if(meta.lastStatus==='needs_guidance')needsGuide++;else pending++;});const sys=idxSys();box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Búsqueda automática desde el día <strong>${AUTO_IDX_DAY}</strong> · mes objetivo: <strong>${formatMonth(ymTarget)}</strong> · actualización manual disponible</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--g500)">Última corrida general: <strong>${sys.lastBulkRunAt?new Date(sys.lastBulkRunAt).toLocaleString('es-AR'):'—'}</strong></span><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates('manual')">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withHistory} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(ymTarget)}</div><div class="kv" style="color:var(--g600)">${upToDate}</div><div class="ks">${Math.round((upToDate/Math.max(totalIdx,1))*100)}% del catálogo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del mes objetivo</div></div><div class="idx-kpi-box" style="border-color:${needsGuide>0?'#d97706':'var(--b500)'}"><div class="kl">🧭 Requieren guía</div><div class="kv" style="color:${needsGuide>0?'#d97706':'var(--b500)'}">${needsGuide}</div><div class="ks">índices de resolución asistida</div></div></div>`;}
-function renderIdxCards(){const box=document.getElementById('idxCardsGrid');if(!box)return;const cats=['ipc','ipim','fuel','usd','mo'];const catLabel={ipc:'IPC — Índice de Precios al Consumidor',ipim:'IPIM / FADEEAC — Índice de Precios Internos Mayoristas',fuel:'Combustible',usd:'USD / Tipo de Cambio',mo:'Mano de Obra — CCT'};let h='';cats.forEach(cat=>{const defs=IDX_CATALOG.filter(d=>d.cat===cat);h+=`<div style="margin-bottom:22px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}</div><div class="idx-cards">`;defs.forEach(def=>{const rows=idxRows(def.id),meta=idxMeta(def.id),last=idxLastRow(def.id),targetYm=idxTargetYm(def);const spark8=rows.slice(-8);const maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);const sparkH=spark8.map(r=>{const pct=r.pct||0;const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2);return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`;}).join('');h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(targetYm)} · Últ. actualización: ${meta.lastRunAt?new Date(meta.lastRunAt).toLocaleDateString('es-AR'):'—'}</div></div><span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span></div><div class="idx-c-kpi"><span class="big ${pctColor(last?.pct??null)}">${idxDisplayValue(def,last)}</span><span class="period">${meta.lastUpdatedYm?formatMonth(meta.lastUpdatedYm):'sin datos'}</span>${meta.lastUpdatedYm===targetYm?'<span style="font-size:13px" title="Actualizado">✅</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px"><div style="font-size:10px;color:var(--g500)">Estado: <strong>${idxStatusLabel(meta,targetYm)}</strong></div><button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}','manual')">🔄 Actualizar</button></div></div></div>`;});h+='</div></div>';});box.innerHTML=h;}
+function renderIdxDash(){
+  const box=document.getElementById('idxDashTop');if(!box)return;
+  const totalIdx=IDX_CATALOG.length;
+  const now=new Date();
+  const ymN1=(new Date(now.getFullYear(),now.getMonth()-1,1)).toISOString().substring(0,7);
+  const ymN2=(new Date(now.getFullYear(),now.getMonth()-2,1)).toISOString().substring(0,7);
+  let withDataN1=0,confN1=0,withDataN2=0,confN2=0,totalWithAny=0;
+  IDX_CATALOG.forEach(def=>{
+    const rows=idxRows(def.id);
+    if(rows.length)totalWithAny++;
+    const rN1=rows.find(r=>r.ym===ymN1);
+    const rN2=rows.find(r=>r.ym===ymN2);
+    if(rN1){withDataN1++;if(rN1.confirmed)confN1++;}
+    if(rN2){withDataN2++;if(rN2.confirmed)confN2++;}
+  });
+  const pendN1=totalIdx-withDataN1;
+  const pctN1=totalIdx>0?Math.round(withDataN1/totalIdx*100):0;
+  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2>
+      <p style="font-size:12px;color:var(--g500);margin-top:2px">Carga manual mes a mes · ${totalIdx} índices · Período vigente esperado: <strong>${formatMonth(ymN1)}</strong></p>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button>
+  </div>
+  <div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="idx-kpi-box">
+      <div class="kl">Total índices</div>
+      <div class="kv">${totalIdx}</div>
+      <div class="ks">${totalWithAny} con algún dato histórico</div>
+    </div>
+    <div class="idx-kpi-box" style="border-color:var(--g600)">
+      <div class="kl">✅ Vigentes ${formatMonth(ymN1)} <span style="font-size:9px;opacity:.6">(N-1)</span></div>
+      <div class="kv" style="color:var(--g600)">${withDataN1} / ${totalIdx}</div>
+      <div class="ks" style="display:flex;align-items:center;gap:6px">
+        <div style="flex:1;height:6px;background:var(--g200);border-radius:99px;overflow:hidden"><div style="height:100%;border-radius:99px;background:var(--g600);width:${pctN1}%"></div></div>
+        <span>${pctN1}%</span>
+      </div>
+    </div>
+    <div class="idx-kpi-box" style="border-color:${pendN1>0?'var(--r500)':'var(--g600)'}">
+      <div class="kl" style="color:${pendN1>0?'var(--r500)':'inherit'}">⏳ Pendientes ${formatMonth(ymN1)}</div>
+      <div class="kv" style="color:${pendN1>0?'var(--r500)':'var(--g600)'}">${pendN1}</div>
+      <div class="ks">${pendN1>0?'índices sin cargar':'¡Todos al día! 🎉'}</div>
+    </div>
+    <div class="idx-kpi-box" style="border-color:var(--b500)">
+      <div class="kl">Confirmados ${formatMonth(ymN2)} <span style="font-size:9px;opacity:.6">(N-2)</span></div>
+      <div class="kv" style="color:var(--b500)">${confN2} / ${withDataN2}</div>
+      <div class="ks">${withDataN2-confN2>0?(withDataN2-confN2)+' sin confirmar':withDataN2>0?'Todos confirmados':'Sin datos de N-2'}</div>
+    </div>
+  </div>`;
+}
+function renderIdxCards(){
+  const box=document.getElementById('idxCardsGrid');if(!box)return;
+  const cats=['ipc','ipim','fuel','usd','mo'];
+  const catLabel={ipc:'IPC — Índice de Precios al Consumidor',ipim:'IPIM / FADEAAC — Índice de Precios Internos Mayoristas',fuel:'Combustible',usd:'USD / Tipo de Cambio',mo:'Mano de Obra — CCT'};
+  let h='';
+  cats.forEach(cat=>{
+    const defs=IDX_CATALOG.filter(d=>d.cat===cat);
+    h+=`<div style="margin-bottom:22px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>
+        ${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}
+      </div>
+      <div class="idx-cards">`;
+    defs.forEach(def=>{
+      const rows=idxRows(def.id);
+      const last=rows.length?rows[rows.length-1]:null;
+      const lastPct=last?.pct??null;
+      const lastYm=last?.ym||'';
+      const lastConf=last?.confirmed;
+      // sparkline: last 8
+      const spark8=rows.slice(-8);
+      const maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
+      const sparkH=spark8.map(r=>{
+        const pct=r.pct||0;const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2);
+        return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`;
+      }).join('');
+      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')">
+        <div class="idx-c-top ${CAT_CSS[cat]}"></div>
+        <div class="idx-c-body">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
+            <div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}</div>
+            <span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span>
+          </div>
+          <div class="idx-c-kpi">
+            <span class="big ${pctColor(lastPct)}">${pctStr(lastPct)}</span>
+            <span class="period">${lastYm?formatMonth(lastYm):'sin datos'}</span>
+            ${lastConf?'<span style="font-size:13px" title="Confirmado">✅</span>':''}
+          </div>
+          ${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}
+        </div>
+      </div>`;
+    });
+    h+='</div></div>';
+  });
+  box.innerHTML=h;
+}
 
 // ── Open detail ────────────────────────────────────────────────────────
 function openIdxDet(id){
@@ -2591,29 +2694,6 @@ function updNavProv(){
   if(el)el.textContent=PROV_DB.length;
 }
 
-function exportContratistasCSV(){
-  const rows=(PROV_DB||[]).map(p=>({
-    id:p.id||'',
-    razon_social:p.name||'',
-    vendor_sap:p.vendorNum||'',
-    rubro:p.rubro||'',
-    website:p.website||'',
-    observaciones:(p.obs||'').replace(/\n/g,' '),
-    contactos:(p.contacts||[]).map(c=>[c.name,c.role,c.email,c.phone].filter(Boolean).join(' / ')).join(' | '),
-    brochure:p.brochure?.name||''
-  }));
-  if(!rows.length){toast('Sin contratistas para exportar','er');return;}
-  const cols=Object.keys(rows[0]);
-  const escCsv=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const csv=[cols.join(',')].concat(rows.map(r=>cols.map(c=>escCsv(r[c])).join(','))).join('\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='contratistas.csv';
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),500);
-}
-
 // ── List ─────────────────────────────────────────────────────────────────
 let _provDet=null,_provSrch='';
 
@@ -2636,17 +2716,16 @@ function renderProvList(){
   const arr=PROV_DB.filter(p=>!srch||(p.name||'').toLowerCase().includes(srch)||(p.vendorNum||'').includes(srch)||(p.rubro||'').toLowerCase().includes(srch));
   
   let h=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-    <input type="text" placeholder="Buscar contratista, N° vendor, rubro..." value="${esc(_provSrch)}" oninput="_provSrch=this.value;renderProvList()" style="flex:1;max-width:320px;font-size:13px">
-    <span style="font-size:12px;color:var(--g500)">${arr.length} de ${PROV_DB.length} contratistas</span>
+    <input type="text" placeholder="Buscar proveedor, N° vendor, rubro..." value="${esc(_provSrch)}" oninput="_provSrch=this.value;renderProvList()" style="flex:1;max-width:320px;font-size:13px">
+    <span style="font-size:12px;color:var(--g500)">${arr.length} de ${PROV_DB.length} proveedores</span>
     <button class="btn btn-s btn-sm" onclick="importProvModal()">📥 Importar SAP</button>
-    <button class="btn btn-s btn-sm" onclick="exportContratistasCSV()">📤 Exportar CSV</button>
   </div>`;
 
   if(!arr.length){
     h+=`<div style="text-align:center;padding:60px 20px;color:var(--g500)">
       <div style="font-size:40px;margin-bottom:12px">🏢</div>
-      <p style="font-size:14px;font-weight:600;margin-bottom:6px">${PROV_DB.length?'Sin resultados':'Sin contratistas'}</p>
-      <p style="font-size:12px;margin-bottom:20px">${PROV_DB.length?'Probá con otra búsqueda.':'Importá el listado de SAP o agregá contratistas manualmente.'}</p>
+      <p style="font-size:14px;font-weight:600;margin-bottom:6px">${PROV_DB.length?'Sin resultados':'Sin proveedores'}</p>
+      <p style="font-size:12px;margin-bottom:20px">${PROV_DB.length?'Probá con otra búsqueda.':'Importá el listado de SAP o agregá manualmente.'}</p>
       ${!PROV_DB.length?`<div style="display:flex;gap:10px;justify-content:center"><button class="btn btn-s" onclick="importProvModal()">📥 Importar de SAP</button><button class="btn btn-p" onclick="openProvModal(null)">➕ Nuevo manualmente</button></div>`:''}
     </div>`;
     box.innerHTML=h;return;
@@ -2774,7 +2853,7 @@ function openProvModal(id){
     <div class="idx-modal-body">
       <div class="fg" style="margin-bottom:14px">
         <div class="fgrp c2"><label>Razón Social / Nombre <span class="req">*</span></label>
-          <input type="text" id="pm_name" value="${esc(p?.name||'')}" placeholder="Nombre del contratista" list="pm_sap_list">
+          <input type="text" id="pm_name" value="${esc(p?.name||'')}" placeholder="Nombre del proveedor" list="pm_sap_list">
           <datalist id="pm_sap_list">${SAP_VENDORS.slice(0,200).map(v=>`<option value="${esc(v.l)}" data-num="${esc(v.n)}">${esc(v.n)} — ${esc(v.l)}</option>`).join('')}</datalist>
         </div>
         <div class="fgrp"><label>N° Vendor SAP</label><input type="text" id="pm_vnum" value="${esc(p?.vendorNum||'')}" placeholder="Ej: 1021564"></div>
