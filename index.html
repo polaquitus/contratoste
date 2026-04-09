@@ -3226,12 +3226,37 @@ Criterios:
   const data = await response.json();
   console.log('Gemini raw:', JSON.stringify(data?.candidates?.[0]?.content?.parts?.[0]?.text?.slice(0,500)));
   const finishReason = data?.candidates?.[0]?.finishReason;
-  if (finishReason === 'MAX_TOKENS') throw new Error('Respuesta cortada (MAX_TOKENS). PDF muy grande o complejo.');
+  if (finishReason === 'MAX_TOKENS') throw new Error('PDF demasiado grande. Usá el archivo Word (.docx) en su lugar.');
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const txt = parts.map(p => p.text || '').join('\n').trim();
   console.log('Gemini text:', txt.slice(0, 300));
   return extractJsonFromGeminiText(txt);
 }
+
+function extractJsonFromGeminiText(text) {
+  if (!text) throw new Error('Gemini devolvió respuesta vacía');
+  let raw = String(text).trim()
+    .replace(/^```json/i,'').replace(/^```/i,'').replace(/```$/i,'').trim();
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Gemini no devolvió JSON válido');
+  let clean = match[0]
+    .replace(/,\s*}/g,'}').replace(/,\s*]/g,']')
+    .replace(/([{,]\s*)(\w+)\s*:/g,'$1"$2":')
+    .replace(/\n/g,' ').trim();
+  try { return JSON.parse(clean); }
+  catch(e) {
+    const tipo = raw.match(/"?tipo"?\s*:\s*"([^"]+)"/)?.[1] || 'OTRO';
+    const num = parseInt(raw.match(/"?num"?\s*:\s*(\d+)/)?.[1] || '0');
+    const fecha = raw.match(/"?fecha"?\s*:\s*"([^"]+)"/)?.[1] || '';
+    const descripcion = raw.match(/"?descripcion"?\s*:\s*"([^"]+)"/)?.[1] || 'Ver documento';
+    const fechaFinNueva = raw.match(/"?fechaFinNueva"?\s*:\s*"([^"]+)"/)?.[1] || null;
+    const fechasV = [...raw.matchAll(/"(\d{4}-\d{2}-\d{2})"/g)].map(m=>m[1]);
+    return { tipo, num, fecha, descripcion, fechaFinNueva, 
+             fechasVigencia: fechasV.length ? fechasV : null,
+             montoAjuste: null, pctAjuste: null, listasDePrecios: [] };
+  }
+}
+
 function renderImportedEnm(enm, fileName, idx) {
   const typeColors = {EXTENSION:'#dbeafe', ACTUALIZACION_TARIFAS:'#d1fae5', SCOPE:'#fef3cd', CLAUSULAS:'#f3e8ff', OTRO:'#f1f3f5'};
   const typeBadge = {EXTENSION:'🗓 Extensión', ACTUALIZACION_TARIFAS:'💰 Act. Tarifas', SCOPE:'📋 Scope', CLAUSULAS:'📄 Cláusulas', OTRO:'📎 Otro'};
