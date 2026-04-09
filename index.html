@@ -405,7 +405,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
   </nav>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos</h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v3 tarifarios visibles</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -933,12 +933,13 @@ function purgeDB(){
 
 function renderTarSection(c){
   const tars=(c.tarifarios||[]);
+  const actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Crear tarifario base</button><button class="btn btn-s btn-sm" onclick="openTarImportPicker()">📥 Importar Excel</button><button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button><input type="file" id="tarXlsIn" accept=".xlsx,.xls" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importTarExcel(this)"></div>`;
   if(!tars.length){
-    return `<div class="empty"><div class="ei">📋</div><p>Sin listas de precios registradas</p></div>`;
+    return `${actions}<div class="empty"><div class="ei">📋</div><p>Sin listas de precios registradas</p><p style="font-size:12px;color:var(--g500);margin-top:8px">Cargá el Excel inicial de cotización del contrato o creá el tarifario base de forma manual.</p></div>`;
   }
   let tabs='';
   tars.forEach((t,idx)=>{
-    const label = `${esc(t.name||('Tabla '+(idx+1)))}${t.enmNum?` · Enm.${t.enmNum}`:''}${t.period?` · ${formatMonth(t.period)}`:''}`;
+    const label = `${esc(t.name||('Tabla '+(idx+1)))}${t.enmNum?` · Enm.${t.enmNum}`:''}${t.period?` · ${formatMonth(t.period)}`:''}${t.isBase?' · BASE':''}`;
     tabs += `<div class="tar-tab ${idx===0?'act':''}" data-i="${idx}" onclick="showTarTab(${idx})">${label}</div>`;
   });
   let panes='';
@@ -946,12 +947,9 @@ function renderTarSection(c){
     const cols=t.cols||[]; const rows=t.rows||[];
     const th = cols.map(c=>`<th>${esc(c)}</th>`).join('');
     const body = rows.length ? rows.map(r=>`<tr>${cols.map((_,ci)=>`<td>${esc(r[ci]??'')}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${Math.max(cols.length,1)}" style="text-align:center;color:var(--g500);padding:12px">Tabla vacía</td></tr>`;
-    panes += `<div class="tar-pane" id="tarPane_${idx}" style="display:${idx===0?'block':'none'}"><div class="tar-wrap"><div class="tar-actions"><span class="tar-period-tag">${esc(t.name||'Tabla')}</span>${t.enmNum?`<span class="tar-period-tag neutral">Enm.${t.enmNum}</span>`:''}${t.period?`<span class="tar-period-tag neutral">${formatMonth(t.period)}</span>`:''}${t.sourceTableName?`<span class="tar-period-tag neutral">Base: ${esc(t.sourceTableName)}</span>`:''}</div><div class="tar-preview"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div></div></div>`;
+    panes += `<div class="tar-pane" id="tarPane_${idx}" style="display:${idx===0?'block':'none'}"><div class="tar-wrap"><div class="tar-actions"><span class="tar-period-tag">${esc(t.name||'Tabla')}</span>${t.isBase?`<span class="tar-period-tag">BASE</span>`:''}${t.enmNum?`<span class="tar-period-tag neutral">Enm.${t.enmNum}</span>`:''}${t.period?`<span class="tar-period-tag neutral">${formatMonth(t.period)}</span>`:''}${t.sourceTableName?`<span class="tar-period-tag neutral">Origen: ${esc(t.sourceTableName)}</span>`:''}</div><div class="tar-preview"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div></div></div>`;
   });
-  return `<div class="tar-tabs">${tabs}</div>${panes}
-    <div style="margin-top:12px">
-      <button class="btn btn-d btn-sm" onclick="resetSection('tarifarios')">🗑 Reset Tarifarios</button>
-    </div>`;
+  return `${actions}<div class="tar-tabs">${tabs}</div>${panes}`;
 }
 function showTarTab(i){ document.querySelectorAll('.tar-tab').forEach((e,idx)=>e.classList.toggle('act', idx===i)); document.querySelectorAll('.tar-pane').forEach((e,idx)=>e.style.display = idx===i?'block':'none'); }
 function renderDet(){
@@ -1056,70 +1054,27 @@ function renderDet(){
 function getTar(){const c=DB.find(x=>x.id===detId);return c?.tarifarios||[];}
 async function setTar(t){const c=DB.find(x=>x.id===detId);if(c){c.tarifarios=t;c.updatedAt=new Date().toISOString();save();}}
 
-const TAR_BASE_DEFAULT_COLS=['N° Item','Descripción','Categoría','Unidad','Valor Unitario'];
-const TAR_BASE_PLACEHOLDER_ITEMS=['1.1','1.2','1.3','2.1','2.2','2.3','3.1','3.2'];
-function getDefaultTarPeriod(c){return c?.btar||c?.fechaIni?.substring(0,7)||new Date().toISOString().slice(0,7);}
-function getDefaultTarBaseRows(){return TAR_BASE_PLACEHOLDER_ITEMS.map(code=>[code,'','','','']);}
-function normalizeTarTableMeta(c,t,opts={}){
-  const cols=Array.isArray(t?.cols)&&t.cols.length?t.cols.map(v=>String(v??'').trim()||'Col'):[...TAR_BASE_DEFAULT_COLS];
-  const rows=(Array.isArray(t?.rows)?t.rows:[]).map(r=>{const row=Array.isArray(r)?[...r]:[];while(row.length<cols.length)row.push('');return row.slice(0,cols.length);});
-  return {...t,
-    name:opts.name||t?.name||'Tabla Tarifaria',
-    cols,
-    rows,
-    period:opts.period||t?.period||t?.basePeriodo||t?.nuevoPeriodo||getDefaultTarPeriod(c),
-    isBase:opts.isBase!=null?!!opts.isBase:!!t?.isBase||(!t?.enmNum && !t?.sourceTableName),
-    sourceKind:opts.sourceKind||t?.sourceKind||(t?.enmNum?'ENMIENDA':'MANUAL'),
-    sourceTableName:opts.sourceTableName||t?.sourceTableName||'',
-    placeholder:!!t?.placeholder
-  };
-}
-function normalizeTarifariosForContract(c){if(!c)return[];c.tarifarios=(c.tarifarios||[]).map(t=>normalizeTarTableMeta(c,t));return c.tarifarios;}
-function hasHeaderLikeTarCols(firstRow){return(firstRow||[]).some(h=>/item|descrip|categor|unidad|precio|valor/i.test(String(h||'')));}
+function getDefaultTarBasePeriod(c){return c?.btar||c?.fechaIni?.substring(0,7)||new Date().toISOString().slice(0,7);}
+function openTarImportPicker(){const inp=document.getElementById('tarXlsIn');if(!inp){toast('No se encontró el selector de Excel','er');return;}inp.click();}
 function createBaseTarTable(){
   const c=DB.find(x=>x.id===detId);if(!c)return;
   if(!c.tarifarios)c.tarifarios=[];
-  const period=(prompt('Período base del tarifario (YYYY-MM):',getDefaultTarPeriod(c))||getDefaultTarPeriod(c)).trim();
+  const period=(prompt('Período base del tarifario (YYYY-MM):',getDefaultTarBasePeriod(c))||getDefaultTarBasePeriod(c)).trim();
   const name=(prompt('Nombre del tarifario base:','Tarifario Base '+period)||('Tarifario Base '+period)).trim();
-  c.tarifarios.push(normalizeTarTableMeta(c,{name,cols:[...TAR_BASE_DEFAULT_COLS],rows:getDefaultTarBaseRows(),period,isBase:true,sourceKind:'BASE_STARTER'}));
-  _tarPeriod=period;_tarTab=Math.max(0,c.tarifarios.length-1);
-  setTar(c.tarifarios);renderTarifario();toast('Tarifario base creado','ok');
-}
-function applyDefaultTarItems(ti){
-  const c=DB.find(x=>x.id===detId);if(!c)return;
-  const tars=normalizeTarifariosForContract(c);const t=tars[ti];if(!t)return;
-  if(t.cols.length<TAR_BASE_DEFAULT_COLS.length)t.cols=[...TAR_BASE_DEFAULT_COLS];
-  const existing=new Set((t.rows||[]).map(r=>String(r?.[0]||'').trim()).filter(Boolean));
-  TAR_BASE_PLACEHOLDER_ITEMS.forEach(code=>{if(!existing.has(code))t.rows.push([code,'','','','']);});
-  t.isBase=true;t.sourceKind=t.sourceKind||'BASE_STARTER';t.period=t.period||getDefaultTarPeriod(c);
-  setTar(tars);renderTarifario();toast('Ítems base cargados','ok');
-}
-function markTarAsBase(ti){
-  const c=DB.find(x=>x.id===detId);if(!c)return;
-  const tars=normalizeTarifariosForContract(c);const t=tars[ti];if(!t)return;
-  t.isBase=true;t.sourceKind='BASE';t.period=t.period||getDefaultTarPeriod(c);
-  setTar(tars);renderTarifario();toast('Tabla marcada como base','ok');
-}
-function getApplicableTariffs(c,basePer){
-  const all=normalizeTarifariosForContract(c).filter(t=>!t.placeholder && Array.isArray(t.rows));
-  if(!all.length)return[];
-  const periods=[...new Set(all.map(t=>t.period).filter(Boolean))].sort();
-  const target=basePer||getDefaultTarPeriod(c);
-  let chosen=periods.filter(p=>p<=target).sort().pop();
-  if(!chosen)chosen=periods[periods.length-1];
-  return JSON.parse(JSON.stringify(all.filter(t=>t.period===chosen)));
+  if(!name)return;
+  c.tarifarios.push({name,period,isBase:true,sourceTableName:'COTIZACION_INICIAL',cols:['N° Item','Descripción','Categoría','Unidad','Valor Unitario'],rows:[['','','','','']]});
+  c.updatedAt=new Date().toISOString();
+  save();renderDet();renderList();updNav();toast('Tarifario base creado','ok');
 }
 
 
 
 function addTarTable(){
   const c=DB.find(x=>x.id===detId);if(!c)return;
+  const name=prompt('Nombre de la tabla:','Tabla '+(getTar().length+1));if(!name)return;
   if(!c.tarifarios)c.tarifarios=[];
-  const period=(prompt('Período de esta tabla (YYYY-MM):',_tarPeriod||getDefaultTarPeriod(c))||_tarPeriod||getDefaultTarPeriod(c)).trim();
-  const name=prompt('Nombre de la tabla:','Tarifario '+(getTar().length+1));if(!name)return;
-  c.tarifarios.push(normalizeTarTableMeta(c,{name,cols:[...TAR_BASE_DEFAULT_COLS],rows:[['','','','','']],period,isBase:false,sourceKind:'MANUAL'}));
-  _tarPeriod=period;
-  _tarTab=c.tarifarios.filter(t=>(t.period||getDefaultTarPeriod(c))===period).length-1;
+  c.tarifarios.push({name,cols:['N° Item','Descripción','Categoría','Unidad','Valor Unitario'],rows:[['','','','','']]});
+  _tarTab=c.tarifarios.length-1;
   setTar(c.tarifarios);renderTarifario();toast('Tabla creada','ok');
 }
 
@@ -1170,23 +1125,18 @@ function importTarExcel(input){
       const wb=XLSX.read(data,{type:'array'});
       const c=DB.find(x=>x.id===detId);if(!c)return;
       if(!c.tarifarios)c.tarifarios=[];
-      const period=(prompt('Período aplicable del Excel (YYYY-MM):',_tarPeriod||getDefaultTarPeriod(c))||_tarPeriod||getDefaultTarPeriod(c)).trim();
-      const isBase=confirm('¿Este Excel corresponde al tarifario base / cotización inicial del contrato?');
+      const period=(prompt('Período aplicable del Excel (YYYY-MM):',getDefaultTarBasePeriod(c))||getDefaultTarBasePeriod(c)).trim();
+      const isBase=confirm('¿Este Excel corresponde a la cotización inicial / tarifario base del contrato?');
       wb.SheetNames.forEach(sn=>{
         const ws=wb.Sheets[sn];
         const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
         if(json.length<1)return;
-        const firstRow=(json[0]||[]).map(v=>String(v||'').trim());
-        const headerLike=hasHeaderLikeTarCols(firstRow);
-        const cols=headerLike && firstRow.length ? firstRow : [...TAR_BASE_DEFAULT_COLS];
-        const body=headerLike ? json.slice(1) : json;
-        const rows=body.filter(r=>Array.isArray(r) && r.some(v=>String(v??'').trim()!=='' )).map(r=>{const row=[];for(let i=0;i<cols.length;i++)row.push(r[i]!=null?r[i]:'');return row;});
-        c.tarifarios.push(normalizeTarTableMeta(c,{name:sn,cols,rows,period,isBase,sourceKind:isBase?'BASE_XLSX':'XLSX'}));
+        const cols=(json[0]||[]).map(h=>String(h||'').trim()||'Col');
+        const rows=json.slice(1).filter(r=>Array.isArray(r) && r.some(v=>v!=='')).map(r=>{const row=[];for(let i=0;i<cols.length;i++)row.push(r[i]!=null?r[i]:'');return row;});
+        c.tarifarios.push({name:sn,cols,rows,period,isBase,sourceTableName:isBase?'COTIZACION_INICIAL':''});
       });
-      normalizeTarifariosForContract(c);
-      _tarPeriod=period;
-      _tarTab=0;
-      setTar(c.tarifarios);renderTarifario();
+      c.updatedAt=new Date().toISOString();
+      save();renderDet();renderList();updNav();
       toast('Excel importado — '+wb.SheetNames.length+' hoja(s)','ok');
     }catch(err){toast('Error leyendo Excel','er');console.error(err);}
   };
@@ -1729,53 +1679,7 @@ let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};
 function getTarPeriodValue(cc,t){return t?.period||cc?.btar||cc?.fechaIni?.substring(0,7)||'';}
 function getTarEnmLabel(cc,enmNum){if(!enmNum)return 'Base contractual';const enm=(cc.enmiendas||[]).find(e=>e.num===enmNum);if(!enm)return 'Enm.N°'+enmNum;const tipo=enm.tipo==='ACTUALIZACION_TARIFAS'?'Actualización de Tarifas':enm.tipo==='EXTENSION'?'Extensión':enm.tipo==='SCOPE'?'Scope':enm.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return 'Enm.N°'+enmNum+' · '+tipo;}
 function setTarPeriod(period){_tarPeriod=period;_tarTab=0;renderTarifario();}
-function renderTarifario(){
-  const box=document.getElementById('tarContainer');if(!box)return;
-  const cc=DB.find(x=>x.id===detId);if(!cc)return;
-  const raw=normalizeTarifariosForContract(cc);
-  if(!raw.length){
-    box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Este contrato todavía no tiene tarifario base. Crealo manualmente o importá el Excel inicial de cotización.</p><div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Crear Tarifario Base</button><button class="btn btn-s btn-sm" onclick="document.getElementById(\'tarXlsIn\').click()">📥 Importar Excel Base</button></div></div>';
-    return;
-  }
-  const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)||t.period||getDefaultTarPeriod(cc)}));
-  let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();
-  if(!periods.length){const fallback=getDefaultTarPeriod(cc);if(fallback)periods=[fallback];}
-  if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;
-  const visible=all.filter(t=>t._period===_tarPeriod);
-  if(!visible.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}
-  const di=Math.min(_tarTab||0,visible.length-1); const t=visible[di]; _tarTab=di;
-  const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];
-  let origin='Base contractual';
-  if(t.isBase) origin='Base contractual';
-  else if(enmNums.length===1) origin=getTarEnmLabel(cc,enmNums[0]);
-  else if(enmNums.length>1) origin='Múltiples enmiendas';
-  else origin=t.sourceKind||'Manual';
-  const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';
-  const baseCount=all.filter(x=>x.isBase).length;
-
-  let h='<div class="tar-period-nav">';
-  periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});
-  h+='</div>';
-  h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Origen: ${origin}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span><span class="tar-period-tag neutral">Bases: ${baseCount}</span></div>`;
-  h+='<div class="tar-tabs">';
-  visible.forEach((tab,vi)=>{
-    const baseBadge=tab.isBase?'<span class="bdg blue" style="font-size:9px;padding:1px 6px">BASE</span>':'';
-    h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span>${baseBadge}<span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;
-  });
-  h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';
-
-  if(t&&t.cols&&t.rows){
-    let rows=[...t.rows];
-    if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}
-    h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';
-    t.cols.forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});
-    h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';
-    rows.forEach((row,ri)=>{const origRi=t.rows.indexOf(row);h+='<tr>';t.cols.forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});
-    h+='</tbody></table></div>';
-    h+=`<div class="tar-actions"><button class="btn btn-p btn-sm" onclick="createBaseTarTable()">➕ Tarifario Base</button><button class="btn btn-s btn-sm" onclick="applyDefaultTarItems(${t._idx})">🧩 Ítems base</button><button class="btn btn-s btn-sm" onclick="markTarAsBase(${t._idx})">⭐ Marcar base</button><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems · ${t.isBase?'Tarifario base':'Tabla derivada'}</span></div></div>`;
-  }
-  box.innerHTML=h;
-}
+function renderTarifario(){const box=document.getElementById('tarContainer');if(!box)return;const cc=DB.find(x=>x.id===detId);if(!cc)return;const raw=getTar();if(!raw.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tarifario. Importá un Excel o creá una tabla.</p></div>';return;}const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;const visible=all.filter(t=>t._period===_tarPeriod);if(!visible.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];const enmLabel=enmNums.length===1?getTarEnmLabel(cc,enmNums[0]):enmNums.length>1?'Múltiples enmiendas':'Base contractual';const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';let h='<div class="tar-period-nav">';periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});h+='</div>';h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Origen: ${enmLabel}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span></div>`;h+='<div class="tar-tabs">';visible.forEach((tab,vi)=>{h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';if(t&&t.cols&&t.rows){let rows=[...t.rows];if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';t.cols.forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';rows.forEach((row,ri)=>{const origRi=t.rows.indexOf(row);h+='<tr>';t.cols.forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});h+='</tbody></table></div>';h+=`<div class="tar-actions"><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems</span></div></div>`;}box.innerHTML=h;}
 function switchTarTab(i){_tarTab=i;renderTarifario();}
 function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_tarSort.dir=1;}renderTarifario();}
 
@@ -3456,27 +3360,28 @@ window.saveImportedEnms = async function saveImportedEnms() {
     if (enm.fechasVigencia) obj.fechasVigencia = enm.fechasVigencia;
     cc.enmiendas.push(obj);
 
+    // Save price lists as tarifarios
     if (enm.listasDePrecios && enm.listasDePrecios.length) {
       enm.listasDePrecios.forEach(lp => {
         if (!lp.items || !lp.items.length) return;
-        const cols = ['Ítem','Descripción','Unidad','Precio'];
-        const rows = lp.items.map(it => [it.item||'', it.descripcion||'', it.unidad||'', it.precio||'']);
-        cc.tarifarios.push(normalizeTarTableMeta(cc,{
-          name: lp.nombre || ('Lista de Precios (Enm.'+num+')'),
+        const cols = ['Item', 'Descripcion', 'Unidad', 'Precio'];
+        const rows = lp.items.map(it => [it.item||'', it.descripcion||'', it.unidad||'', it.precio!=null?it.precio:'']);
+        cc.tarifarios.push({
+          name: `Lista de Precios (Enm.${num}) - ${lp.periodo||''}`,
           cols, rows,
-          period: obj.fechasVigencia?.desde?.substring?.(0,7) || obj.fecha?.substring?.(0,7) || getDefaultTarPeriod(cc),
+          period: lp.periodo || '',
           enmNum: num,
-          sourceKind: 'IA_ENMIENDA',
           sourceTableName: 'Importado con IA'
-        }));
+        });
       });
     }
     saved++;
   }
-  save();
+
+  cc.updatedAt = new Date().toISOString();
+  await sbUpsertItem('contratos', cc);
   closeEnmModal();
   renderDet();
-  renderList();
   toast(`${saved} enmienda(s) importada(s) ✅`, 'ok');
 }
 
