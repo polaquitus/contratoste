@@ -1150,7 +1150,7 @@ function openEnmPanel(){
   panel.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-function closeEnmModal() {
+window.closeEnmModal = function closeEnmModal() {
   const modal = document.getElementById('enmPdfModal');
   if (modal) modal.style.display = 'none';
   _importedEnms = [];
@@ -3298,7 +3298,7 @@ function renderImportedEnmError(fileName, msg) {
   document.getElementById('enmPdfResults').appendChild(div);
 }
 
-async function saveImportedEnms() {
+window.saveImportedEnms = async function saveImportedEnms() {
   const cc = DB.find(x => x.id === detId);
   if (!cc) return;
   if (!cc.enmiendas) cc.enmiendas = [];
