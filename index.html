@@ -405,7 +405,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
   </nav>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos</h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">app_fix2</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -660,6 +660,7 @@ async function initApp() {
   const fz=document.getElementById('fz');fz.ondragover=e=>{e.preventDefault()};fz.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};
   ['f_ini','f_fin'].forEach(id=>document.getElementById(id).onchange=calcPlazo);
 
+  let coreLoaded = false;
   try {
     showLoader('Cargando contratos...');
     DB = await sbLoadTable('contratos');
@@ -671,21 +672,26 @@ async function initApp() {
     if (idxObj) IDX_STORE = idxObj;
     showLoader('Cargando licitaciones...');
     LICIT_DB = await sbLoadTable('licitaciones');
-    showLoader('Cargando proveedores...');
-    PROV_DB = await sbLoadTable('proveedores');
+    coreLoaded = true;
     SB_OK = true;
     setSBStatus(true);
   } catch(e) {
-    console.warn('Supabase error:', e);
-    // Fallback to localStorage
+    console.warn('Supabase core error:', e);
     try{DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!DB.length)DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){DB=[];}
     try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
     try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
     try{LICIT_DB=JSON.parse(localStorage.getItem('licit_v1'))||[];}catch(ex){LICIT_DB=[];}
-    try{PROV_DB=JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(ex){PROV_DB=[];}
     SB_OK = false;
     setSBStatus(false);
     toast('Sin conexión a Supabase — modo local activo','er');
+  }
+
+  try {
+    showLoader('Cargando contratistas...');
+    await loadProv();
+  } catch(ex) {
+    console.warn('loadProv error', ex);
+    try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];}
   }
 
   hideLoader();
@@ -697,7 +703,35 @@ function load() {}
 function loadMe2n() {}
 function loadIdx() { /* handled by initApp */ }
 function loadLicit() { /* handled by initApp */ }
-function loadProv() { /* handled by initApp */ }
+async function loadProv() {
+  try {
+    if (SB_OK) {
+      try {
+        PROV_DB = await sbLoadTable('contratistas');
+        if (PROV_DB.length) {
+          localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+          localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+          return;
+        }
+      } catch(e1) {
+        console.warn('No se pudo cargar contratistas, intentando proveedores...', e1);
+      }
+      try {
+        PROV_DB = await sbLoadTable('proveedores');
+        if (PROV_DB.length) {
+          localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+          localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+          try { await sbReplaceContratistas(); } catch(e2) { console.warn('No se pudo migrar proveedores→contratistas', e2); }
+          return;
+        }
+      } catch(e3) {
+        console.warn('No se pudo cargar proveedores', e3);
+      }
+    }
+  } catch(e) { console.warn('loadProv fallback', e); }
+  try { PROV_DB = JSON.parse(localStorage.getItem('contr_v1')) || JSON.parse(localStorage.getItem('prov_v1')) || []; }
+  catch(e){ PROV_DB = []; }
+}
 
 async function save() {
   if (!SB_OK) { localStorage.setItem('cta_v7', JSON.stringify(DB)); return; }
@@ -722,10 +756,23 @@ async function saveLicit() {
 }
 
 async function saveProv() {
-  if (!SB_OK) { localStorage.setItem('prov_v1', JSON.stringify(PROV_DB)); return; }
-  const last = PROV_DB[PROV_DB.length-1];
-  if (last) await sbUpsertItem('proveedores', last);
+  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+  if (!SB_OK) return;
+  await sbReplaceContratistas();
 }
+
+async function sbReplaceContratistas() {
+  if (!SB_OK) return;
+  const clean = (PROV_DB||[]).map(p=>{ const x={...p}; delete x.__sbId; return {datos: JSON.stringify(x)}; });
+  try { await sbFetch('contratistas', 'DELETE', null, '?id=not.is.null'); } catch(e) { console.warn('DELETE contratistas', e); }
+  if (!clean.length) return;
+  const res = await sbFetch('contratistas', 'POST', clean);
+  if (Array.isArray(res)) res.forEach((r,i)=>{ if(PROV_DB[i]) PROV_DB[i].__sbId = r.id; });
+  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+}
+
 
 function updNav(){document.getElementById('cnt').textContent=DB.length;document.getElementById('poCnt').textContent=Object.keys(ME2N).length;document.getElementById('provCnt').textContent=PROV_DB.length;}
 
@@ -747,7 +794,7 @@ function go(v){
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
   if(v==='list'){document.getElementById('vList').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go(\'form\')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
   else if(v==='form'){document.getElementById('vForm').classList.add('on');document.querySelectorAll('.sb-nav .nv')[1].classList.add('act');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Lista</button>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
+  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openEnmImportPicker()">🤖 Importar Enmiendas</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
@@ -954,6 +1001,32 @@ function renderTarSection(c){
     </div>`;
 }
 function showTarTab(i){ document.querySelectorAll('.tar-tab').forEach((e,idx)=>e.classList.toggle('act', idx===i)); document.querySelectorAll('.tar-pane').forEach((e,idx)=>e.style.display = idx===i?'block':'none'); }
+
+function renderDossierHtml(c){
+  const enms = c.enmiendas||[];
+  const tars = c.tarifarios||[];
+  const aves = c.aves||[];
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Dossier ${esc(c.num||'')}</title>
+  <style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.tag{display:inline-block;padding:3px 8px;border-radius:99px;background:#e2e8f0;font-size:12px;font-weight:700;margin-right:6px}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}</style></head><body>
+  <h1>📘 Dossier del Contrato ${esc(c.num||'')}</h1>
+  <div class="b"><div class="k">
+    <div><strong>Contratista</strong></div><div>${esc(c.cont||'')}</div>
+    <div><strong>Objeto</strong></div><div>${esc(c.det||'')}</div>
+    <div><strong>Inicio</strong></div><div>${esc(c.fechaIni||'')}</div>
+    <div><strong>Fin</strong></div><div>${esc(c.fechaFin||'')}</div>
+    <div><strong>Monto</strong></div><div class="mono">${typeof fN==='function'?fN(c.monto||0):(c.monto||0)}</div>
+    <div><strong>Período base tarifario</strong></div><div>${esc(c.btar||'')}</div>
+  </div></div>
+  <h2>Enmiendas</h2>
+  <div class="b">${enms.length?`<table><thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Descripción</th></tr></thead><tbody>${enms.map(e=>`<tr><td>${esc(e.num||'')}</td><td>${esc(e.fecha||'')}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.descripcion||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin enmiendas</div>'}</div>
+  <h2>Tarifarios</h2>
+  <div class="b">${tars.length?`<table><thead><tr><th>Nombre</th><th>Período</th><th>Items</th><th>Origen</th></tr></thead><tbody>${tars.map(t=>`<tr><td>${esc(t.name||'')}</td><td>${esc(t.period||'')}</td><td>${(t.rows||[]).length}</td><td>${esc(t.sourceTableName||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin tarifarios</div>'}</div>
+  <h2>AVEs</h2>
+  <div class="b">${aves.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>${aves.map(a=>`<tr><td>${esc(a.fecha||'')}</td><td>${esc(a.tipo||'')}</td><td class="mono">${typeof fN==='function'?fN(a.monto||0):(a.monto||0)}</td><td>${esc(a.concepto||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin AVEs</div>'}</div>
+  </body></html>`;
+}
+function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
+
 function renderDet(){
   try {
     const c=DB.find(x=>x.id===detId);if(!c){go('list');return;}
@@ -1719,6 +1792,79 @@ function saveIdx(){localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
 
 function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
+function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
+function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
+function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
+function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));saveIdx();return merged;}
+function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
+function idxStatusText(id){const target=idxTargetYm();const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
+function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
+function idxLastBusinessDayPrevMonth(){ let d=new Date(new Date().getFullYear(), new Date().getMonth(), 0); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1); return d; }
+async function fetchUsdBnaLike(targetYm){
+  const cutoff = idxLastBusinessDayPrevMonth();
+  const cutoffIso = cutoff.toISOString().substring(0,10);
+  const tries = [
+    {url:'https://api.argentinadatos.com/v1/cotizaciones/dolares', kind:'history'},
+    {url:'https://argentina-monetary-quotes-api.up.railway.app/api/nacion', kind:'current'}
+  ];
+  for (const t of tries){
+    try {
+      const r = await fetch(t.url);
+      if(!r.ok) continue;
+      const d = await r.json();
+      if(t.kind==='history' && Array.isArray(d)){
+        let arr = d.filter(x=>x && x.fecha && new Date(x.fecha) <= cutoff);
+        let bna = arr.filter(x=>/nacion|bna/i.test(String(x.casa||'')));
+        let off = arr.filter(x=>/oficial/i.test(String(x.casa||'')));
+        let src = (bna.length?bna:off.length?off:arr).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+        const last = src[src.length-1];
+        if(last && (last.venta||last.sell)) return {ym:targetYm, value:Number(last.venta||last.sell), source:String(last.casa||'API'), publishedAt:String(last.fecha||'').substring(0,10)};
+      }
+      if(t.kind==='current' && d){
+        const v = Number(d.venta||d.sell||d.value||0);
+        if(v) return {ym:targetYm, value:v, source:'API Nación', publishedAt:cutoffIso};
+      }
+    } catch(e){ console.warn('fetchUsdBnaLike', t.url, e); }
+  }
+  throw new Error('No se pudo obtener USD');
+}
+async function idxResolveViaAI(def, targetYm){
+  if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
+  const prompt = `Necesito el último valor oficial publicado para el índice argentino "${def.name}" (fuente ${def.src}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
+  const resp = await callGeminiForEnm([{text:prompt}]);
+  if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió');
+  const data = await resp.json();
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const txt = parts.map(p=>p.text||'').join('\n').trim();
+  return extractJsonFromGeminiText(txt);
+}
+async function runIdxUpdate(id){
+  const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return;
+  const target=idxTargetYm();
+  try{
+    if(def.cat==='mo'){ toast('Índice guiado/manual','er'); return; }
+    if(def.cat==='usd'){
+      const usd=await fetchUsdBnaLike(target);
+      idxUpsert(id,{ym:usd.ym, value:usd.value, pct:null, confirmed:false, status:'updated', source:def.src, note:usd.source, publishedAt:usd.publishedAt});
+      renderIdxView();
+      toast(def.name+' actualizado','ok');
+      return;
+    }
+    const rs=await idxResolveViaAI(def,target);
+    if(rs && (rs.pct!=null || rs.value!=null)){
+      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null});
+      renderIdxView();toast(def.name+' actualizado','ok');return;
+    }
+    throw new Error('Sin dato');
+  }catch(err){
+    console.warn('runIdxUpdate', id, err);
+    const prev=idxLastBefore(id,target);
+    if(prev){ idxUpsert(id,{...prev,status:'fallback'}); renderIdxView(); toast(def.name+' usando último publicado','ok'); return; }
+    renderIdxView(); toast('No se pudo actualizar '+def.name,'er');
+  }
+}
+async function runAllIdxUpdates(){ for(const def of IDX_CATALOG.filter(d=>d.cat!=='mo')){ await runIdxUpdate(def.id); } }
+
 
 // ── Helpers ────────────────────────────────────────────────────────────
 function pctColor(v){return v===null||v===undefined?'zero':v>0?'pos':v<0?'neg':'zero';}
@@ -1750,51 +1896,24 @@ function renderIdxView(){
 function renderIdxDash(){
   const box=document.getElementById('idxDashTop');if(!box)return;
   const totalIdx=IDX_CATALOG.length;
-  const now=new Date();
-  const ymN1=(new Date(now.getFullYear(),now.getMonth()-1,1)).toISOString().substring(0,7);
-  const ymN2=(new Date(now.getFullYear(),now.getMonth()-2,1)).toISOString().substring(0,7);
-  let withDataN1=0,confN1=0,withDataN2=0,confN2=0,totalWithAny=0;
+  const target=idxTargetYm();
+  let updated=0, pending=0, withAny=0;
   IDX_CATALOG.forEach(def=>{
-    const rows=idxRows(def.id);
-    if(rows.length)totalWithAny++;
-    const rN1=rows.find(r=>r.ym===ymN1);
-    const rN2=rows.find(r=>r.ym===ymN2);
-    if(rN1){withDataN1++;if(rN1.confirmed)confN1++;}
-    if(rN2){withDataN2++;if(rN2.confirmed)confN2++;}
+    const rows=idxRows(def.id); if(rows.length) withAny++;
+    const exact=rows.find(r=>r.ym===target); if(exact) updated++; else pending++;
   });
-  const pendN1=totalIdx-withDataN1;
-  const pctN1=totalIdx>0?Math.round(withDataN1/totalIdx*100):0;
   box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
       <h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2>
-      <p style="font-size:12px;color:var(--g500);margin-top:2px">Carga manual mes a mes · ${totalIdx} índices · Período vigente esperado: <strong>${formatMonth(ymN1)}</strong></p>
+      <p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p>
     </div>
-    <button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button></div>
   </div>
   <div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)">
-    <div class="idx-kpi-box">
-      <div class="kl">Total índices</div>
-      <div class="kv">${totalIdx}</div>
-      <div class="ks">${totalWithAny} con algún dato histórico</div>
-    </div>
-    <div class="idx-kpi-box" style="border-color:var(--g600)">
-      <div class="kl">✅ Vigentes ${formatMonth(ymN1)} <span style="font-size:9px;opacity:.6">(N-1)</span></div>
-      <div class="kv" style="color:var(--g600)">${withDataN1} / ${totalIdx}</div>
-      <div class="ks" style="display:flex;align-items:center;gap:6px">
-        <div style="flex:1;height:6px;background:var(--g200);border-radius:99px;overflow:hidden"><div style="height:100%;border-radius:99px;background:var(--g600);width:${pctN1}%"></div></div>
-        <span>${pctN1}%</span>
-      </div>
-    </div>
-    <div class="idx-kpi-box" style="border-color:${pendN1>0?'var(--r500)':'var(--g600)'}">
-      <div class="kl" style="color:${pendN1>0?'var(--r500)':'inherit'}">⏳ Pendientes ${formatMonth(ymN1)}</div>
-      <div class="kv" style="color:${pendN1>0?'var(--r500)':'var(--g600)'}">${pendN1}</div>
-      <div class="ks">${pendN1>0?'índices sin cargar':'¡Todos al día! 🎉'}</div>
-    </div>
-    <div class="idx-kpi-box" style="border-color:var(--b500)">
-      <div class="kl">Confirmados ${formatMonth(ymN2)} <span style="font-size:9px;opacity:.6">(N-2)</span></div>
-      <div class="kv" style="color:var(--b500)">${confN2} / ${withDataN2}</div>
-      <div class="ks">${withDataN2-confN2>0?(withDataN2-confN2)+' sin confirmar':withDataN2>0?'Todos confirmados':'Sin datos de N-2'}</div>
-    </div>
+    <div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div>
+    <div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div>
+    <div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div>
+    <div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div>
   </div>`;
 }
 function renderIdxCards(){
@@ -1804,40 +1923,12 @@ function renderIdxCards(){
   let h='';
   cats.forEach(cat=>{
     const defs=IDX_CATALOG.filter(d=>d.cat===cat);
-    h+=`<div style="margin-bottom:22px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>
-        ${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}
-      </div>
-      <div class="idx-cards">`;
+    h+=`<div style="margin-bottom:22px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}</div><div class="idx-cards">`;
     defs.forEach(def=>{
-      const rows=idxRows(def.id);
-      const last=rows.length?rows[rows.length-1]:null;
-      const lastPct=last?.pct??null;
-      const lastYm=last?.ym||'';
-      const lastConf=last?.confirmed;
-      // sparkline: last 8
-      const spark8=rows.slice(-8);
-      const maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
-      const sparkH=spark8.map(r=>{
-        const pct=r.pct||0;const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2);
-        return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`;
-      }).join('');
-      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')">
-        <div class="idx-c-top ${CAT_CSS[cat]}"></div>
-        <div class="idx-c-body">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
-            <div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}</div>
-            <span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span>
-          </div>
-          <div class="idx-c-kpi">
-            <span class="big ${pctColor(lastPct)}">${pctStr(lastPct)}</span>
-            <span class="period">${lastYm?formatMonth(lastYm):'sin datos'}</span>
-            ${lastConf?'<span style="font-size:13px" title="Confirmado">✅</span>':''}
-          </div>
-          ${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}
-        </div>
-      </div>`;
+      const rows=idxRows(def.id); const last=rows.length?rows[rows.length-1]:null; const target=idxTargetYm();
+      const spark8=rows.slice(-8); const maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
+      const sparkH=spark8.map(r=>{ const pct=r.pct||0; const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2); return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`; }).join('');
+      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ. valor: ${last?.ym?formatMonth(last.ym):'—'}</div></div><span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(last?.pct??null)}">${idxValueLabel(def,last)}</span><span class="period">${last?.ym?formatMonth(last.ym):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px"><div style="font-size:10px;color:var(--g500)">Estado: <strong>${idxStatusText(def.id)}</strong></div>${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄 Actualizar</button>`:''}</div></div></div>`;
     });
     h+='</div></div>';
   });
@@ -1863,104 +1954,13 @@ function renderIdxDet(id){
   const last=rows.length?rows[rows.length-1]:null;
   const yms=rows.map(r=>r.ym);
 
-  // Bar chart: show last 18 months
   const chartRows=rows.slice(-18);
   const maxAbs=Math.max(...chartRows.map(r=>Math.abs(r.pct||0)),0.001);
-  const bars=chartRows.map((r,i)=>{
-    const pct=r.pct||0;const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2);
-    const isLast=i===chartRows.length-1;
-    return `<div class="cbar-wrap">
-      <div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div>
-      <div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div>
-      <div class="cbar-lbl">${formatMonth(r.ym).replace(' ','\n')}</div>
-    </div>`;
-  }).join('');
-
-  // Acum options
+  const bars=chartRows.map((r,i)=>{ const pct=r.pct||0; const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2); const isLast=i===chartRows.length-1; return `<div class="cbar-wrap"><div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div><div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div><div class="cbar-lbl">${formatMonth(r.ym).replace(' ','\n')}</div></div>`; }).join('');
   const selOpts=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const selOptTo=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===yms.length-1?'selected':''}>${formatMonth(ym)}</option>`).join('');
-
-  // Data table rows (reverse: newest first)
-  const tblRows=[...rows].reverse().map(r=>{
-    const pct=r.pct||0;const pos=pct>=0;
-    const barW=Math.min(Math.round(Math.abs(pct)/maxAbs*100),100);
-    const filesHtml=(r.files||[]).map((f,fi)=>
-      `<span class="attach-chip" onclick="event.stopPropagation();downloadIdxFile('${id}','${r.ym}',${fi})" title="${esc(f.name)}">📎 ${esc(f.name.length>20?f.name.substring(0,18)+'…':f.name)}</span>`
-    ).join(' ');
-    return `<tr>
-      <td style="font-weight:700;font-size:12.5px">${formatMonth(r.ym)}</td>
-      <td><span class="pct ${pos?'pos':'neg'}">${pctStr(pct)}</span></td>
-      <td><div class="idx-mini-bar"><div class="idx-mini-fill ${pos?'pos-f':'neg-f'}" style="width:${barW}%"></div></div></td>
-      <td>${r.note?`<span style="font-size:11px;color:var(--g600c)">${esc(r.note)}</span>`:'<span style="color:var(--g400);font-size:11px">—</span>'}</td>
-      <td>${filesHtml||'<span style="color:var(--g400);font-size:11px">—</span>'}</td>
-      <td style="text-align:center">
-        <label style="cursor:pointer" title="${r.confirmed?'Confirmado':'Sin confirmar'}">
-          <input type="checkbox" style="display:none" ${r.confirmed?'checked':''} onchange="toggleIdxConfirm('${id}','${r.ym}',this.checked)">
-          <span style="font-size:16px">${r.confirmed?'✅':'⬜'}</span>
-        </label>
-      </td>
-      <td>
-        <button class="btn btn-s btn-sm" style="font-size:10px;padding:3px 8px" onclick="openEntryModal('${id}','${r.ym}')">✏️</button>
-        <button class="btn btn-d btn-sm" style="font-size:10px;padding:3px 8px;margin-left:3px" onclick="deleteIdxRow('${id}','${r.ym}')">🗑️</button>
-      </td>
-    </tr>`;
-  }).join('');
-
-  box.innerHTML=`<div class="idx-det">
-    <div class="idx-det-hdr">
-      <div>
-        <h2>${esc(def.name)}</h2>
-        <div class="sub"><span class="icat ${CAT_PILL[def.cat]}" style="margin-right:6px">${esc(def.catLabel)}</span> Fuente: ${esc(def.src)}${def.srcLink?` · <a href="${def.srcLink}" target="_blank" rel="noopener" style="color:rgba(255,255,255,.7);font-size:11px">↗ Ver fuente</a>`:''}</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.5);color:var(--w);font-weight:600" onclick="openEntryModal('${id}',null)">➕ Cargar período</button>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.4);color:var(--w);font-weight:600" onclick="closeIdxDet()">← Volver</button>
-      </div>
-    </div>
-
-    ${rows.length>=2?`
-    <!-- Bar chart -->
-    <div class="idx-chart">
-      <div class="idx-chart-title">
-        <span>Evolución mensual — últimos ${chartRows.length} períodos</span>
-        <span style="font-weight:400;font-size:10px">Barra más oscura = último dato</span>
-      </div>
-      <div class="chart-bars">${bars||'<div style="color:var(--g400);font-size:12px;margin:auto">Sin datos suficientes</div>'}</div>
-    </div>
-
-    <!-- Acumulado -->
-    <div class="acum-row">
-      <div style="font-size:12px;font-weight:700;color:var(--p800)">Acumulado:</div>
-      <select id="acum_from_${id}" style="font-size:12px;padding:5px 8px" onchange="calcIdxAcum('${id}')">${selOpts}</select>
-      <div style="font-size:12px;color:var(--g500)">→</div>
-      <select id="acum_to_${id}" style="font-size:12px;padding:5px 8px" onchange="calcIdxAcum('${id}')">${selOptTo}</select>
-      <div id="acum_res_${id}" class="acum-result pos">—</div>
-      <div id="acum_det_${id}" style="font-size:11px;color:var(--g500)"></div>
-      <span style="font-size:10.5px;color:var(--g400);margin-left:4px">Composición real: Π(1+pct_i)−1</span>
-    </div>`:''}
-
-    <!-- Table -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--g100)">
-      <span style="font-size:12px;font-weight:600;color:var(--p800)">${rows.length} períodos cargados</span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-g btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button>
-      </div>
-    </div>
-    ${rows.length?`
-    <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
-      <table class="idx-tbl">
-        <thead><tr><th>Período</th><th>% Variación</th><th>Tendencia</th><th>Nota / Link</th><th>Adjuntos</th><th style="text-align:center">Confirmado</th><th></th></tr></thead>
-        <tbody>${tblRows}</tbody>
-      </table>
-    </div>`:`
-    <div style="text-align:center;padding:36px;color:var(--g500)">
-      <div style="font-size:32px;margin-bottom:8px">📊</div>
-      <p style="font-size:13px">Sin datos. Hacé clic en <strong>Cargar período</strong> para agregar el primer valor.</p>
-    </div>`}
-  </div>`;
-
-  // Auto-calc acum on render
-  if(rows.length>=2)setTimeout(()=>calcIdxAcum(id),50);
+  const tblRows=[...rows].reverse().map(r=>{ const pct=r.pct||0; const pos=pct>=0; const barW=Math.min(Math.round(Math.abs(pct)/maxAbs*100),100); const filesHtml=(r.files||[]).map((f,fi)=>`<span class="attach-chip">${esc(f.name||('adjunto '+(fi+1)))}</span>`).join(' '); return `<tr><td>${formatMonth(r.ym)}</td><td class="mono ${pos?'pos':'neg'}">${r.value!=null?fN(r.value):pctStr(pct)}</td><td>${r.confirmed?'✅':'—'}</td><td>${esc(r.note||r.status||'')}</td><td>${filesHtml||'—'}</td></tr>`; }).join('');
+  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button></div></div><div class="card"><div class="chart-bars">${bars||'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th></tr></thead><tbody>${tblRows||'<tr><td colspan="5">Sin datos</td></tr>'}</tbody></table></div></div>`;
 }
 
 function calcIdxAcum(id){
@@ -2910,9 +2910,9 @@ function handleProvBrochure(input){
   r.readAsDataURL(f);
 }
 
-function saveProvModal(editId){
+async function saveProvModal(editId){
   const name=document.getElementById('pm_name')?.value.trim();
-  if(!name){toast('Ingresá el nombre del proveedor','er');return;}
+  if(!name){toast('Ingresá el nombre del contratista','er');return;}
   const id=editId||Date.now().toString(36)+Math.random().toString(36).substr(2,4);
   const prov={
     id,name,
@@ -2924,11 +2924,12 @@ function saveProvModal(editId){
     brochure:_provBrochure,
     createdAt:editId?(PROV_DB.find(p=>p.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString(),
   };
-  if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);}
-  else PROV_DB.push(prov);
-  saveProv();closeProvModal();updNavProv();
-  if(_provDet)renderProvDet(prov.id);else renderProvList();
-  toast('Proveedor guardado','ok');
+  if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
+  await saveProv();
+  closeProvModal();updNavProv();
+  _provDet = prov.id;
+  renderProv();
+  toast('Contratista guardado','ok');
 }
 
 function closeProvModal(){document.getElementById('provModalBack').style.display='none';}
@@ -2969,7 +2970,7 @@ function importProvModal(){
 function processSapProvImport(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
@@ -2981,7 +2982,7 @@ function processSapProvImport(input){
         const vnum=String(r[1]||'').trim();
         if(!nameRaw||nameRaw==='nan')continue;
         const cleanName=nameRaw.replace(/^\d+\s+/,'').trim();
-        if(PROV_DB.find(p=>p.vendorNum===vnum)){skipped++;continue;}
+        if(vnum && PROV_DB.find(p=>String(p.vendorNum||'').trim()===vnum)){skipped++;continue;}
         PROV_DB.push({
           id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+added,
           name:cleanName,vendorNum:vnum,rubro:'',website:'',obs:'',contacts:[],brochure:null,
@@ -2989,9 +2990,9 @@ function processSapProvImport(input){
         });
         added++;
       }
-      saveProv();updNavProv();renderProvList();
-      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> proveedores importados. ${skipped} ya existían.</div>`;
-      toast(`${added} proveedores de SAP importados`,'ok');
+      await saveProv();updNavProv();renderProvList();
+      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados. ${skipped} ya existían.</div>`;
+      toast(`${added} contratistas de SAP importados`,'ok');
     }catch(err){toast('Error procesando el archivo','er');console.error(err);}
   };
   reader.readAsArrayBuffer(file);
