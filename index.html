@@ -405,7 +405,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
   </nav>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v10 contratistas db</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v10.1 contratistas safe</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -413,7 +413,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
   <div class="card">
     <div class="thdr"><h2>Contratos Registrados</h2><span class="tcnt" id="lcnt">0</span></div>
     <div class="tfl">
-      <input type="text" id="fSrch" placeholder="Buscar N° contrato o contratista..." oninput="renderList()" style="flex:1;max-width:240px">
+      <input type="text" id="fSrch" placeholder="Buscar N° contrato o proveedor..." oninput="renderList()" style="flex:1;max-width:240px">
       <select id="fEst" onchange="renderList()"><option value="">Todos</option><option value="ACTIVO">Activos</option><option value="VENCIDO">Vencidos</option></select>
       <select id="fAsset" onchange="renderList()" style="max-width:120px"><option value="">Asset</option><option>NQN</option><option>TDF</option><option>NQN + TDF</option></select>
       <select id="fDom" onchange="renderList()" style="max-width:120px"><option value="B&GS">B&GS</option><option value="EDL">EDL</option><option value="P&P">P&P</option><option value="HSE">HSE</option><option value="FIN">FIN</option><option value="HR">HR</option><option value="IT">IT</option><option value="LEGAL">LEGAL</option><option value="OPS">OPS</option><option value="OTHER">OTHER</option></select>
@@ -660,6 +660,7 @@ async function initApp() {
   const fz=document.getElementById('fz');fz.ondragover=e=>{e.preventDefault()};fz.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};
   ['f_ini','f_fin'].forEach(id=>document.getElementById(id).onchange=calcPlazo);
 
+  let coreLoaded = false;
   try {
     showLoader('Cargando contratos...');
     DB = await sbLoadTable('contratos');
@@ -671,21 +672,39 @@ async function initApp() {
     if (idxObj) IDX_STORE = idxObj;
     showLoader('Cargando licitaciones...');
     LICIT_DB = await sbLoadTable('licitaciones');
-    showLoader('Cargando contratistas...');
-    PROV_DB = await sbLoadTable('contratistas');
+    coreLoaded = true;
     SB_OK = true;
     setSBStatus(true);
   } catch(e) {
-    console.warn('Supabase error:', e);
-    // Fallback to localStorage
+    console.warn('Supabase core error:', e);
     try{DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!DB.length)DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){DB=[];}
     try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
     try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
     try{LICIT_DB=JSON.parse(localStorage.getItem('licit_v1'))||[];}catch(ex){LICIT_DB=[];}
-    try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(ex){PROV_DB=[];}
     SB_OK = false;
     setSBStatus(false);
     toast('Sin conexión a Supabase — modo local activo','er');
+  }
+
+  try {
+    showLoader('Cargando contratistas...');
+    if (coreLoaded) {
+      try {
+        PROV_DB = await sbLoadTable('contratistas');
+      } catch(e1) {
+        console.warn('Tabla contratistas no disponible, intentando proveedores...', e1);
+        try {
+          PROV_DB = await sbLoadTable('proveedores');
+        } catch(e2) {
+          console.warn('Sin tabla proveedores/contratistas en Supabase, usando localStorage', e2);
+          PROV_DB = JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];
+        }
+      }
+    } else {
+      PROV_DB = JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];
+    }
+  } catch(ex) {
+    try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];}
   }
 
   hideLoader();
@@ -722,9 +741,22 @@ async function saveLicit() {
 }
 
 async function saveProv() {
-  if (!SB_OK) { localStorage.setItem('contr_v1', JSON.stringify(PROV_DB)); localStorage.setItem('prov_v1', JSON.stringify(PROV_DB)); return; }
+  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+  if (!SB_OK) { return; }
   const last = PROV_DB[PROV_DB.length-1];
-  if (last) await sbUpsertItem('contratistas', last);
+  if (!last) return;
+  try {
+    await sbUpsertItem('contratistas', last);
+  } catch(e1) {
+    console.warn('No se pudo guardar en contratistas, intentando proveedores...', e1);
+    try {
+      await sbUpsertItem('proveedores', last);
+    } catch(e2) {
+      console.warn('No se pudo guardar en proveedores/contratistas; queda guardado local', e2);
+      toast('Contratista guardado localmente; falta tabla en Supabase','er');
+    }
+  }
 }
 
 function updNav(){document.getElementById('cnt').textContent=DB.length;document.getElementById('poCnt').textContent=Object.keys(ME2N).length;document.getElementById('provCnt').textContent=PROV_DB.length;}
@@ -751,7 +783,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Contratistas';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Contratista</button></div>';renderProv();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Contratistas';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="exportContratistasCSV()">📥 Exportar CSV</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Contratista</button></div>';renderProv();}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -2701,8 +2733,7 @@ function exportContratistasCSV(){
     vendor_sap:p.vendorNum||'',
     rubro:p.rubro||'',
     website:p.website||'',
-    observaciones:(p.obs||'').replace(/
-/g,' '),
+    observaciones:(p.obs||'').replace(/\n/g,' '),
     contactos:(p.contacts||[]).map(c=>[c.name,c.role,c.email,c.phone].filter(Boolean).join(' / ')).join(' | '),
     brochure:p.brochure?.name||''
   }));
@@ -2743,6 +2774,7 @@ function renderProvList(){
     <input type="text" placeholder="Buscar contratista, N° vendor, rubro..." value="${esc(_provSrch)}" oninput="_provSrch=this.value;renderProvList()" style="flex:1;max-width:320px;font-size:13px">
     <span style="font-size:12px;color:var(--g500)">${arr.length} de ${PROV_DB.length} contratistas</span>
     <button class="btn btn-s btn-sm" onclick="importProvModal()">📥 Importar SAP</button>
+    <button class="btn btn-s btn-sm" onclick="exportContratistasCSV()">📤 Exportar CSV</button>
   </div>`;
 
   if(!arr.length){
@@ -2936,7 +2968,7 @@ function handleProvBrochure(input){
 
 function saveProvModal(editId){
   const name=document.getElementById('pm_name')?.value.trim();
-  if(!name){toast('Ingresá el nombre del contratista','er');return;}
+  if(!name){toast('Ingresá el nombre del proveedor','er');return;}
   const id=editId||Date.now().toString(36)+Math.random().toString(36).substr(2,4);
   const prov={
     id,name,
@@ -2957,7 +2989,7 @@ function saveProvModal(editId){
 
 function closeProvModal(){document.getElementById('provModalBack').style.display='none';}
 function deleteProv(id){
-  if(!confirm('¿Eliminar este contratista?'))return;
+  if(!confirm('¿Eliminar este proveedor?'))return;
   PROV_DB=PROV_DB.filter(p=>p.id!==id);saveProv();renderProvList();updNavProv();toast('Eliminado','ok');
 }
 
@@ -2974,7 +3006,7 @@ function importProvModal(){
     <div class="idx-modal-body">
       <div class="info-box blue" style="margin-bottom:14px;font-size:12px">
         Adjuntá el Excel de vendors exportado de SAP (columnas: <strong>Name of Vendor</strong>, <strong>VENDOR2</strong>).
-        Se crearán registros básicos para contratistas nuevos — podés completar el detalle después.
+        Se crearán registros básicos para proveedores nuevos — podés completar el detalle después.
       </div>
       <div class="sap-import-zone" onclick="document.getElementById('sapProvFile').click()">
         <div style="font-size:28px;margin-bottom:6px">🏢</div>
@@ -3014,8 +3046,8 @@ function processSapProvImport(input){
         added++;
       }
       saveProv();updNavProv();renderProvList();
-      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados. ${skipped} ya existían.</div>`;
-      toast(`${added} contratistas de SAP importados`,'ok');
+      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> proveedores importados. ${skipped} ya existían.</div>`;
+      toast(`${added} proveedores de SAP importados`,'ok');
     }catch(err){toast('Error procesando el archivo','er');console.error(err);}
   };
   reader.readAsArrayBuffer(file);
