@@ -803,10 +803,28 @@ async function loginApp(){
     return;
   }
   try{
+    var hash = await sha256Hex(p);
+    var localUser = APP_USERS_FALLBACK.find(function(x){
+      return String(x.username).toLowerCase() === String(u).toLowerCase();
+    });
+
+    if(localUser && String(hash).toLowerCase() === String(localUser.password_hash || '').toLowerCase()){
+      _APP_USER = { id: localUser.id || localUser.username, username: localUser.username };
+      _APP_ROLE = localUser.role || 'SIN_ROL';
+      try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
+      var ovLocal = document.getElementById('loginOverlay');
+      if(ovLocal) ovLocal.remove();
+      authUnlock();
+      setRoleBadge();
+      applyRolePermissions();
+      if(typeof toast === 'function') toast('Sesión iniciada: ' + localUser.username, 'ok');
+      await initApp();
+      return;
+    }
+
     var row = await fetchAppUser(u);
     if(!row) throw new Error('Usuario no encontrado');
     if(row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
-    var hash = await sha256Hex(p);
     if(String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
     _APP_USER = { id: row.id || row.username, username: row.username };
     _APP_ROLE = row.role || 'SIN_ROL';
