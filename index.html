@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<link rel="icon" href="data:,">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión de Contratos TA</title>
@@ -3086,7 +3087,7 @@ function handleProvBrochure(input){
   r.readAsDataURL(f);
 }
 
-async async function saveProvModal(editId){
+async function saveProvModal(editId){
   const name=document.getElementById('pm_name')?.value.trim();
   if(!name){toast('Ingresá el nombre del contratista','er');return;}
   const id=editId||Date.now().toString(36)+Math.random().toString(36).substr(2,4);
