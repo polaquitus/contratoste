@@ -400,6 +400,10 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
 #logoutBtn{display:none}
 #logoutBtn.show{display:inline-flex}
+.sb-foot{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08)}
+.sb-logout{width:100%;justify-content:flex-start;background:rgba(255,255,255,.08);color:var(--w);border:1px solid rgba(255,255,255,.12)}
+.sb-logout:hover{background:rgba(255,255,255,.14)}
+
 
 </style>
 </head>
@@ -417,6 +421,7 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
     <a class="nv" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
     <a class="nv" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
   </nav>
+ <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
 <header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">sys_A2_force</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
@@ -791,6 +796,8 @@ function setRoleBadge(){
     tba.appendChild(btn);
   }
   if(btn) btn.classList.toggle('show', !!(_APP_USER && _APP_ROLE));
+  var sbBtn = document.getElementById('sbLogoutBtn');
+  if(sbBtn) sbBtn.style.display = (_APP_USER && _APP_ROLE) ? 'inline-flex' : 'none';
 }
 
 function applyRolePermissions(){
@@ -2059,6 +2066,40 @@ async function fetchUsdBnaLike(targetYm){
   }
   throw new Error('No se pudo obtener USD');
 }
+const IDX_OFFICIAL_SEED = {
+  ipc_nac: [
+    { ym:'2026-02', pct:2.9, value:null, publishedAt:'2026-03-12', source:'INDEC', sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31', note:'IPC Nacional (nivel general) oficial INDEC' }
+  ],
+  ipc_gba: [
+    { ym:'2026-02', pct:2.6, value:null, publishedAt:'2026-03-12', source:'INDEC', sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31', note:'IPC GBA (nivel general) oficial INDEC' }
+  ],
+  ipc_pat: [
+    { ym:'2026-02', pct:3.0, value:null, publishedAt:'2026-03-12', source:'INDEC', sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31', note:'IPC Patagonia (nivel general) oficial INDEC' }
+  ],
+  ipc_nqn: [
+    { ym:'2026-02', pct:2.5, value:null, publishedAt:'2026-03-12', source:'DPEyC Neuquén', sourceUrl:'https://www.estadisticaneuquen.gob.ar/', note:'IPC Neuquén (nivel general) oficial DPEyC' }
+  ]
+};
+
+function ymCompare(a,b){ return String(a||'').localeCompare(String(b||'')); }
+function idxResolveOfficial(def, targetYm){
+  const rows = (IDX_OFFICIAL_SEED[def.id] || []).slice().sort((a,b)=>ymCompare(a.ym,b.ym));
+  if(!rows.length) return null;
+  let chosen = null;
+  for(const row of rows){ if(ymCompare(row.ym, targetYm) <= 0) chosen = row; }
+  if(!chosen) chosen = rows[rows.length - 1];
+  return {
+    ym: chosen.ym,
+    pct: chosen.pct != null ? Number(chosen.pct) : null,
+    value: chosen.value != null ? Number(chosen.value) : null,
+    publishedAt: chosen.publishedAt || null,
+    sourceUrl: chosen.sourceUrl || null,
+    status: chosen.ym === targetYm ? 'updated' : 'waiting_release',
+    note: (chosen.note || def.name) + (chosen.ym === targetYm ? '' : ' · último oficial disponible'),
+    source: chosen.source || def.src
+  };
+}
+
 async function idxResolveViaAI(def, targetYm){
   if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
   const prompt = `Necesito el último valor oficial publicado para el índice argentino "${def.name}" (fuente ${def.src}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
@@ -2081,9 +2122,18 @@ async function runIdxUpdate(id){
       toast(def.name+' actualizado','ok');
       return;
     }
+    if(def.cat==='ipc'){
+      const official = idxResolveOfficial(def, target);
+      if(official && (official.pct!=null || official.value!=null)){
+        idxUpsert(id,{ym:official.ym||target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:official.status||'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+        renderIdxView();
+        toast(def.name + (official.ym===target ? ' actualizado' : ' usando último oficial'), 'ok');
+        return;
+      }
+    }
     const rs=await idxResolveViaAI(def,target);
     if(rs && (rs.pct!=null || rs.value!=null)){
-      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null});
+      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       renderIdxView();toast(def.name+' actualizado','ok');return;
     }
     throw new Error('Sin dato');
