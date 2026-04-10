@@ -387,16 +387,19 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 @media(max-width:1100px){.fg{grid-template-columns:repeat(2,1fr)}.fgrp.c3{grid-column:span 2}.fg4{grid-template-columns:repeat(2,1fr)}.det-g{grid-template-columns:repeat(2,1fr)}.dc:nth-child(2n){border-right:none}.dc:nth-child(4n){border-right:1px solid var(--g100)}.po-summ{grid-template-columns:repeat(2,1fr)}.po-line{grid-template-columns:110px 120px 1fr 90px 100px}.dossier-grid.top,.dossier-bottom,.po-dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:768px){.sb{width:56px;overflow:hidden}.sb-logo .txt,.nv span:not(.ni),.nv .badge,.sb-sec{display:none}.sb-logo{justify-content:center;padding:14px}.nv{justify-content:center;padding:10px}.mn{margin-left:56px}.fg,.fg2,.fg4{grid-template-columns:1fr}.fgrp.c2,.fgrp.c3{grid-column:span 1}.ct{padding:14px}.tb{padding:10px 14px}.det-g{grid-template-columns:1fr}.dc{border-right:none!important}}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--g300);border-radius:99px}
-/* ==== sys_A2_force login layer ==== */
+
+/* ==== sys_A2_force login hard lock ==== */
 body.auth-locked{overflow:hidden}
-body.auth-locked .app{filter:blur(2px) saturate(.88);pointer-events:none;user-select:none}
-body.auth-locked #loginOverlay{pointer-events:auto}
-.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--b100);color:#1e3a8a;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
+body.auth-locked .app{filter:blur(2px) saturate(.9);pointer-events:none;user-select:none}
+#loginOverlay{backdrop-filter:blur(6px)}
+#loginOverlay input:focus{border-color:var(--p500)!important;box-shadow:0 0 0 3px rgba(62,128,149,.12)}
+.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
 .auth-badge.owner{background:var(--b100);color:#1e3a8a}
 .auth-badge.ing_contratos{background:var(--g100d);color:#166534}
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
 #logoutBtn{display:none}
 #logoutBtn.show{display:inline-flex}
+
 </style>
 </head>
 <body>
@@ -655,16 +658,19 @@ function showLoader(msg) {
     el = document.createElement('div');
     el.id = 'sb-loader';
     el.style.cssText = 'position:fixed;inset:0;background:rgba(20,48,58,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
-    el.innerHTML = '<div style="width:52px;height:52px;border:4px solid rgba(255,255,255,.15);border-top-color:#4c96ad;border-radius:50%;animation:sbl .8s linear infinite"></div><div id="sb-lmsg" style="color:#fff;font-size:14px;font-weight:500"></div><style>@keyframes sbl{to{transform:rotate(360deg)}}/* ==== sys_A2_force login layer ==== */
+    el.innerHTML = '<div style="width:52px;height:52px;border:4px solid rgba(255,255,255,.15);border-top-color:#4c96ad;border-radius:50%;animation:sbl .8s linear infinite"></div><div id="sb-lmsg" style="color:#fff;font-size:14px;font-weight:500"></div><style>@keyframes sbl{to{transform:rotate(360deg)}}
+/* ==== sys_A2_force login hard lock ==== */
 body.auth-locked{overflow:hidden}
-body.auth-locked .app{filter:blur(2px) saturate(.88);pointer-events:none;user-select:none}
-body.auth-locked #loginOverlay{pointer-events:auto}
-.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--b100);color:#1e3a8a;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
+body.auth-locked .app{filter:blur(2px) saturate(.9);pointer-events:none;user-select:none}
+#loginOverlay{backdrop-filter:blur(6px)}
+#loginOverlay input:focus{border-color:var(--p500)!important;box-shadow:0 0 0 3px rgba(62,128,149,.12)}
+.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
 .auth-badge.owner{background:var(--b100);color:#1e3a8a}
 .auth-badge.ing_contratos{background:var(--g100d);color:#166534}
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
 #logoutBtn{display:none}
 #logoutBtn.show{display:inline-flex}
+
 </style>';
     document.body.appendChild(el);
   }
@@ -677,271 +683,55 @@ function hideLoader() { const el=document.getElementById('sb-loader'); if(el) el
 
 let _APP_USER = null;
 let _APP_ROLE = null;
-
+let _AUTH_READY = false;
+const APP_USERS_FALLBACK = [
+  { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
+  { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
+  { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
+];
 function loginOverlayHtml(){
-  return `<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#14303a,#224b5a);z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:420px;max-width:96vw;padding:24px 24px 18px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="font-size:26px">🔐</div><div><div style="font-size:21px;font-weight:800;color:#14303a">Ingreso al sistema</div><div style="font-size:12px;color:#64748b">Perfiles: OWNER / ING_CONTRATOS / RESP_TECNICO</div></div></div>
+  return `<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.96),rgba(28,66,82,.92));z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:430px;max-width:96vw;padding:24px 24px 18px;border:1px solid #dbe5ea">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="width:46px;height:46px;border-radius:12px;background:#14303a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🔐</div>
+        <div><div style="font-size:21px;font-weight:800;color:#14303a">Ingreso al sistema</div><div style="font-size:12px;color:#64748b">sys_A2_force · login obligatorio</div></div>
+      </div>
+      <div style="font-size:12.5px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 12px;margin-bottom:14px;line-height:1.45">La interfaz queda bloqueada hasta autenticación. El acceso se valida contra <strong>app_users</strong> y no depende de <strong>sessionStorage</strong> para recordar la sesión.</div>
       <div style="display:grid;gap:12px">
-        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label><input id="lgUser" type="text" placeholder="usuario" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px"></div>
-        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label><input id="lgPass" type="password" placeholder="••••••••" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px"></div>
+        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label><input id="lgUser" type="text" placeholder="owner / contratos / tecnico" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none"></div>
+        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label><input id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none"></div>
         <div id="lgMsg" style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px">Ingresá con tu usuario y contraseña.</div>
         <button class="btn btn-p" style="width:100%;justify-content:center" onclick="loginApp()">Ingresar</button>
       </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;line-height:1.55"><div><strong>Usuarios de prueba</strong></div><div>owner / owner123</div><div>contratos / contratos123</div><div>tecnico / tecnico123</div></div>
     </div>
   </div>`;
 }
-function ensureLoginOverlay(){ if(!document.getElementById('loginOverlay')) document.body.insertAdjacentHTML('beforeend', loginOverlayHtml()); }
-async function sha256Hex(str){ const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-function setRoleBadge(){ let b=document.getElementById('role-badge'); if(!b){ b=document.createElement('span'); b.id='role-badge'; b.style.cssText='font-size:11px;font-weight:700;padding:4px 11px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;cursor:default;margin-right:6px;background:#e0f2fe;color:#075985'; const tba=document.querySelector('.tba'); if(tba) tba.insertBefore(b, tba.firstChild); } b.textContent = _APP_ROLE ? ('👤 '+String(_APP_ROLE).replaceAll('_',' ')) : '👤 SIN ROL'; }
+function authLock(){ document.body.classList.add('auth-locked'); }
+function authUnlock(){ document.body.classList.remove('auth-locked'); }
+function ensureLoginOverlay(){ authLock(); let ov = document.getElementById('loginOverlay'); if(!ov){ document.body.insertAdjacentHTML('beforeend', loginOverlayHtml()); ov = document.getElementById('loginOverlay'); } ov.style.display='flex'; const u=document.getElementById('lgUser'), p=document.getElementById('lgPass'); [u,p].forEach(el=>{ if(el && !el.dataset.bound){ el.dataset.bound='1'; el.addEventListener('keydown',e=>{ if(e.key==='Enter') loginApp(); }); } }); setTimeout(()=>u?.focus(), 40); }
+async function sha256Hex(str){ const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str||''))); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function setRoleBadge(){ let badge=document.getElementById('roleBadge'); const t=document.getElementById('pgT'); if(!badge && t){ badge=document.createElement('span'); badge.id='roleBadge'; badge.style.marginLeft='8px'; t.appendChild(badge); } if(badge){ badge.className='auth-badge '+String(_APP_ROLE||'').toLowerCase(); badge.textContent=_APP_ROLE||'SIN_ROL'; badge.style.display=_AUTH_READY?'inline-flex':'none'; } let btn=document.getElementById('logoutBtn'); const tba=document.getElementById('pgA'); if(!btn && tba){ btn=document.createElement('button'); btn.id='logoutBtn'; btn.className='btn btn-d'; btn.type='button'; btn.textContent='⎋ Salir'; btn.onclick=logoutApp; tba.appendChild(btn); } if(btn) btn.classList.toggle('show', _AUTH_READY); }
 function applyRolePermissions(){ const role = String(_APP_ROLE||'').toUpperCase(); if(role && role!=='OWNER') document.querySelectorAll('[data-owner-only="1"]').forEach(el=>el.style.display='none'); }
-async function loginApp(){ const u=(document.getElementById('lgUser')?.value||'').trim(); const p=(document.getElementById('lgPass')?.value||'').trim(); const msg=document.getElementById('lgMsg'); if(!u||!p){ if(msg) msg.textContent='Ingresá usuario y contraseña'; return; } try{ const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(u)}&limit=1`); if(!rows || !rows.length) throw new Error('Usuario no encontrado'); const row=rows[0]; if(row.active===false || String(row.active)==='false') throw new Error('Usuario inactivo'); const hash = await sha256Hex(p); if(String(hash).toLowerCase() !== String(row.password_hash||'').toLowerCase()) throw new Error('Contraseña inválida'); _APP_USER = {id:row.id, username:row.username}; _APP_ROLE = row.role || 'SIN_ROL'; sessionStorage.setItem('app_user', JSON.stringify(_APP_USER)); sessionStorage.setItem('app_role', _APP_ROLE); document.getElementById('loginOverlay')?.remove(); setRoleBadge(); applyRolePermissions(); } catch(err){ if(msg) msg.textContent = err.message || 'No se pudo iniciar sesión'; } }
-async function requireLogin(){ try{ _APP_USER = JSON.parse(sessionStorage.getItem('app_user')||'null'); }catch(e){ _APP_USER=null; } _APP_ROLE = sessionStorage.getItem('app_role') || null; if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); return true; } ensureLoginOverlay(); return false; }
-function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[], aves=c.aves||[]; return `<!doctype html><html><head><meta charset="utf-8"><title>Dossier ${esc(c.num||'')}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}/* ==== sys_A2_force login layer ==== */
+async function fetchAppUser(username){ try{ const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(username)}&limit=1`); if(rows && rows.length) return rows[0]; }catch(err){ console.warn('app_users fallback', err); } return APP_USERS_FALLBACK.find(x=>String(x.username).toLowerCase()===String(username).toLowerCase()) || null; }
+async function loginApp(){ const u=(document.getElementById('lgUser')?.value||'').trim(); const p=(document.getElementById('lgPass')?.value||'').trim(); const msg=document.getElementById('lgMsg'); if(!u||!p){ if(msg){ msg.textContent='Ingresá usuario y contraseña'; msg.style.color='#b45309'; } return; } try{ const row = await fetchAppUser(u); if(!row) throw new Error('Usuario no encontrado'); if(row.active===false || String(row.active)==='false') throw new Error('Usuario inactivo'); const hash = await sha256Hex(p); if(String(hash).toLowerCase() !== String(row.password_hash||'').toLowerCase()) throw new Error('Contraseña inválida'); _APP_USER = { id: row.id || row.username, username: row.username }; _APP_ROLE = row.role || 'SIN_ROL'; _AUTH_READY = true; try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){} document.getElementById('loginOverlay')?.remove(); authUnlock(); setRoleBadge(); applyRolePermissions(); if(typeof toast==='function') toast(`Sesión iniciada: ${row.username}`, 'ok'); }catch(err){ _APP_USER = null; _APP_ROLE = null; _AUTH_READY = false; authLock(); if(msg){ msg.textContent = err.message || 'No se pudo iniciar sesión'; msg.style.color='#dc2626'; } } }
+async function requireLogin(){ _APP_USER = null; _APP_ROLE = null; _AUTH_READY = false; try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){} ensureLoginOverlay(); setRoleBadge(); return false; }
+function logoutApp(){ _APP_USER = null; _APP_ROLE = null; _AUTH_READY = false; try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){} setRoleBadge(); ensureLoginOverlay(); if(typeof toast==='function') toast('Sesión cerrada', 'ok'); }
+document.addEventListener('DOMContentLoaded', ()=>{ authLock(); setRoleBadge(); ensureLoginOverlay(); });
+function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[], aves=c.aves||[]; return `<!doctype html><html><head><meta charset="utf-8"><title>Dossier ${esc(c.num||'')}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}
+/* ==== sys_A2_force login hard lock ==== */
 body.auth-locked{overflow:hidden}
-body.auth-locked .app{filter:blur(2px) saturate(.88);pointer-events:none;user-select:none}
-body.auth-locked #loginOverlay{pointer-events:auto}
-.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--b100);color:#1e3a8a;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
+body.auth-locked .app{filter:blur(2px) saturate(.9);pointer-events:none;user-select:none}
+#loginOverlay{backdrop-filter:blur(6px)}
+#loginOverlay input:focus{border-color:var(--p500)!important;box-shadow:0 0 0 3px rgba(62,128,149,.12)}
+.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
 .auth-badge.owner{background:var(--b100);color:#1e3a8a}
 .auth-badge.ing_contratos{background:var(--g100d);color:#166534}
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
 #logoutBtn{display:none}
 #logoutBtn.show{display:inline-flex}
-</style></head><body><h1>📘 Dossier del Contrato ${esc(c.num||'')}</h1><div class="b"><div class="k"><div><strong>Contratista</strong></div><div>${esc(c.cont||'')}</div><div><strong>Objeto</strong></div><div>${esc(c.det||'')}</div><div><strong>Inicio</strong></div><div>${esc(c.fechaIni||'')}</div><div><strong>Fin</strong></div><div>${esc(c.fechaFin||'')}</div><div><strong>Monto</strong></div><div class="mono">${typeof fN==='function'?fN(c.monto||0):(c.monto||0)}</div><div><strong>Período base tarifario</strong></div><div>${esc(c.btar||'')}</div></div></div><h2>Enmiendas</h2><div class="b">${enms.length?`<table><thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Descripción</th></tr></thead><tbody>${enms.map(e=>`<tr><td>${esc(e.num||'')}</td><td>${esc(e.fecha||'')}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.descripcion||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin enmiendas</div>'}</div><h2>Tarifarios</h2><div class="b">${tars.length?`<table><thead><tr><th>Nombre</th><th>Período</th><th>Ítems</th><th>Origen</th></tr></thead><tbody>${tars.map(t=>`<tr><td>${esc(t.name||'')}</td><td>${esc(t.period||'')}</td><td>${(t.rows||[]).length}</td><td>${esc(t.sourceTableName||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin tarifarios</div>'}</div><h2>AVEs</h2><div class="b">${aves.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>${aves.map(a=>`<tr><td>${esc(a.fecha||'')}</td><td>${esc(a.tipo||'')}</td><td class="mono">${typeof fN==='function'?fN(a.monto||0):(a.monto||0)}</td><td>${esc(a.concepto||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin AVEs</div>'}</div>
-<script>
-/* ==== sys_A2_force :: login forzado sin sessionStorage ==== */
-(function(){
-  const BUILD_TAG = 'sys_A2_force';
-  let _AUTH_READY = false;
-  const APP_USERS_FALLBACK = [
-    { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
-    { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
-    { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
-  ];
 
-  function ensureBuildTag(){
-    const el = document.getElementById('buildTag');
-    if (el) el.textContent = BUILD_TAG;
-  }
-
-  async function sha256HexLocal(v){
-    if (typeof sha256Hex === 'function') return sha256Hex(v);
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(v||'')));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
-
-  function roleClass(role){
-    return String(role||'').toLowerCase();
-  }
-
-  function authLock(){
-    document.body.classList.add('auth-locked');
-  }
-
-  function authUnlock(){
-    document.body.classList.remove('auth-locked');
-  }
-
-  function ensureAuthControls(){
-    ensureBuildTag();
-    const title = document.getElementById('pgT');
-    const actions = document.getElementById('pgA');
-    if (title && !document.getElementById('roleBadge')) {
-      const span = document.createElement('span');
-      span.id = 'roleBadge';
-      span.className = 'auth-badge';
-      span.style.marginLeft = '8px';
-      span.style.display = 'none';
-      title.appendChild(span);
-    }
-    if (actions && !document.getElementById('logoutBtn')) {
-      const btn = document.createElement('button');
-      btn.id = 'logoutBtn';
-      btn.className = 'btn btn-d';
-      btn.type = 'button';
-      btn.textContent = '⎋ Salir';
-      btn.onclick = logoutApp;
-      actions.appendChild(btn);
-    }
-  }
-
-  function setRoleBadge(){
-    ensureAuthControls();
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.className = 'auth-badge ' + roleClass(_APP_ROLE);
-      badge.textContent = _APP_ROLE || 'SIN_ROL';
-      badge.style.display = (_APP_ROLE ? 'inline-flex' : 'none');
-    }
-    if (btn) btn.classList.toggle('show', !!_AUTH_READY);
-  }
-
-  function clearRoleBadge(){
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.textContent = '';
-      badge.style.display = 'none';
-      badge.className = 'auth-badge';
-    }
-    if (btn) btn.classList.remove('show');
-  }
-
-  function loginOverlayHtml(){
-    return `
-      <div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.96),rgba(36,86,108,.96));backdrop-filter:blur(6px);z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
-        <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:440px;max-width:96vw;padding:24px 24px 18px;border:1px solid rgba(255,255,255,.2)">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-            <div style="width:48px;height:48px;border-radius:12px;background:#14303a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🔐</div>
-            <div>
-              <div style="font-size:22px;font-weight:800;color:#14303a">Ingreso requerido</div>
-              <div style="font-size:12px;color:#6c757d">sys_A2_force · acceso obligatorio antes de cargar contratos</div>
-            </div>
-          </div>
-          <div style="font-size:12.5px;line-height:1.45;color:#495057;background:#eef6f9;border:1px solid #d6e9f0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
-            La interfaz queda bloqueada hasta autenticación. El login <strong>no usa sessionStorage</strong> para recordar la sesión.
-          </div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Usuario</label>
-              <input id="lgUser" type="text" autocomplete="username" placeholder="owner / contratos / tecnico" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Contraseña</label>
-              <input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <button type="button" onclick="loginApp()" style="border:none;border-radius:10px;background:#3E8095;color:#fff;font-weight:800;font-size:14px;padding:12px 14px;cursor:pointer">Ingresar</button>
-            <div id="lgMsg" style="min-height:20px;color:#dc3545;font-size:12.5px;font-weight:600"></div>
-          </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e9ecef;font-size:12px;color:#6c757d;line-height:1.55">
-            <div><strong>Usuarios de prueba</strong></div>
-            <div>owner / owner123</div>
-            <div>contratos / contratos123</div>
-            <div>tecnico / tecnico123</div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function wireLoginKeys(){
-    ['lgUser','lgPass'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && !el.dataset.wired) {
-        el.dataset.wired = '1';
-        el.addEventListener('keydown', ev => { if (ev.key === 'Enter') loginApp(); });
-      }
-    });
-  }
-
-  function ensureLoginOverlay(){
-    ensureAuthControls();
-    authLock();
-    let ov = document.getElementById('loginOverlay');
-    if (!ov) {
-      document.body.insertAdjacentHTML('beforeend', loginOverlayHtml());
-      ov = document.getElementById('loginOverlay');
-    }
-    if (ov) ov.style.display = 'flex';
-    clearRoleBadge();
-    wireLoginKeys();
-    setTimeout(() => document.getElementById('lgUser')?.focus(), 40);
-  }
-
-  async function fetchAppUser(username){
-    try {
-      if (typeof sbFetch === 'function') {
-        const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(username)}&limit=1`);
-        if (rows && rows.length) return rows[0];
-      }
-    } catch (e) {
-      console.warn('app_users lookup fallback', e);
-    }
-    return APP_USERS_FALLBACK.find(x => String(x.username).toLowerCase() === String(username).toLowerCase()) || null;
-  }
-
-  async function loginApp(){
-    const u = (document.getElementById('lgUser')?.value || '').trim();
-    const p = (document.getElementById('lgPass')?.value || '').trim();
-    const msg = document.getElementById('lgMsg');
-    if (msg) msg.textContent = '';
-    if (!u || !p) { if (msg) msg.textContent = 'Ingresá usuario y contraseña'; return; }
-    try {
-      const row = await fetchAppUser(u);
-      if (!row) throw new Error('Usuario no encontrado');
-      if (row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
-      const hash = await sha256HexLocal(p);
-      if (String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
-      _APP_USER = { id: row.id || row.username, username: row.username };
-      _APP_ROLE = row.role || 'SIN_ROL';
-      _AUTH_READY = true;
-      document.getElementById('loginOverlay')?.remove();
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      if (typeof toast === 'function') toast(`Sesión iniciada: ${_APP_USER.username}`, 'ok');
-    } catch (err) {
-      _AUTH_READY = false;
-      _APP_USER = null;
-      _APP_ROLE = null;
-      authLock();
-      clearRoleBadge();
-      if (msg) msg.textContent = err.message || 'No se pudo iniciar sesión';
-    }
-  }
-
-  async function requireLogin(){
-    ensureBuildTag();
-    ensureAuthControls();
-    if (_AUTH_READY && _APP_USER && _APP_ROLE) {
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      return true;
-    }
-    ensureLoginOverlay();
-    return false;
-  }
-
-  function logoutApp(){
-    _AUTH_READY = false;
-    _APP_USER = null;
-    _APP_ROLE = null;
-    clearRoleBadge();
-    ensureLoginOverlay();
-    if (typeof toast === 'function') toast('Sesión cerrada', 'ok');
-  }
-
-  window.loginApp = loginApp;
-  window.requireLogin = requireLogin;
-  window.ensureLoginOverlay = ensureLoginOverlay;
-  window.logoutApp = logoutApp;
-  window.setRoleBadge = setRoleBadge;
-
-  const _go = typeof window.go === 'function' ? window.go : null;
-  if (_go) {
-    window.go = function(){
-      if (!_AUTH_READY) { ensureLoginOverlay(); return false; }
-      return _go.apply(this, arguments);
-    };
-  }
-
-  const _renderList = typeof window.renderList === 'function' ? window.renderList : null;
-  if (_renderList) {
-    window.renderList = function(){
-      if (!_AUTH_READY) return false;
-      return _renderList.apply(this, arguments);
-    };
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    ensureBuildTag();
-    ensureAuthControls();
-    authLock();
-  });
-})();
-</script>
-
+</style></head><body><h1>📘 Dossier del Contrato ${esc(c.num||'')}</h1><div class="b"><div class="k"><div><strong>Contratista</strong></div><div>${esc(c.cont||'')}</div><div><strong>Objeto</strong></div><div>${esc(c.det||'')}</div><div><strong>Inicio</strong></div><div>${esc(c.fechaIni||'')}</div><div><strong>Fin</strong></div><div>${esc(c.fechaFin||'')}</div><div><strong>Monto</strong></div><div class="mono">${typeof fN==='function'?fN(c.monto||0):(c.monto||0)}</div><div><strong>Período base tarifario</strong></div><div>${esc(c.btar||'')}</div></div></div><h2>Enmiendas</h2><div class="b">${enms.length?`<table><thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Descripción</th></tr></thead><tbody>${enms.map(e=>`<tr><td>${esc(e.num||'')}</td><td>${esc(e.fecha||'')}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.descripcion||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin enmiendas</div>'}</div><h2>Tarifarios</h2><div class="b">${tars.length?`<table><thead><tr><th>Nombre</th><th>Período</th><th>Ítems</th><th>Origen</th></tr></thead><tbody>${tars.map(t=>`<tr><td>${esc(t.name||'')}</td><td>${esc(t.period||'')}</td><td>${(t.rows||[]).length}</td><td>${esc(t.sourceTableName||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin tarifarios</div>'}</div><h2>AVEs</h2><div class="b">${aves.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>${aves.map(a=>`<tr><td>${esc(a.fecha||'')}</td><td>${esc(a.tipo||'')}</td><td class="mono">${typeof fN==='function'?fN(a.monto||0):(a.monto||0)}</td><td>${esc(a.concepto||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin AVEs</div>'}</div><script>(function(){const _go=window.go;if(typeof _go==='function'){window.go=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY){ensureLoginOverlay();return false;}return _go.apply(this,arguments);};}const _renderList=window.renderList;if(typeof _renderList==='function'){window.renderList=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY)return false;return _renderList.apply(this,arguments);};}})();</script>
 </body></html>`; }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 async function initApp() {
@@ -1293,16 +1083,19 @@ function renderDossierHtml(c){
   const tars = c.tarifarios||[];
   const aves = c.aves||[];
   return `<!doctype html><html><head><meta charset="utf-8"><title>Dossier ${esc(c.num||'')}</title>
-  <style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.tag{display:inline-block;padding:3px 8px;border-radius:99px;background:#e2e8f0;font-size:12px;font-weight:700;margin-right:6px}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}/* ==== sys_A2_force login layer ==== */
+  <style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.tag{display:inline-block;padding:3px 8px;border-radius:99px;background:#e2e8f0;font-size:12px;font-weight:700;margin-right:6px}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}
+/* ==== sys_A2_force login hard lock ==== */
 body.auth-locked{overflow:hidden}
-body.auth-locked .app{filter:blur(2px) saturate(.88);pointer-events:none;user-select:none}
-body.auth-locked #loginOverlay{pointer-events:auto}
-.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--b100);color:#1e3a8a;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
+body.auth-locked .app{filter:blur(2px) saturate(.9);pointer-events:none;user-select:none}
+#loginOverlay{backdrop-filter:blur(6px)}
+#loginOverlay input:focus{border-color:var(--p500)!important;box-shadow:0 0 0 3px rgba(62,128,149,.12)}
+.auth-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
 .auth-badge.owner{background:var(--b100);color:#1e3a8a}
 .auth-badge.ing_contratos{background:var(--g100d);color:#166534}
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
 #logoutBtn{display:none}
 #logoutBtn.show{display:inline-flex}
+
 </style></head><body>
   <h1>📘 Dossier del Contrato ${esc(c.num||'')}</h1>
   <div class="b"><div class="k">
@@ -1319,241 +1112,7 @@ body.auth-locked #loginOverlay{pointer-events:auto}
   <div class="b">${tars.length?`<table><thead><tr><th>Nombre</th><th>Período</th><th>Items</th><th>Origen</th></tr></thead><tbody>${tars.map(t=>`<tr><td>${esc(t.name||'')}</td><td>${esc(t.period||'')}</td><td>${(t.rows||[]).length}</td><td>${esc(t.sourceTableName||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin tarifarios</div>'}</div>
   <h2>AVEs</h2>
   <div class="b">${aves.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>${aves.map(a=>`<tr><td>${esc(a.fecha||'')}</td><td>${esc(a.tipo||'')}</td><td class="mono">${typeof fN==='function'?fN(a.monto||0):(a.monto||0)}</td><td>${esc(a.concepto||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin AVEs</div>'}</div>
-  
-<script>
-/* ==== sys_A2_force :: login forzado sin sessionStorage ==== */
-(function(){
-  const BUILD_TAG = 'sys_A2_force';
-  let _AUTH_READY = false;
-  const APP_USERS_FALLBACK = [
-    { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
-    { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
-    { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
-  ];
-
-  function ensureBuildTag(){
-    const el = document.getElementById('buildTag');
-    if (el) el.textContent = BUILD_TAG;
-  }
-
-  async function sha256HexLocal(v){
-    if (typeof sha256Hex === 'function') return sha256Hex(v);
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(v||'')));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
-
-  function roleClass(role){
-    return String(role||'').toLowerCase();
-  }
-
-  function authLock(){
-    document.body.classList.add('auth-locked');
-  }
-
-  function authUnlock(){
-    document.body.classList.remove('auth-locked');
-  }
-
-  function ensureAuthControls(){
-    ensureBuildTag();
-    const title = document.getElementById('pgT');
-    const actions = document.getElementById('pgA');
-    if (title && !document.getElementById('roleBadge')) {
-      const span = document.createElement('span');
-      span.id = 'roleBadge';
-      span.className = 'auth-badge';
-      span.style.marginLeft = '8px';
-      span.style.display = 'none';
-      title.appendChild(span);
-    }
-    if (actions && !document.getElementById('logoutBtn')) {
-      const btn = document.createElement('button');
-      btn.id = 'logoutBtn';
-      btn.className = 'btn btn-d';
-      btn.type = 'button';
-      btn.textContent = '⎋ Salir';
-      btn.onclick = logoutApp;
-      actions.appendChild(btn);
-    }
-  }
-
-  function setRoleBadge(){
-    ensureAuthControls();
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.className = 'auth-badge ' + roleClass(_APP_ROLE);
-      badge.textContent = _APP_ROLE || 'SIN_ROL';
-      badge.style.display = (_APP_ROLE ? 'inline-flex' : 'none');
-    }
-    if (btn) btn.classList.toggle('show', !!_AUTH_READY);
-  }
-
-  function clearRoleBadge(){
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.textContent = '';
-      badge.style.display = 'none';
-      badge.className = 'auth-badge';
-    }
-    if (btn) btn.classList.remove('show');
-  }
-
-  function loginOverlayHtml(){
-    return `
-      <div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.96),rgba(36,86,108,.96));backdrop-filter:blur(6px);z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
-        <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:440px;max-width:96vw;padding:24px 24px 18px;border:1px solid rgba(255,255,255,.2)">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-            <div style="width:48px;height:48px;border-radius:12px;background:#14303a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🔐</div>
-            <div>
-              <div style="font-size:22px;font-weight:800;color:#14303a">Ingreso requerido</div>
-              <div style="font-size:12px;color:#6c757d">sys_A2_force · acceso obligatorio antes de cargar contratos</div>
-            </div>
-          </div>
-          <div style="font-size:12.5px;line-height:1.45;color:#495057;background:#eef6f9;border:1px solid #d6e9f0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
-            La interfaz queda bloqueada hasta autenticación. El login <strong>no usa sessionStorage</strong> para recordar la sesión.
-          </div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Usuario</label>
-              <input id="lgUser" type="text" autocomplete="username" placeholder="owner / contratos / tecnico" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Contraseña</label>
-              <input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <button type="button" onclick="loginApp()" style="border:none;border-radius:10px;background:#3E8095;color:#fff;font-weight:800;font-size:14px;padding:12px 14px;cursor:pointer">Ingresar</button>
-            <div id="lgMsg" style="min-height:20px;color:#dc3545;font-size:12.5px;font-weight:600"></div>
-          </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e9ecef;font-size:12px;color:#6c757d;line-height:1.55">
-            <div><strong>Usuarios de prueba</strong></div>
-            <div>owner / owner123</div>
-            <div>contratos / contratos123</div>
-            <div>tecnico / tecnico123</div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function wireLoginKeys(){
-    ['lgUser','lgPass'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && !el.dataset.wired) {
-        el.dataset.wired = '1';
-        el.addEventListener('keydown', ev => { if (ev.key === 'Enter') loginApp(); });
-      }
-    });
-  }
-
-  function ensureLoginOverlay(){
-    ensureAuthControls();
-    authLock();
-    let ov = document.getElementById('loginOverlay');
-    if (!ov) {
-      document.body.insertAdjacentHTML('beforeend', loginOverlayHtml());
-      ov = document.getElementById('loginOverlay');
-    }
-    if (ov) ov.style.display = 'flex';
-    clearRoleBadge();
-    wireLoginKeys();
-    setTimeout(() => document.getElementById('lgUser')?.focus(), 40);
-  }
-
-  async function fetchAppUser(username){
-    try {
-      if (typeof sbFetch === 'function') {
-        const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(username)}&limit=1`);
-        if (rows && rows.length) return rows[0];
-      }
-    } catch (e) {
-      console.warn('app_users lookup fallback', e);
-    }
-    return APP_USERS_FALLBACK.find(x => String(x.username).toLowerCase() === String(username).toLowerCase()) || null;
-  }
-
-  async function loginApp(){
-    const u = (document.getElementById('lgUser')?.value || '').trim();
-    const p = (document.getElementById('lgPass')?.value || '').trim();
-    const msg = document.getElementById('lgMsg');
-    if (msg) msg.textContent = '';
-    if (!u || !p) { if (msg) msg.textContent = 'Ingresá usuario y contraseña'; return; }
-    try {
-      const row = await fetchAppUser(u);
-      if (!row) throw new Error('Usuario no encontrado');
-      if (row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
-      const hash = await sha256HexLocal(p);
-      if (String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
-      _APP_USER = { id: row.id || row.username, username: row.username };
-      _APP_ROLE = row.role || 'SIN_ROL';
-      _AUTH_READY = true;
-      document.getElementById('loginOverlay')?.remove();
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      if (typeof toast === 'function') toast(`Sesión iniciada: ${_APP_USER.username}`, 'ok');
-    } catch (err) {
-      _AUTH_READY = false;
-      _APP_USER = null;
-      _APP_ROLE = null;
-      authLock();
-      clearRoleBadge();
-      if (msg) msg.textContent = err.message || 'No se pudo iniciar sesión';
-    }
-  }
-
-  async function requireLogin(){
-    ensureBuildTag();
-    ensureAuthControls();
-    if (_AUTH_READY && _APP_USER && _APP_ROLE) {
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      return true;
-    }
-    ensureLoginOverlay();
-    return false;
-  }
-
-  function logoutApp(){
-    _AUTH_READY = false;
-    _APP_USER = null;
-    _APP_ROLE = null;
-    clearRoleBadge();
-    ensureLoginOverlay();
-    if (typeof toast === 'function') toast('Sesión cerrada', 'ok');
-  }
-
-  window.loginApp = loginApp;
-  window.requireLogin = requireLogin;
-  window.ensureLoginOverlay = ensureLoginOverlay;
-  window.logoutApp = logoutApp;
-  window.setRoleBadge = setRoleBadge;
-
-  const _go = typeof window.go === 'function' ? window.go : null;
-  if (_go) {
-    window.go = function(){
-      if (!_AUTH_READY) { ensureLoginOverlay(); return false; }
-      return _go.apply(this, arguments);
-    };
-  }
-
-  const _renderList = typeof window.renderList === 'function' ? window.renderList : null;
-  if (_renderList) {
-    window.renderList = function(){
-      if (!_AUTH_READY) return false;
-      return _renderList.apply(this, arguments);
-    };
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    ensureBuildTag();
-    ensureAuthControls();
-    authLock();
-  });
-})();
-</script>
-
+  <script>(function(){const _go=window.go;if(typeof _go==='function'){window.go=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY){ensureLoginOverlay();return false;}return _go.apply(this,arguments);};}const _renderList=window.renderList;if(typeof _renderList==='function'){window.renderList=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY)return false;return _renderList.apply(this,arguments);};}})();</script>
 </body></html>`;
 }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
@@ -4031,240 +3590,6 @@ async function delAveById(aveId) {
     </div>
   </div>
 </div>
-
-<script>
-/* ==== sys_A2_force :: login forzado sin sessionStorage ==== */
-(function(){
-  const BUILD_TAG = 'sys_A2_force';
-  let _AUTH_READY = false;
-  const APP_USERS_FALLBACK = [
-    { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
-    { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
-    { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
-  ];
-
-  function ensureBuildTag(){
-    const el = document.getElementById('buildTag');
-    if (el) el.textContent = BUILD_TAG;
-  }
-
-  async function sha256HexLocal(v){
-    if (typeof sha256Hex === 'function') return sha256Hex(v);
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(v||'')));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
-
-  function roleClass(role){
-    return String(role||'').toLowerCase();
-  }
-
-  function authLock(){
-    document.body.classList.add('auth-locked');
-  }
-
-  function authUnlock(){
-    document.body.classList.remove('auth-locked');
-  }
-
-  function ensureAuthControls(){
-    ensureBuildTag();
-    const title = document.getElementById('pgT');
-    const actions = document.getElementById('pgA');
-    if (title && !document.getElementById('roleBadge')) {
-      const span = document.createElement('span');
-      span.id = 'roleBadge';
-      span.className = 'auth-badge';
-      span.style.marginLeft = '8px';
-      span.style.display = 'none';
-      title.appendChild(span);
-    }
-    if (actions && !document.getElementById('logoutBtn')) {
-      const btn = document.createElement('button');
-      btn.id = 'logoutBtn';
-      btn.className = 'btn btn-d';
-      btn.type = 'button';
-      btn.textContent = '⎋ Salir';
-      btn.onclick = logoutApp;
-      actions.appendChild(btn);
-    }
-  }
-
-  function setRoleBadge(){
-    ensureAuthControls();
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.className = 'auth-badge ' + roleClass(_APP_ROLE);
-      badge.textContent = _APP_ROLE || 'SIN_ROL';
-      badge.style.display = (_APP_ROLE ? 'inline-flex' : 'none');
-    }
-    if (btn) btn.classList.toggle('show', !!_AUTH_READY);
-  }
-
-  function clearRoleBadge(){
-    const badge = document.getElementById('roleBadge');
-    const btn = document.getElementById('logoutBtn');
-    if (badge) {
-      badge.textContent = '';
-      badge.style.display = 'none';
-      badge.className = 'auth-badge';
-    }
-    if (btn) btn.classList.remove('show');
-  }
-
-  function loginOverlayHtml(){
-    return `
-      <div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.96),rgba(36,86,108,.96));backdrop-filter:blur(6px);z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
-        <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:440px;max-width:96vw;padding:24px 24px 18px;border:1px solid rgba(255,255,255,.2)">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-            <div style="width:48px;height:48px;border-radius:12px;background:#14303a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🔐</div>
-            <div>
-              <div style="font-size:22px;font-weight:800;color:#14303a">Ingreso requerido</div>
-              <div style="font-size:12px;color:#6c757d">sys_A2_force · acceso obligatorio antes de cargar contratos</div>
-            </div>
-          </div>
-          <div style="font-size:12.5px;line-height:1.45;color:#495057;background:#eef6f9;border:1px solid #d6e9f0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
-            La interfaz queda bloqueada hasta autenticación. El login <strong>no usa sessionStorage</strong> para recordar la sesión.
-          </div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Usuario</label>
-              <input id="lgUser" type="text" autocomplete="username" placeholder="owner / contratos / tecnico" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <div>
-              <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:#495057;margin-bottom:6px">Contraseña</label>
-              <input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••" style="width:100%;padding:11px 12px;border:1.5px solid #dee2e6;border-radius:8px;font-size:14px;outline:none">
-            </div>
-            <button type="button" onclick="loginApp()" style="border:none;border-radius:10px;background:#3E8095;color:#fff;font-weight:800;font-size:14px;padding:12px 14px;cursor:pointer">Ingresar</button>
-            <div id="lgMsg" style="min-height:20px;color:#dc3545;font-size:12.5px;font-weight:600"></div>
-          </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e9ecef;font-size:12px;color:#6c757d;line-height:1.55">
-            <div><strong>Usuarios de prueba</strong></div>
-            <div>owner / owner123</div>
-            <div>contratos / contratos123</div>
-            <div>tecnico / tecnico123</div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function wireLoginKeys(){
-    ['lgUser','lgPass'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && !el.dataset.wired) {
-        el.dataset.wired = '1';
-        el.addEventListener('keydown', ev => { if (ev.key === 'Enter') loginApp(); });
-      }
-    });
-  }
-
-  function ensureLoginOverlay(){
-    ensureAuthControls();
-    authLock();
-    let ov = document.getElementById('loginOverlay');
-    if (!ov) {
-      document.body.insertAdjacentHTML('beforeend', loginOverlayHtml());
-      ov = document.getElementById('loginOverlay');
-    }
-    if (ov) ov.style.display = 'flex';
-    clearRoleBadge();
-    wireLoginKeys();
-    setTimeout(() => document.getElementById('lgUser')?.focus(), 40);
-  }
-
-  async function fetchAppUser(username){
-    try {
-      if (typeof sbFetch === 'function') {
-        const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(username)}&limit=1`);
-        if (rows && rows.length) return rows[0];
-      }
-    } catch (e) {
-      console.warn('app_users lookup fallback', e);
-    }
-    return APP_USERS_FALLBACK.find(x => String(x.username).toLowerCase() === String(username).toLowerCase()) || null;
-  }
-
-  async function loginApp(){
-    const u = (document.getElementById('lgUser')?.value || '').trim();
-    const p = (document.getElementById('lgPass')?.value || '').trim();
-    const msg = document.getElementById('lgMsg');
-    if (msg) msg.textContent = '';
-    if (!u || !p) { if (msg) msg.textContent = 'Ingresá usuario y contraseña'; return; }
-    try {
-      const row = await fetchAppUser(u);
-      if (!row) throw new Error('Usuario no encontrado');
-      if (row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
-      const hash = await sha256HexLocal(p);
-      if (String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
-      _APP_USER = { id: row.id || row.username, username: row.username };
-      _APP_ROLE = row.role || 'SIN_ROL';
-      _AUTH_READY = true;
-      document.getElementById('loginOverlay')?.remove();
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      if (typeof toast === 'function') toast(`Sesión iniciada: ${_APP_USER.username}`, 'ok');
-    } catch (err) {
-      _AUTH_READY = false;
-      _APP_USER = null;
-      _APP_ROLE = null;
-      authLock();
-      clearRoleBadge();
-      if (msg) msg.textContent = err.message || 'No se pudo iniciar sesión';
-    }
-  }
-
-  async function requireLogin(){
-    ensureBuildTag();
-    ensureAuthControls();
-    if (_AUTH_READY && _APP_USER && _APP_ROLE) {
-      authUnlock();
-      setRoleBadge();
-      if (typeof applyRolePermissions === 'function') applyRolePermissions();
-      return true;
-    }
-    ensureLoginOverlay();
-    return false;
-  }
-
-  function logoutApp(){
-    _AUTH_READY = false;
-    _APP_USER = null;
-    _APP_ROLE = null;
-    clearRoleBadge();
-    ensureLoginOverlay();
-    if (typeof toast === 'function') toast('Sesión cerrada', 'ok');
-  }
-
-  window.loginApp = loginApp;
-  window.requireLogin = requireLogin;
-  window.ensureLoginOverlay = ensureLoginOverlay;
-  window.logoutApp = logoutApp;
-  window.setRoleBadge = setRoleBadge;
-
-  const _go = typeof window.go === 'function' ? window.go : null;
-  if (_go) {
-    window.go = function(){
-      if (!_AUTH_READY) { ensureLoginOverlay(); return false; }
-      return _go.apply(this, arguments);
-    };
-  }
-
-  const _renderList = typeof window.renderList === 'function' ? window.renderList : null;
-  if (_renderList) {
-    window.renderList = function(){
-      if (!_AUTH_READY) return false;
-      return _renderList.apply(this, arguments);
-    };
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    ensureBuildTag();
-    ensureAuthControls();
-    authLock();
-  });
-})();
-</script>
-
+<script>(function(){const _go=window.go;if(typeof _go==='function'){window.go=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY){ensureLoginOverlay();return false;}return _go.apply(this,arguments);};}const _renderList=window.renderList;if(typeof _renderList==='function'){window.renderList=function(){if(typeof _AUTH_READY!=='undefined'&&!_AUTH_READY)return false;return _renderList.apply(this,arguments);};}})();</script>
 </body>
 </html>
