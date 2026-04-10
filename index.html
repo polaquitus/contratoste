@@ -593,15 +593,34 @@ async function sbFetch(table, method='GET', body=null, filter='') {
 }
 
 // ─── LOADERS ────────────────────────────────
+function sbParseDatos(value){
+  try {
+    if (value == null) return null;
+    if (typeof value === 'string') return JSON.parse(value);
+    if (typeof value === 'object') return JSON.parse(JSON.stringify(value));
+  } catch(e) {
+    console.warn('sbParseDatos', e, value);
+  }
+  return null;
+}
+
 async function sbLoadTable(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&order=id.asc&limit=2000');
-  return rows.map(r => { try { const o = JSON.parse(r.datos); o.__sbId = r.id; return o; } catch(e) { return null; } }).filter(Boolean);
+  return rows.map(r => {
+    const o = sbParseDatos(r.datos);
+    if (!o) return null;
+    o.__sbId = r.id;
+    return o;
+  }).filter(Boolean);
 }
 
 async function sbLoadSingle(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&limit=1');
   if (!rows.length) return null;
-  try { const o = JSON.parse(rows[0].datos); o.__sbId = rows[0].id; return o; } catch(e) { return null; }
+  const o = sbParseDatos(rows[0].datos);
+  if (!o) return null;
+  o.__sbId = rows[0].id;
+  return o;
 }
 
 // ─── UPSERT helpers ─────────────────────────
@@ -807,7 +826,6 @@ async function loginApp(){
     var localUser = APP_USERS_FALLBACK.find(function(x){
       return String(x.username).toLowerCase() === String(u).toLowerCase();
     });
-
     if(localUser && String(hash).toLowerCase() === String(localUser.password_hash || '').toLowerCase()){
       _APP_USER = { id: localUser.id || localUser.username, username: localUser.username };
       _APP_ROLE = localUser.role || 'SIN_ROL';
@@ -821,7 +839,6 @@ async function loginApp(){
       await initApp();
       return;
     }
-
     var row = await fetchAppUser(u);
     if(!row) throw new Error('Usuario no encontrado');
     if(row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
@@ -1012,7 +1029,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';renderProv();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';Promise.resolve(renderProv()).catch(console.error);}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -2892,8 +2909,10 @@ function updNavProv(){
 // ── List ─────────────────────────────────────────────────────────────────
 let _provDet=null,_provSrch='';
 
-function renderProv(){
-  loadProv();
+async function renderProv(){
+  await loadProv();
+  updNav();
+  updNavProv();
   if(_provDet){
     document.getElementById('provList').style.display='none';
     document.getElementById('provDet').style.display='';
@@ -2956,8 +2975,8 @@ function renderProvList(){
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────
-function openProvDet(id){_provDet=id;renderProv();}
-function closeProvDet(){_provDet=null;renderProv();}
+function openProvDet(id){_provDet=id;Promise.resolve(renderProv()).catch(console.error);}
+function closeProvDet(){_provDet=null;Promise.resolve(renderProv()).catch(console.error);}
 
 function renderProvDet(id){
   const p=PROV_DB.find(x=>x.id===id);
@@ -3121,7 +3140,7 @@ async function saveProvModal(editId){
   };
   if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
   await saveProv();
-  closeProvModal();updNavProv();_provDet=prov.id;renderProv();
+  closeProvModal();updNavProv();_provDet=prov.id;Promise.resolve(renderProv()).catch(console.error);
   toast('Contratista guardado','ok');
 }
 
