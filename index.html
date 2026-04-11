@@ -2017,6 +2017,8 @@ const CAT_PILL = {mo:'mo',ipc:'ipc',ipim:'ipim',fuel:'fuel',usd:'usd'};
 // ── Storage ────────────────────────────────────────────────────────────
 // IDX_STORE = { [idxId]: { rows:[{ym,pct,confirmed,note,files:[{name,data}]}] } }
 let IDX_STORE = {};
+const IDX_SEED_VERSION = '2026-04-10-v7';
+const IDX_SEED_DISABLED = '__EMPTY__';
 const IDX_OFFICIAL_SEED = {
   ipc_nac:[{ym:'2026-02',pct:2.9,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Nacional (nivel general) oficial INDEC'}],
   ipc_gba:[{ym:'2026-02',pct:2.6,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC GBA (nivel general) oficial INDEC'}],
@@ -2029,12 +2031,42 @@ const IDX_OFFICIAL_SEED = {
   ]
 };
 function ymCompare(a,b){return String(a||'').localeCompare(String(b||''));}
-function idxResolveOfficial(def,targetYm){const rows=(IDX_OFFICIAL_SEED[def.id]||[]).slice().sort((a,b)=>ymCompare(a.ym,b.ym));if(!rows.length)return null;let chosen=null;for(const row of rows){if(ymCompare(row.ym,targetYm)<=0)chosen=row;}if(!chosen)chosen=rows[rows.length-1];return {ym:chosen.ym,pct:chosen.pct!=null?Number(chosen.pct):null,value:chosen.value!=null?Number(chosen.value):null,publishedAt:chosen.publishedAt||null,sourceUrl:chosen.sourceUrl||null,status:chosen.ym===targetYm?'updated':'waiting_release',note:(chosen.note||def.name)+(chosen.ym===targetYm?'':' · último oficial disponible'),source:chosen.source||def.src};}
-function idxMergeOfficialSeeds(){Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{(rows||[]).forEach(row=>{const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});}});});}
-function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};} idxMergeOfficialSeeds();}
-function saveIdx(){localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
-function resetIdxAll(){if(!confirm('Se van a borrar todos los indicadores cargados manualmente y se reconstruirá la base oficial inicial. ¿Continuar?'))return;try{localStorage.removeItem('idx_v2');}catch(_e){} IDX_STORE={}; loadIdx(); _idxSel=null; renderIdxView(); toast('Indicadores reiniciados','ok');}
-(function(){loadIdx();})();
+function idxResolveOfficial(def,targetYm){
+  const rows=(IDX_OFFICIAL_SEED[def.id]||[]).slice().sort((a,b)=>ymCompare(a.ym,b.ym));
+  if(!rows.length) return null;
+  let chosen=null;
+  for(const row of rows){ if(ymCompare(row.ym,targetYm)<=0) chosen=row; }
+  if(!chosen) chosen=rows[rows.length-1];
+  return {ym:chosen.ym,pct:chosen.pct!=null?Number(chosen.pct):null,value:chosen.value!=null?Number(chosen.value):null,publishedAt:chosen.publishedAt||null,sourceUrl:chosen.sourceUrl||null,status:chosen.ym===targetYm?'updated':'waiting_release',note:(chosen.note||def.name)+(chosen.ym===targetYm?'':' · último oficial disponible'),source:chosen.source||def.src};
+}
+function idxSeedIfNeeded(){
+  let seedState='';
+  try{ seedState = localStorage.getItem('idx_seed_version') || ''; }catch(_e){}
+  if(seedState===IDX_SEED_DISABLED || seedState===IDX_SEED_VERSION) return;
+  Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{
+    (rows||[]).forEach(row=>{
+      if(!IDX_STORE[id]) IDX_STORE[id]={rows:[]};
+      if(!Array.isArray(IDX_STORE[id].rows)) IDX_STORE[id].rows=[];
+      const pos = IDX_STORE[id].rows.findIndex(r=>r.ym===row.ym);
+      const merged = {...(pos>=0?IDX_STORE[id].rows[pos]:{}), ...row, confirmed:(pos>=0?IDX_STORE[id].rows[pos].confirmed:false)};
+      if(pos>=0) IDX_STORE[id].rows[pos] = merged; else IDX_STORE[id].rows.push(merged);
+      IDX_STORE[id].rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+    });
+  });
+  saveIdx();
+  try{ localStorage.setItem('idx_seed_version', IDX_SEED_VERSION); }catch(_e){}
+}
+function loadIdx(){ try{ IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{}; } catch(e){ IDX_STORE={}; } idxSeedIfNeeded(); }
+function saveIdx(){ localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE)); }
+function resetIdxAll(){
+  if(!confirm('Se van a borrar TODOS los indicadores cargados, incluidos los oficiales precargados. ¿Continuar?')) return;
+  try{ localStorage.removeItem('idx_v2'); localStorage.setItem('idx_seed_version', IDX_SEED_DISABLED); }catch(_e){}
+  IDX_STORE={};
+  _idxSel=null;
+  renderIdxView();
+  if(typeof toast==='function') toast('Todos los indicadores fueron borrados', 'ok');
+}
+(function(){ loadIdx(); })();
 
 function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
@@ -2042,8 +2074,9 @@ function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),no
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
 function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
 function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));saveIdx();return merged;}
+function idxDeletePeriod(id, ym){ if(!IDX_STORE[id]||!Array.isArray(IDX_STORE[id].rows)) return; IDX_STORE[id].rows = IDX_STORE[id].rows.filter(r=>r.ym!==ym); if(!IDX_STORE[id].rows.length) delete IDX_STORE[id]; saveIdx(); }
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
-function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
+function idxStatusText(id){const target=idxTargetYm();const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
 function idxLastBusinessDayPrevMonth(){ let d=new Date(new Date().getFullYear(), new Date().getMonth(), 0); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1); return d; }
 async function fetchUsdBnaLike(targetYm){
@@ -2152,7 +2185,7 @@ function renderIdxDash(){
   const target=idxTargetYm();
   let updated=0, pending=0, withAny=0;
   IDX_CATALOG.forEach(def=>{ const rows=idxRows(def.id); if(rows.length) withAny++; const exact=rows.find(r=>r.ym===target); if(exact) updated++; else pending++; });
-  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset total</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
+  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último dato cargado disponible</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset total</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
 }
 function renderIdxCards(){
   const box=document.getElementById('idxCardsGrid');if(!box)return;
@@ -2163,7 +2196,7 @@ function renderIdxCards(){
     const defs=IDX_CATALOG.filter(d=>d.cat===cat);
     h+=`<div style="margin-bottom:22px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}</div><div class="idx-cards">`;
     defs.forEach(def=>{
-      const rows=idxRows(def.id), target=idxTargetYm(); const lastStore=rows.length?rows[rows.length-1]:null; const last=(idxResolveOfficial(def,target)||lastStore);
+      const rows=idxRows(def.id), last=rows.length?rows[rows.length-1]:null, target=idxTargetYm();
       const spark8=rows.slice(-8), maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
       const sparkH=spark8.map(r=>{ const pct=r.pct||0; const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2); return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`; }).join('');
       h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ. valor: ${last?.ym?formatMonth(last.ym):'—'}</div></div><span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(last?.pct??null)}">${idxValueLabel(def,last)}</span><span class="period">${last?.ym?formatMonth(last.ym):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px"><div style="font-size:10px;color:var(--g500)">Estado: <strong>${idxStatusText(def.id)}</strong></div>${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄 Actualizar</button>`:''}</div></div></div>`;
@@ -2190,11 +2223,20 @@ function renderIdxDet(id){
   const box=document.getElementById('idxDetPanel');if(!box||!def)return;
   const rows=idxRows(id), yms=rows.map(r=>r.ym), chartRows=rows.slice(-18);
   const maxAbs=Math.max(...chartRows.map(r=>Math.abs(r.pct||0)),0.001);
-  const bars=chartRows.map((r,i)=>{ const pct=r.pct||0; const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2); const isLast=i===chartRows.length-1; return `<div class="cbar-wrap"><div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div><div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div><div class="cbar-lbl">${formatMonth(r.ym).replace(' ','\n')}</div></div>`; }).join('');
+  const bars=chartRows.map((r,i)=>{ const pct=r.pct||0; const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2); const isLast=i===chartRows.length-1; return `<div class="cbar-wrap"><div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div><div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div><div class="cbar-lbl">${formatMonth(r.ym).replace(' ','
+')}</div></div>`; }).join('');
   const selOpts=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const selOptTo=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===yms.length-1?'selected':''}>${formatMonth(ym)}</option>`).join('');
-  const tblRows=[...rows].reverse().map(r=>`<tr><td>${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td>${r.confirmed?'✅':'—'}</td><td>${esc(r.note||r.status||'')}</td><td>${(r.files||[]).length||'—'}</td></tr>`).join('');
-  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button></div></div><div class="card"><div class="chart-bars">${bars||'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th></tr></thead><tbody>${tblRows||'<tr><td colspan="5">Sin datos</td></tr>'}</tbody></table></div></div>`;
+  const tblRows=[...rows].reverse().map(r=>`<tr><td>${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td>${r.confirmed?'✅':'—'}</td><td>${esc(r.note||r.status||'')}</td><td>${(r.files||[]).length||'—'}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="openEntryModal('${id}','${r.ym}')">✏️ Editar</button><button class="btn btn-d btn-sm" onclick="deleteIdxEntry('${id}','${r.ym}')">🗑️ Borrar</button></div></td></tr>`).join('');
+  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-p btn-sm" onclick="openEntryModal('${id}','')">➕ Cargar / editar período</button><button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button></div></div><div class="card"><div class="chart-bars">${bars||'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6">Sin datos</td></tr>'}</tbody></table></div></div>`;
+}
+
+function deleteIdxEntry(idxId, ym){
+  const def=IDX_CATALOG.find(d=>d.id===idxId);
+  if(!confirm(`Se eliminará el período ${formatMonth(ym)} de ${def?def.name:idxId}. ¿Continuar?`)) return;
+  idxDeletePeriod(idxId, ym);
+  renderIdxView();
+  if(typeof toast==='function') toast('Período eliminado', 'ok');
 }
 
 function calcIdxAcum(id){
