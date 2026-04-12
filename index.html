@@ -1038,7 +1038,7 @@ function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vAdmin'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
   document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · F3</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; renderList(); }
+  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · F3R</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; renderList(); }
   else if(v==='form'){ document.getElementById('vForm').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[1]) document.querySelectorAll('.sb-nav .nv')[1].classList.add('act'); t.innerHTML='➕ Nuevo Contrato'; a.innerHTML=''; }
   else if(v==='det'){ document.getElementById('vDet').classList.add('on'); t.innerHTML='📄 Detalle del Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`; renderDet(); window.scrollTo({top:0,behavior:'smooth'}); }
   else if(v==='me2n'){ document.getElementById('vMe2n').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Purchase Orders (ME2N)'; a.innerHTML=''; renderMe2n(); buildPlantFilter(); }
@@ -3470,6 +3470,6 @@ async function delAveById(aveId) {
   </div>
 </div>
 
-<script>if(typeof esc==='function') window.esc=esc; if(typeof renderList==='function') window.renderList=renderList; if(typeof renderProv==='function') window.renderProv=renderProv; if(typeof renderAdminUsers==='function') window.renderAdminUsers=renderAdminUsers; if(typeof renderIdxView==='function') window.renderIdxView=renderIdxView; if(typeof renderProvList==='function') window.renderProvList=renderProvList; console.info('BUILD F3 loaded');</script>
+<script>if(typeof esc==='function') window.esc=esc; if(typeof renderList==='function') window.renderList=renderList; if(typeof renderProv==='function') window.renderProv=renderProv; if(typeof renderAdminUsers==='function') window.renderAdminUsers=renderAdminUsers; if(typeof renderIdxView==='function') window.renderIdxView=renderIdxView; if(typeof renderProvList==='function') window.renderProvList=renderProvList; if(typeof buildPoly==='function') window.buildPoly=buildPoly; console.info('BUILD F3R loaded');</script>
 </body>
 </html>
