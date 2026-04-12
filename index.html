@@ -1029,7 +1029,7 @@ function go(v){
     document.getElementById('vList').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');
     t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force</span>';
-    a.innerHTML='<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>';
+    a.innerHTML="<button class='btn btn-p' onclick=\"go('form')\">➕ Nuevo Contrato</button>";
     renderList();
   }
   else if(v==='form'){
@@ -1041,7 +1041,7 @@ function go(v){
   else if(v==='det'){
     document.getElementById('vDet').classList.add('on');
     t.innerHTML='📄 Detalle del Contrato';
-    a.innerHTML='<button class="btn btn-s" onclick="go('list')">← Volver</button>';
+    a.innerHTML="<button class='btn btn-s' onclick=\"go('list')\">← Volver</button>";
     renderDet();
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -1057,35 +1057,35 @@ function go(v){
     document.getElementById('vIdx').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[3]) document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');
     t.innerHTML='📊 Master de Índices';
-    a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';
+    a.innerHTML="<button class='btn btn-p btn-sm' onclick=\"showNewIdxModal()\">➕ Nuevo Índice</button>";
     renderIdxView();
   }
   else if(v==='licit'){
     document.getElementById('vLicit').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[4]) document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');
     t.innerHTML='📋 Licitaciones';
-    a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';
+    a.innerHTML="<button class='btn btn-p btn-sm' onclick=\"openLicitModal(null)\">➕ Nueva Licitación</button>";
     renderLicit();
   }
   else if(v==='prov'){
     document.getElementById('vProv').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[5]) document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');
     t.innerHTML='🏢 Proveedores';
-    a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';
+    a.innerHTML="<div style='display:flex;gap:8px'><button class='btn btn-s btn-sm' onclick=\"importProvModal()\">📤 Importar SAP</button><button class='btn btn-p btn-sm' onclick=\"openProvModal(null)\">➕ Nuevo Proveedor</button></div>";
     Promise.resolve(renderProv()).catch(console.error);
   }
   else if(v==='admin'){
     document.getElementById('vAdmin').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[6]) document.querySelectorAll('.sb-nav .nv')[6].classList.add('act');
     t.innerHTML='🔐 Administración de usuarios';
-    a.innerHTML='<button class="btn btn-p btn-sm" onclick="openAdminUserModal(null)">➕ Nuevo usuario</button>';
+    a.innerHTML="<button class='btn btn-p btn-sm' onclick=\"openAdminUserModal(null)\">➕ Nuevo usuario</button>";
     Promise.resolve(renderAdminUsers()).catch(console.error);
   }
   else if(v==='me2ndet'){
     document.getElementById('vMe2nDet').classList.add('on');
     if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');
     t.innerHTML='🛒 Detalle PO por Contrato';
-    a.innerHTML='<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>';
+    a.innerHTML="<button class='btn btn-s' onclick=\"go('me2n')\">← Volver a ME2N</button>";
     renderMe2nDet();
     window.scrollTo({top:0,behavior:'smooth'});
   }
