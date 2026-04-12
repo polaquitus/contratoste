@@ -403,6 +403,9 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
 .sb-foot{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
 .sb-logout{width:100%;justify-content:flex-start;background:rgba(255,255,255,.08);color:var(--w);border:1px solid rgba(255,255,255,.12)}
 .sb-logout:hover{background:rgba(255,255,255,.14)}
+.admin-only{display:none}
+.role-admin .admin-only,.role-owner .admin-only{display:flex}
+
 
 </style>
 </head>
@@ -419,6 +422,7 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
     <a class="nv" onclick="go('idx')" href="#"><span class="ni">📊</span><span>Índices</span></a>
     <a class="nv" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
     <a class="nv" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
+    <a class="nv admin-only" data-admin-only="1" onclick="go('admin')" href="#"><span class="ni">🔐</span><span>Administración</span></a>
   </nav>
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
@@ -560,6 +564,15 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
 </div>
 
 <!-- ══ PROVEEDORES VIEW ═══════════════════════════════════════════════ -->
+<div id="vAdmin" class="vw">
+  <div class="card">
+    <div class="thdr"><h2>Administración de usuarios</h2><span class="tcnt" id="usrCnt">0</span></div>
+    <div id="adminUsersWrap"></div>
+  </div>
+  <div id="adminUserModalBack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;align-items:center;justify-content:center;padding:18px">
+    <div id="adminUserModalBox" style="background:var(--w);border-radius:var(--radl);box-shadow:0 20px 60px rgba(0,0,0,.3);width:620px;max-width:96vw;max-height:94vh;overflow-y:auto"></div>
+  </div>
+</div>
 <div id="vProv" class="vw">
   <div id="provList"></div>
   <div id="provDet" style="display:none"></div>
@@ -597,29 +610,15 @@ async function sbFetch(table, method='GET', body=null, filter='') {
 }
 
 // ─── LOADERS ────────────────────────────────
-function sbParseDatos(value){
-  try {
-    if (value == null) return null;
-    if (typeof value === 'string') return JSON.parse(value);
-    if (typeof value === 'object') return JSON.parse(JSON.stringify(value));
-  } catch(e) {
-    console.warn('sbParseDatos', e, value);
-  }
-  return null;
-}
-
 async function sbLoadTable(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&order=id.asc&limit=2000');
-  return rows.map(r => { const o = sbParseDatos(r.datos); if(!o) return null; o.__sbId = r.id; return o; }).filter(Boolean);
+  return rows.map(r => { try { const o = JSON.parse(r.datos); o.__sbId = r.id; return o; } catch(e) { return null; } }).filter(Boolean);
 }
 
 async function sbLoadSingle(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&limit=1');
   if (!rows.length) return null;
-  const o = sbParseDatos(rows[0].datos);
-  if (!o) return null;
-  o.__sbId = rows[0].id;
-  return o;
+  try { const o = JSON.parse(rows[0].datos); o.__sbId = rows[0].id; return o; } catch(e) { return null; }
 }
 
 // ─── UPSERT helpers ─────────────────────────
@@ -690,11 +689,25 @@ function hideLoader() { const el=document.getElementById('sb-loader'); if(el) el
 let _APP_USER = null;
 let _APP_ROLE = null;
 
-const APP_USERS_FALLBACK = [
+let APP_USERS_FALLBACK = [
   { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
-  { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
-  { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
+  { id: 2, username: 'admin', role: 'ADMIN', active: true, password_hash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9' },
+  { id: 3, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
+  { id: 4, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
 ];
+function getCachedAppUsers(){
+  try{
+    const arr = JSON.parse(localStorage.getItem('app_users_cache_v1')||'null');
+    if(Array.isArray(arr) && arr.length) return arr;
+  }catch(_e){}
+  return APP_USERS_FALLBACK.slice();
+}
+function setCachedAppUsers(arr){
+  const clean = Array.isArray(arr) ? arr.map((u,i)=>({...u,id:u.id||i+1})) : [];
+  APP_USERS_FALLBACK = clean.length ? clean : APP_USERS_FALLBACK;
+  try{ localStorage.setItem('app_users_cache_v1', JSON.stringify(APP_USERS_FALLBACK)); }catch(_e){}
+}
+setCachedAppUsers(getCachedAppUsers());
 
 function authLock(){
   document.body.classList.add('auth-locked');
@@ -721,7 +734,7 @@ function loginOverlayHtml(){
         '<div style="display:grid;gap:12px">',
           '<div>',
             '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label>',
-            '<input id="lgUser" type="text" placeholder="owner / contratos / tecnico" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
+            '<input id="lgUser" type="text" placeholder="owner / admin / contratos / tecnico" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
           '</div>',
           '<div>',
             '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label>',
@@ -797,9 +810,11 @@ function setRoleBadge(){
 
 function applyRolePermissions(){
   var role = String(_APP_ROLE || '').toUpperCase();
-  if(role && role !== 'OWNER'){
-    document.querySelectorAll('[data-owner-only="1"]').forEach(function(el){ el.style.display = 'none'; });
-  }
+  document.body.classList.toggle('role-owner', role==='OWNER');
+  document.body.classList.toggle('role-admin', role==='ADMIN');
+  const isAdmin = role==='OWNER' || role==='ADMIN';
+  document.querySelectorAll('[data-owner-only="1"]').forEach(function(el){ el.style.display = role==='OWNER' ? '' : 'none'; });
+  document.querySelectorAll('[data-admin-only="1"]').forEach(function(el){ el.style.display = isAdmin ? '' : 'none'; });
 }
 
 async function fetchAppUser(username){
@@ -810,7 +825,8 @@ async function fetchAppUser(username){
   }catch(err){
     console.warn('app_users fallback', err);
   }
-  return APP_USERS_FALLBACK.find(function(x){ return String(x.username).toLowerCase() === String(username).toLowerCase(); }) || null;
+  var cached = getCachedAppUsers();
+  return cached.find(function(x){ return String(x.username).toLowerCase() === String(username).toLowerCase(); }) || null;
 }
 
 async function loginApp(){
@@ -824,24 +840,10 @@ async function loginApp(){
     return;
   }
   try{
-    var hash = await sha256Hex(p);
-    var localUser = APP_USERS_FALLBACK.find(function(x){ return String(x.username).toLowerCase() === String(u).toLowerCase(); });
-    if(localUser && String(hash).toLowerCase() === String(localUser.password_hash || '').toLowerCase()){
-      _APP_USER = { id: localUser.id || localUser.username, username: localUser.username };
-      _APP_ROLE = localUser.role || 'SIN_ROL';
-      try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
-      var ovLocal = document.getElementById('loginOverlay');
-      if(ovLocal) ovLocal.remove();
-      authUnlock();
-      setRoleBadge();
-      applyRolePermissions();
-      if(typeof toast === 'function') toast('Sesión iniciada: ' + localUser.username, 'ok');
-      await initApp();
-      return;
-    }
     var row = await fetchAppUser(u);
     if(!row) throw new Error('Usuario no encontrado');
     if(row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
+    var hash = await sha256Hex(p);
     if(String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
     _APP_USER = { id: row.id || row.username, username: row.username };
     _APP_ROLE = row.role || 'SIN_ROL';
@@ -1020,18 +1022,20 @@ function ymToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMon
 function calcPlazo(){const a=document.getElementById('f_ini').value,b=document.getElementById('f_fin').value;if(a&&b)document.getElementById('f_plazo').value=monthDiffInclusive(a,b);}
 
 function go(v){
-  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vAdmin'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
   document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){document.getElementById('vList').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go(\'form\')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
-  else if(v==='form'){document.getElementById('vForm').classList.add('on');document.querySelectorAll('.sb-nav .nv')[1].classList.add('act');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openEnmImportPicker()">🤖 Importar Enmiendas</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
+  if(v==='list'){document.getElementById('vList').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force</span>';a.innerHTML='<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>';renderList();}
+  else if(v==='form'){document.getElementById('vForm').classList.add('on');document.querySelectorAll('.sb-nav .nv')[1].classList.add('act');t.innerHTML='➕ Nuevo Contrato';a.innerHTML='';}
+  else if(v==='det'){document.getElementById('vDet').classList.add('on');t.innerHTML='📄 Detalle del Contrato';a.innerHTML='<button class="btn btn-s" onclick="go('list')">← Volver</button>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
   else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';Promise.resolve(renderProv()).catch(console.error);}
-  else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
+  else if(v==='admin'){document.getElementById('vAdmin').classList.add('on');document.querySelectorAll('.sb-nav .nv')[6].classList.add('act');t.innerHTML='🔐 Administración de usuarios';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openAdminUserModal(null)">➕ Nuevo usuario</button>';Promise.resolve(renderAdminUsers()).catch(console.error);}
+  else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
+
 
 // POLY
 function buildPoly(){
@@ -2017,7 +2021,7 @@ const CAT_PILL = {mo:'mo',ipc:'ipc',ipim:'ipim',fuel:'fuel',usd:'usd'};
 // ── Storage ────────────────────────────────────────────────────────────
 // IDX_STORE = { [idxId]: { rows:[{ym,pct,confirmed,note,files:[{name,data}]}] } }
 let IDX_STORE = {};
-const IDX_SEED_VERSION = '2026-04-10-v7';
+const IDX_SEED_VERSION = '2026-04-10-v9';
 const IDX_SEED_DISABLED = '__EMPTY__';
 const IDX_OFFICIAL_SEED = {
   ipc_nac:[{ym:'2026-02',pct:2.9,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Nacional (nivel general) oficial INDEC'}],
@@ -2957,6 +2961,124 @@ function parseExcelDate(v){
   return s.substring(0,10)||'';
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ADMIN / USUARIOS MODULE
+// ═══════════════════════════════════════════════════════════════════════
+let _ADMIN_USERS = [];
+let _ADMIN_EDIT_KEY = null;
+
+function adminRoleLabel(role){
+  return {OWNER:'Owner',ADMIN:'Admin',ING_CONTRATOS:'Contratos',RESP_TECNICO:'Técnico'}[String(role||'').toUpperCase()] || String(role||'SIN_ROL');
+}
+async function loadAdminUsers(){
+  let loaded = false;
+  if (SB_OK) {
+    try{
+      const rows = await sbFetch('app_users','GET',null,'?select=id,username,password_hash,role,active,created_at,updated_at&order=username.asc&limit=200');
+      if(Array.isArray(rows) && rows.length){
+        _ADMIN_USERS = rows.map(r=>({...r}));
+        setCachedAppUsers(_ADMIN_USERS);
+        loaded = true;
+      }
+    }catch(err){ console.warn('loadAdminUsers remote', err); }
+  }
+  if(!loaded){
+    const cached = getCachedAppUsers();
+    _ADMIN_USERS = (cached||[]).map(u=>({...u})).sort((a,b)=>String(a.username).localeCompare(String(b.username)));
+  }
+  return _ADMIN_USERS;
+}
+function renderAdminUsers(){
+  return Promise.resolve(loadAdminUsers()).then(function(){
+    const box=document.getElementById('adminUsersWrap'); if(!box) return;
+    document.getElementById('usrCnt').textContent = _ADMIN_USERS.length;
+    const rows = _ADMIN_USERS.map(u=>`<tr>
+      <td class="mono">${esc(u.username)}</td>
+      <td>${adminRoleLabel(u.role)}</td>
+      <td>${u.active ? '✅ Activo' : '⛔ Inactivo'}</td>
+      <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="openAdminUserModal('${esc(u.username)}')">✏️ Editar</button><button class="btn btn-d btn-sm" onclick="deleteAdminUser('${esc(u.username)}')">🗑️ Borrar</button></div></td>
+    </tr>`).join('');
+    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><div style="font-size:12px;color:var(--g500)">Gestioná usuarios, roles y contraseñas del sistema.</div><div style="display:flex;gap:8px"><button class="btn btn-p btn-sm" onclick="openAdminUserModal(null)">➕ Nuevo usuario</button></div></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows||'<tr><td colspan="4">Sin usuarios</td></tr>'}</tbody></table></div>`;
+  });
+}
+function closeAdminUserModal(){ const back=document.getElementById('adminUserModalBack'); if(back) back.style.display='none'; _ADMIN_EDIT_KEY=null; }
+function openAdminUserModal(username){
+  const user = username ? _ADMIN_USERS.find(u=>String(u.username)===String(username)) : null;
+  _ADMIN_EDIT_KEY = username || null;
+  const box = document.getElementById('adminUserModalBox');
+  if(!box) return;
+  box.innerHTML = `
+    <div class="idx-modal-hdr"><h3>${user?'✏️ Editar usuario':'➕ Nuevo usuario'}</h3><button class="btn btn-s btn-sm" onclick="closeAdminUserModal()">✕</button></div>
+    <div class="idx-modal-body">
+      <div class="fg2" style="margin-bottom:14px">
+        <div class="fgrp"><label>Usuario <span class="req">*</span></label><input id="au_username" type="text" value="${user?esc(user.username):''}" placeholder="admin"></div>
+        <div class="fgrp"><label>Rol <span class="req">*</span></label><select id="au_role"><option value="OWNER" ${user?.role==='OWNER'?'selected':''}>OWNER</option><option value="ADMIN" ${user?.role==='ADMIN'?'selected':''}>ADMIN</option><option value="ING_CONTRATOS" ${user?.role==='ING_CONTRATOS'?'selected':''}>ING_CONTRATOS</option><option value="RESP_TECNICO" ${user?.role==='RESP_TECNICO'?'selected':''}>RESP_TECNICO</option></select></div>
+      </div>
+      <div class="fg2" style="margin-bottom:14px">
+        <div class="fgrp"><label>Contraseña ${user?'(opcional para cambiar)':'*'}</label><input id="au_pass" type="password" value="" placeholder="••••••••"></div>
+        <div class="fgrp"><label>Estado</label><select id="au_active"><option value="true" ${user?.active!==false?'selected':''}>Activo</option><option value="false" ${user?.active===false?'selected':''}>Inactivo</option></select></div>
+      </div>
+      <div style="font-size:11px;color:var(--g500)">Si dejás la contraseña vacía al editar, se mantiene la actual.</div>
+    </div>
+    <div class="idx-modal-foot"><button class="btn btn-s btn-sm" onclick="closeAdminUserModal()">Cancelar</button><button class="btn btn-p" onclick="saveAdminUserModal()">💾 Guardar</button></div>`;
+  document.getElementById('adminUserModalBack').style.display='flex';
+}
+async function saveAdminUserModal(){
+  const username = String(document.getElementById('au_username').value||'').trim();
+  const role = String(document.getElementById('au_role').value||'').trim();
+  const active = String(document.getElementById('au_active').value||'true')==='true';
+  const pass = String(document.getElementById('au_pass').value||'');
+  if(!username){ toast('Ingresá un usuario','er'); return; }
+  if(!role){ toast('Seleccioná un rol','er'); return; }
+  const existsOther = _ADMIN_USERS.find(u=>String(u.username).toLowerCase()===username.toLowerCase() && String(u.username)!==String(_ADMIN_EDIT_KEY||''));
+  if(existsOther){ toast('Ese usuario ya existe','er'); return; }
+  let existing = _ADMIN_EDIT_KEY ? _ADMIN_USERS.find(u=>String(u.username)===String(_ADMIN_EDIT_KEY)) : null;
+  if(!existing && !pass){ toast('Ingresá una contraseña inicial','er'); return; }
+  let password_hash = existing ? existing.password_hash : null;
+  if(pass) password_hash = await sha256Hex(pass);
+  const payload = { id: existing?.id||null, username, role, active, password_hash };
+  let remoteSaved = false;
+  if(SB_OK){
+    try{
+      if(existing && existing.id){
+        const body = { username, role, active };
+        if(password_hash) body.password_hash = password_hash;
+        const res = await sbFetch('app_users','PATCH', body, '?id=eq.' + existing.id);
+        remoteSaved = true;
+      } else {
+        const res = await sbFetch('app_users','POST', { username, role, active, password_hash });
+        if(Array.isArray(res)&&res[0]) payload.id = res[0].id;
+        remoteSaved = true;
+      }
+    }catch(err){ console.warn('saveAdminUserModal remote', err); toast('Guardado local: revisar permisos/check de app_users en Supabase','er'); }
+  }
+  let arr = getCachedAppUsers().map(u=>({...u}));
+  const pos = arr.findIndex(u=>String(u.username)===String(_ADMIN_EDIT_KEY||''));
+  if(pos>=0) arr[pos] = {...(arr[pos]||{}), ...payload}; else arr.push(payload);
+  arr = arr.filter(Boolean).sort((a,b)=>String(a.username).localeCompare(String(b.username)));
+  setCachedAppUsers(arr);
+  _ADMIN_USERS = arr;
+  closeAdminUserModal();
+  renderAdminUsers();
+  toast(remoteSaved ? 'Usuario guardado' : 'Usuario guardado localmente', 'ok');
+}
+async function deleteAdminUser(username){
+  const target = _ADMIN_USERS.find(u=>String(u.username)===String(username));
+  if(!target) return;
+  if(String(_APP_USER?.username||'')===String(username)){ toast('No podés borrar el usuario con sesión activa','er'); return; }
+  if(!confirm('Se eliminará el usuario ' + username + '. ¿Continuar?')) return;
+  let remoteDeleted = false;
+  if(SB_OK && target.id){
+    try{ await sbFetch('app_users','DELETE', null, '?id=eq.' + target.id); remoteDeleted = true; }catch(err){ console.warn('deleteAdminUser remote', err); }
+  }
+  let arr = getCachedAppUsers().filter(u=>String(u.username)!==String(username));
+  setCachedAppUsers(arr);
+  _ADMIN_USERS = arr;
+  renderAdminUsers();
+  toast(remoteDeleted ? 'Usuario eliminado' : 'Usuario eliminado localmente', 'ok');
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  PROVEEDORES MODULE
 // ═══════════════════════════════════════════════════════════════════════
@@ -2973,10 +3095,8 @@ function updNavProv(){
 // ── List ─────────────────────────────────────────────────────────────────
 let _provDet=null,_provSrch='';
 
-async function renderProv(){
-  await loadProv();
-  updNav();
-  updNavProv();
+function renderProv(){
+  loadProv();
   if(_provDet){
     document.getElementById('provList').style.display='none';
     document.getElementById('provDet').style.display='';
@@ -3039,8 +3159,8 @@ function renderProvList(){
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────
-function openProvDet(id){_provDet=id;Promise.resolve(renderProv()).catch(console.error);}
-function closeProvDet(){_provDet=null;Promise.resolve(renderProv()).catch(console.error);}
+function openProvDet(id){_provDet=id;renderProv();}
+function closeProvDet(){_provDet=null;renderProv();}
 
 function renderProvDet(id){
   const p=PROV_DB.find(x=>x.id===id);
@@ -3204,7 +3324,7 @@ async function saveProvModal(editId){
   };
   if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
   await saveProv();
-  closeProvModal();updNavProv();_provDet=prov.id;Promise.resolve(renderProv()).catch(console.error);
+  closeProvModal();updNavProv();_provDet=prov.id;renderProv();
   toast('Contratista guardado','ok');
 }
 
