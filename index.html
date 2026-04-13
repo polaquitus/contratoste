@@ -1051,7 +1051,7 @@ function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vAdmin'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
   document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · BP1R</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; if(typeof renderList==='function') renderList(); else if(typeof window.renderList==='function') window.renderList(); }
+  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · RL2</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; if(typeof renderList==='function') renderList(); else if(typeof window.renderList==='function') window.renderList(); }
   else if(v==='form'){ document.getElementById('vForm').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[1]) document.querySelectorAll('.sb-nav .nv')[1].classList.add('act'); t.innerHTML='➕ Nuevo Contrato'; a.innerHTML=''; }
   else if(v==='det'){ document.getElementById('vDet').classList.add('on'); t.innerHTML='📄 Detalle del Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`; if(typeof renderDet==='function') renderDet(); window.scrollTo({top:0,behavior:'smooth'}); }
   else if(v==='me2n'){ document.getElementById('vMe2n').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Purchase Orders (ME2N)'; a.innerHTML=''; if(typeof renderMe2n==='function') renderMe2n(); if(typeof buildPlantFilter==='function') buildPlantFilter(); }
@@ -3484,5 +3484,124 @@ async function delAveById(aveId) {
 </div>
 
 <script>if(typeof esc==='function') window.esc=esc; if(typeof renderList==='function') window.renderList=renderList; if(typeof renderProv==='function') window.renderProv=renderProv; if(typeof renderAdminUsers==='function') window.renderAdminUsers=renderAdminUsers; if(typeof buildPoly==='function') window.buildPoly=buildPoly; console.info('BUILD BP1R loaded');</script>
+
+<script>
+(function(){
+  function safeEsc(v){
+    try{
+      if(typeof window.esc === 'function') return window.esc(v);
+    }catch(_e){}
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(m){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);
+    });
+  }
+  function getDB(){
+    try{ if(Array.isArray(window.DB)) return window.DB; }catch(_e){}
+    try{ if(Array.isArray(DB)) return DB; }catch(_e){}
+    return [];
+  }
+  function toText(v){ return safeEsc(v == null ? '' : v); }
+
+  if(typeof window.buildPoly !== 'function'){
+    window.buildPoly = function(){
+      var box = document.getElementById('polyBox');
+      if(box && !String(box.innerHTML || '').trim()){
+        box.innerHTML = '<div class="small">Fórmula polinómica disponible al editar o crear contrato.</div>';
+      }
+      return true;
+    };
+  }
+
+  if(typeof window.renderList !== 'function'){
+    window.renderList = function(){
+      var box = document.getElementById('tBody');
+      if(!box) return false;
+      var arr = getDB();
+      var cnt = document.getElementById('cnt');
+      var lcnt = document.getElementById('lcnt');
+      if(cnt) cnt.textContent = String(arr.length || 0);
+      if(lcnt) lcnt.textContent = String(arr.length || 0);
+
+      if(!arr.length){
+        box.innerHTML = '<div class="empty"><div class="ei">📄</div><p>No hay contratos para mostrar.</p></div>';
+        return true;
+      }
+
+      var searchEl = document.getElementById('fSrch');
+      var estEl = document.getElementById('fEst');
+      var assetEl = document.getElementById('fAsset');
+      var domEl = document.getElementById('fDom');
+      var respEl = document.getElementById('fResp');
+      var ownEl = document.getElementById('fOwn');
+      var srch = (searchEl && searchEl.value ? String(searchEl.value) : '').toLowerCase();
+      var fEst = estEl && estEl.value ? String(estEl.value) : '';
+      var fAsset = assetEl && assetEl.value ? String(assetEl.value) : '';
+      var fDom = domEl && domEl.value ? String(domEl.value) : '';
+      var fResp = respEl && respEl.value ? String(respEl.value) : '';
+      var fOwn = ownEl && ownEl.value ? String(ownEl.value) : '';
+      var hoy = new Date(); hoy.setHours(0,0,0,0);
+
+      var filtered = arr.filter(function(c){
+        var numRaw = c && (c.num || c.numero || c.nro || '') || '';
+        var contRaw = c && (c.cont || c.contratista || c.proveedor || '') || '';
+        var assetRaw = c && (c.asset || '') || '';
+        var domRaw = c && (c.gob || c.dom || '') || '';
+        var respRaw = c && (c.resp || c.responsable || '') || '';
+        var ownRaw = c && (c.own || c.owner || '') || '';
+        var finRaw = c && (c.fechaFin || c.fecha_fin || '') || '';
+        var estado = '';
+        try{ if(finRaw){ var d = new Date(String(finRaw) + 'T00:00:00'); estado = (d >= hoy) ? 'ACTIVO' : 'VENCIDO'; } }catch(_e){}
+        var num = String(numRaw).toLowerCase();
+        var cont = String(contRaw).toLowerCase();
+        if(fEst && estado !== fEst) return false;
+        if(srch && num.indexOf(srch) === -1 && cont.indexOf(srch) === -1) return false;
+        if(fAsset && String(assetRaw) !== fAsset) return false;
+        if(fDom && String(domRaw) !== fDom) return false;
+        if(fResp && String(respRaw) !== fResp) return false;
+        if(fOwn && String(ownRaw) !== fOwn) return false;
+        return true;
+      });
+
+      if(cnt) cnt.textContent = String(filtered.length || 0);
+      if(lcnt) lcnt.textContent = String(filtered.length || 0);
+
+      if(!filtered.length){
+        box.innerHTML = '<div class="empty"><div class="ei">🔎</div><p>Sin resultados.</p></div>';
+        return true;
+      }
+
+      var rows = filtered.slice(0, 2000).map(function(c){
+        var num = toText(c && (c.num || c.numero || c.nro || ''));
+        var cont = toText(c && (c.cont || c.contratista || c.proveedor || ''));
+        var asset = toText(c && (c.asset || ''));
+        var owner = toText(c && (c.own || c.owner || ''));
+        var resp = toText(c && (c.resp || c.responsable || ''));
+        var ini = toText(c && (c.fechaIni || c.fechaInicio || ''));
+        var finRaw = c && (c.fechaFin || c.fecha_fin || '') || '';
+        var fin = toText(finRaw);
+        var estado = '';
+        try{ if(finRaw){ var d = new Date(String(finRaw) + 'T00:00:00'); estado = (d >= hoy) ? 'ACTIVO' : 'VENCIDO'; } }catch(_e){}
+        return '<tr>' +
+          '<td class="mono">' + num + '</td>' +
+          '<td>' + cont + '</td>' +
+          '<td>' + asset + '</td>' +
+          '<td>' + owner + '</td>' +
+          '<td>' + resp + '</td>' +
+          '<td class="mono">' + ini + '</td>' +
+          '<td class="mono">' + fin + '</td>' +
+          '<td>' + toText(estado) + '</td>' +
+        '</tr>';
+      }).join('');
+
+      box.innerHTML = '<div style="overflow:auto"><table class="tbl"><thead><tr><th>N° Ctto</th><th>Contratista</th><th>Asset</th><th>Owner</th><th>Responsable</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      return true;
+    };
+  }
+
+  try{ window.buildPoly(); }catch(_e){}
+  try{ window.renderList(); }catch(_e){}
+  console.info('BUILD RL2 loaded');
+})();
+</script>
 </body>
 </html>
