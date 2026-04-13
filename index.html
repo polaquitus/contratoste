@@ -423,7 +423,7 @@ body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-se
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">sys_A2_force_idx_v93</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">sys_A2_force_idx_v94</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1169,6 +1169,195 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
 })();
 </script>
 
+
+<script>
+(function(){
+  if (window.__IDX_PATCH_V94__) return;
+  window.__IDX_PATCH_V94__ = true;
+
+  const OFFICIAL_NEUQUEN_FOOD = {
+    ym: '2026-02',
+    pct: 2.2,
+    source: 'DPEyC Neuquén',
+    note: 'Alimentos y bebidas no alcohólicas — Neuquén Feb 2026',
+    publishedAt: '2026-03-01',
+    status: 'official_seed'
+  };
+
+  function idxEnsureStore(id){
+    if(!window.IDX_STORE) window.IDX_STORE = {};
+    if(!window.IDX_STORE[id]) window.IDX_STORE[id] = { rows: [] };
+    if(!Array.isArray(window.IDX_STORE[id].rows)) window.IDX_STORE[id].rows = [];
+    return window.IDX_STORE[id].rows;
+  }
+
+  function idxRowsSafe(id){
+    try{ if(typeof window.idxRows === 'function') return window.idxRows(id) || []; }catch(e){}
+    return idxEnsureStore(id);
+  }
+
+  function idxUpsertSafe(id, row){
+    if(typeof window.idxUpsert === 'function') return window.idxUpsert(id, row);
+    const rows = idxEnsureStore(id);
+    const pos = rows.findIndex(r => r.ym === row.ym);
+    const merged = { ...(pos >= 0 ? rows[pos] : {}), ...row };
+    if(pos >= 0) rows[pos] = merged; else rows.push(merged);
+    rows.sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+    if(typeof window.saveIdx === 'function') window.saveIdx();
+    return merged;
+  }
+
+  function idxTargetYmSafe(){
+    if(typeof window.idxTargetYm === 'function') return window.idxTargetYm();
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().substring(0,7);
+  }
+
+  function ymDiff(a,b){
+    const [ay,am] = String(a||'').split('-').map(Number);
+    const [by,bm] = String(b||'').split('-').map(Number);
+    return (by*12+bm) - (ay*12+am);
+  }
+
+  function looksLikeNeuquenFood(def){
+    const name = String(def?.name || '').toLowerCase();
+    return /ipc/.test(name) && /(nqn|neuqu)/.test(name) && /(alim|beb)/.test(name);
+  }
+
+  function getNeuquenFoodDefs(){
+    return (Array.isArray(window.IDX_CATALOG) ? window.IDX_CATALOG : []).filter(looksLikeNeuquenFood);
+  }
+
+  function seedNeuquenFoodIfStale(){
+    const defs = getNeuquenFoodDefs();
+    const target = idxTargetYmSafe();
+    let touched = false;
+
+    defs.forEach(def => {
+      const rows = idxRowsSafe(def.id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+      const last = rows.length ? rows[rows.length-1] : null;
+      const stale = !last || String(last.ym) < OFFICIAL_NEUQUEN_FOOD.ym || ymDiff(last.ym, target) > 2;
+      const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+      if(stale || !exact){
+        idxUpsertSafe(def.id, {
+          ym: OFFICIAL_NEUQUEN_FOOD.ym,
+          pct: OFFICIAL_NEUQUEN_FOOD.pct,
+          value: null,
+          confirmed: false,
+          isFallback: false,
+          status: OFFICIAL_NEUQUEN_FOOD.status,
+          source: OFFICIAL_NEUQUEN_FOOD.source,
+          note: OFFICIAL_NEUQUEN_FOOD.note,
+          publishedAt: OFFICIAL_NEUQUEN_FOOD.publishedAt
+        });
+        touched = true;
+      }
+    });
+
+    if(touched){
+      try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+      try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+      try{ if(typeof window.toast === 'function') window.toast('IPC NQN Alimentos y Bebidas actualizado a Feb 2026', 'ok'); }catch(e){}
+    }
+  }
+
+  async function hardResetAllIndices(){
+    const ok = confirm('Esto borrará TODO el historial de índices (local y, si aplica, remoto). ¿Continuar?');
+    if(!ok) return;
+
+    window.IDX_STORE = {};
+
+    ['idx_v2','indices','IDX_STORE','idx_store','idx_v1'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+
+    try{
+      if(typeof window.sbFetch === 'function'){
+        try { await window.sbFetch('indices','DELETE',null,'?id=not.is.null'); } catch(e) { console.warn('DELETE remote indices failed', e); }
+      }
+    } catch(e) {
+      console.warn('hardResetAllIndices remote delete error', e);
+    }
+
+    try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+    try{ if(typeof window._idxSel !== 'undefined') window._idxSel = null; }catch(e){}
+    try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+    try{ if(typeof window.renderIdxDash === 'function') window.renderIdxDash(); }catch(e){}
+    try{ if(typeof window.toast === 'function') window.toast('Todos los índices fueron borrados', 'ok'); }catch(e){}
+  }
+
+  function bindResetButtons(){
+    const btns = Array.from(document.querySelectorAll('button,.btn,[role="button"]'));
+    btns.forEach(btn => {
+      const txt = (btn.textContent || '').toLowerCase().trim();
+      if(/(reset|borrar|vaciar).*(indice|índice)/.test(txt) || /(indice|índice).*(reset|borrar|vaciar)/.test(txt)){
+        btn.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+        btn.setAttribute('data-idx-hard-reset','1');
+      }
+    });
+  }
+
+  function injectHardResetButton(){
+    const dash = document.getElementById('idxDashTop');
+    if(!dash || document.getElementById('idxHardResetBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'idxHardResetBtn';
+    btn.className = 'btn btn-d btn-sm';
+    btn.textContent = '🗑️ Borrar todos los índices';
+    btn.onclick = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+    const host = dash.querySelector('[data-idx-toolbar]') || dash;
+    host.appendChild(btn);
+  }
+
+  const prevRun = window.runIdxUpdate;
+  if(typeof prevRun === 'function'){
+    window.runIdxUpdate = async function(id){
+      const def = (window.IDX_CATALOG||[]).find(d => d.id === id);
+      if(def && looksLikeNeuquenFood(def)){
+        seedNeuquenFoodIfStale();
+        const rows = idxRowsSafe(id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+        const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+        if(exact){
+          try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+          return;
+        }
+      }
+      return await prevRun.apply(this, arguments);
+    };
+  }
+
+  const prevRunAll = window.runAllIdxUpdates;
+  if(typeof prevRunAll === 'function'){
+    window.runAllIdxUpdates = async function(){
+      seedNeuquenFoodIfStale();
+      const out = await prevRunAll.apply(this, arguments);
+      seedNeuquenFoodIfStale();
+      return out;
+    };
+  }
+
+  if(typeof window.renderIdxDash === 'function'){
+    const _renderIdxDash = window.renderIdxDash;
+    window.renderIdxDash = function(){
+      const out = _renderIdxDash.apply(this, arguments);
+      try{ injectHardResetButton(); }catch(e){}
+      try{ bindResetButtons(); }catch(e){}
+      return out;
+    };
+  }
+
+  window.hardResetAllIndices = hardResetAllIndices;
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      seedNeuquenFoodIfStale();
+      injectHardResetButton();
+      bindResetButtons();
+    }, 350);
+  });
+
+  console.log('[IDX PATCH V94] Neuquén alimentos+bebidas + hard reset cargado');
+})();
+</script>
+
 </body></html>`; }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 async function initApp() {
@@ -1815,6 +2004,195 @@ function renderDossierHtml(c){
 
   window.addEventListener('load', ()=>{ setTimeout(injectIdxToolbarButton, 300); });
   console.log('[IDX PATCH V9.3] cargado');
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__IDX_PATCH_V94__) return;
+  window.__IDX_PATCH_V94__ = true;
+
+  const OFFICIAL_NEUQUEN_FOOD = {
+    ym: '2026-02',
+    pct: 2.2,
+    source: 'DPEyC Neuquén',
+    note: 'Alimentos y bebidas no alcohólicas — Neuquén Feb 2026',
+    publishedAt: '2026-03-01',
+    status: 'official_seed'
+  };
+
+  function idxEnsureStore(id){
+    if(!window.IDX_STORE) window.IDX_STORE = {};
+    if(!window.IDX_STORE[id]) window.IDX_STORE[id] = { rows: [] };
+    if(!Array.isArray(window.IDX_STORE[id].rows)) window.IDX_STORE[id].rows = [];
+    return window.IDX_STORE[id].rows;
+  }
+
+  function idxRowsSafe(id){
+    try{ if(typeof window.idxRows === 'function') return window.idxRows(id) || []; }catch(e){}
+    return idxEnsureStore(id);
+  }
+
+  function idxUpsertSafe(id, row){
+    if(typeof window.idxUpsert === 'function') return window.idxUpsert(id, row);
+    const rows = idxEnsureStore(id);
+    const pos = rows.findIndex(r => r.ym === row.ym);
+    const merged = { ...(pos >= 0 ? rows[pos] : {}), ...row };
+    if(pos >= 0) rows[pos] = merged; else rows.push(merged);
+    rows.sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+    if(typeof window.saveIdx === 'function') window.saveIdx();
+    return merged;
+  }
+
+  function idxTargetYmSafe(){
+    if(typeof window.idxTargetYm === 'function') return window.idxTargetYm();
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().substring(0,7);
+  }
+
+  function ymDiff(a,b){
+    const [ay,am] = String(a||'').split('-').map(Number);
+    const [by,bm] = String(b||'').split('-').map(Number);
+    return (by*12+bm) - (ay*12+am);
+  }
+
+  function looksLikeNeuquenFood(def){
+    const name = String(def?.name || '').toLowerCase();
+    return /ipc/.test(name) && /(nqn|neuqu)/.test(name) && /(alim|beb)/.test(name);
+  }
+
+  function getNeuquenFoodDefs(){
+    return (Array.isArray(window.IDX_CATALOG) ? window.IDX_CATALOG : []).filter(looksLikeNeuquenFood);
+  }
+
+  function seedNeuquenFoodIfStale(){
+    const defs = getNeuquenFoodDefs();
+    const target = idxTargetYmSafe();
+    let touched = false;
+
+    defs.forEach(def => {
+      const rows = idxRowsSafe(def.id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+      const last = rows.length ? rows[rows.length-1] : null;
+      const stale = !last || String(last.ym) < OFFICIAL_NEUQUEN_FOOD.ym || ymDiff(last.ym, target) > 2;
+      const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+      if(stale || !exact){
+        idxUpsertSafe(def.id, {
+          ym: OFFICIAL_NEUQUEN_FOOD.ym,
+          pct: OFFICIAL_NEUQUEN_FOOD.pct,
+          value: null,
+          confirmed: false,
+          isFallback: false,
+          status: OFFICIAL_NEUQUEN_FOOD.status,
+          source: OFFICIAL_NEUQUEN_FOOD.source,
+          note: OFFICIAL_NEUQUEN_FOOD.note,
+          publishedAt: OFFICIAL_NEUQUEN_FOOD.publishedAt
+        });
+        touched = true;
+      }
+    });
+
+    if(touched){
+      try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+      try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+      try{ if(typeof window.toast === 'function') window.toast('IPC NQN Alimentos y Bebidas actualizado a Feb 2026', 'ok'); }catch(e){}
+    }
+  }
+
+  async function hardResetAllIndices(){
+    const ok = confirm('Esto borrará TODO el historial de índices (local y, si aplica, remoto). ¿Continuar?');
+    if(!ok) return;
+
+    window.IDX_STORE = {};
+
+    ['idx_v2','indices','IDX_STORE','idx_store','idx_v1'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+
+    try{
+      if(typeof window.sbFetch === 'function'){
+        try { await window.sbFetch('indices','DELETE',null,'?id=not.is.null'); } catch(e) { console.warn('DELETE remote indices failed', e); }
+      }
+    } catch(e) {
+      console.warn('hardResetAllIndices remote delete error', e);
+    }
+
+    try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+    try{ if(typeof window._idxSel !== 'undefined') window._idxSel = null; }catch(e){}
+    try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+    try{ if(typeof window.renderIdxDash === 'function') window.renderIdxDash(); }catch(e){}
+    try{ if(typeof window.toast === 'function') window.toast('Todos los índices fueron borrados', 'ok'); }catch(e){}
+  }
+
+  function bindResetButtons(){
+    const btns = Array.from(document.querySelectorAll('button,.btn,[role="button"]'));
+    btns.forEach(btn => {
+      const txt = (btn.textContent || '').toLowerCase().trim();
+      if(/(reset|borrar|vaciar).*(indice|índice)/.test(txt) || /(indice|índice).*(reset|borrar|vaciar)/.test(txt)){
+        btn.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+        btn.setAttribute('data-idx-hard-reset','1');
+      }
+    });
+  }
+
+  function injectHardResetButton(){
+    const dash = document.getElementById('idxDashTop');
+    if(!dash || document.getElementById('idxHardResetBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'idxHardResetBtn';
+    btn.className = 'btn btn-d btn-sm';
+    btn.textContent = '🗑️ Borrar todos los índices';
+    btn.onclick = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+    const host = dash.querySelector('[data-idx-toolbar]') || dash;
+    host.appendChild(btn);
+  }
+
+  const prevRun = window.runIdxUpdate;
+  if(typeof prevRun === 'function'){
+    window.runIdxUpdate = async function(id){
+      const def = (window.IDX_CATALOG||[]).find(d => d.id === id);
+      if(def && looksLikeNeuquenFood(def)){
+        seedNeuquenFoodIfStale();
+        const rows = idxRowsSafe(id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+        const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+        if(exact){
+          try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+          return;
+        }
+      }
+      return await prevRun.apply(this, arguments);
+    };
+  }
+
+  const prevRunAll = window.runAllIdxUpdates;
+  if(typeof prevRunAll === 'function'){
+    window.runAllIdxUpdates = async function(){
+      seedNeuquenFoodIfStale();
+      const out = await prevRunAll.apply(this, arguments);
+      seedNeuquenFoodIfStale();
+      return out;
+    };
+  }
+
+  if(typeof window.renderIdxDash === 'function'){
+    const _renderIdxDash = window.renderIdxDash;
+    window.renderIdxDash = function(){
+      const out = _renderIdxDash.apply(this, arguments);
+      try{ injectHardResetButton(); }catch(e){}
+      try{ bindResetButtons(); }catch(e){}
+      return out;
+    };
+  }
+
+  window.hardResetAllIndices = hardResetAllIndices;
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      seedNeuquenFoodIfStale();
+      injectHardResetButton();
+      bindResetButtons();
+    }, 350);
+  });
+
+  console.log('[IDX PATCH V94] Neuquén alimentos+bebidas + hard reset cargado');
 })();
 </script>
 
@@ -4615,6 +4993,195 @@ async function delAveById(aveId) {
 
   window.addEventListener('load', ()=>{ setTimeout(injectIdxToolbarButton, 300); });
   console.log('[IDX PATCH V9.3] cargado');
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__IDX_PATCH_V94__) return;
+  window.__IDX_PATCH_V94__ = true;
+
+  const OFFICIAL_NEUQUEN_FOOD = {
+    ym: '2026-02',
+    pct: 2.2,
+    source: 'DPEyC Neuquén',
+    note: 'Alimentos y bebidas no alcohólicas — Neuquén Feb 2026',
+    publishedAt: '2026-03-01',
+    status: 'official_seed'
+  };
+
+  function idxEnsureStore(id){
+    if(!window.IDX_STORE) window.IDX_STORE = {};
+    if(!window.IDX_STORE[id]) window.IDX_STORE[id] = { rows: [] };
+    if(!Array.isArray(window.IDX_STORE[id].rows)) window.IDX_STORE[id].rows = [];
+    return window.IDX_STORE[id].rows;
+  }
+
+  function idxRowsSafe(id){
+    try{ if(typeof window.idxRows === 'function') return window.idxRows(id) || []; }catch(e){}
+    return idxEnsureStore(id);
+  }
+
+  function idxUpsertSafe(id, row){
+    if(typeof window.idxUpsert === 'function') return window.idxUpsert(id, row);
+    const rows = idxEnsureStore(id);
+    const pos = rows.findIndex(r => r.ym === row.ym);
+    const merged = { ...(pos >= 0 ? rows[pos] : {}), ...row };
+    if(pos >= 0) rows[pos] = merged; else rows.push(merged);
+    rows.sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+    if(typeof window.saveIdx === 'function') window.saveIdx();
+    return merged;
+  }
+
+  function idxTargetYmSafe(){
+    if(typeof window.idxTargetYm === 'function') return window.idxTargetYm();
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().substring(0,7);
+  }
+
+  function ymDiff(a,b){
+    const [ay,am] = String(a||'').split('-').map(Number);
+    const [by,bm] = String(b||'').split('-').map(Number);
+    return (by*12+bm) - (ay*12+am);
+  }
+
+  function looksLikeNeuquenFood(def){
+    const name = String(def?.name || '').toLowerCase();
+    return /ipc/.test(name) && /(nqn|neuqu)/.test(name) && /(alim|beb)/.test(name);
+  }
+
+  function getNeuquenFoodDefs(){
+    return (Array.isArray(window.IDX_CATALOG) ? window.IDX_CATALOG : []).filter(looksLikeNeuquenFood);
+  }
+
+  function seedNeuquenFoodIfStale(){
+    const defs = getNeuquenFoodDefs();
+    const target = idxTargetYmSafe();
+    let touched = false;
+
+    defs.forEach(def => {
+      const rows = idxRowsSafe(def.id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+      const last = rows.length ? rows[rows.length-1] : null;
+      const stale = !last || String(last.ym) < OFFICIAL_NEUQUEN_FOOD.ym || ymDiff(last.ym, target) > 2;
+      const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+      if(stale || !exact){
+        idxUpsertSafe(def.id, {
+          ym: OFFICIAL_NEUQUEN_FOOD.ym,
+          pct: OFFICIAL_NEUQUEN_FOOD.pct,
+          value: null,
+          confirmed: false,
+          isFallback: false,
+          status: OFFICIAL_NEUQUEN_FOOD.status,
+          source: OFFICIAL_NEUQUEN_FOOD.source,
+          note: OFFICIAL_NEUQUEN_FOOD.note,
+          publishedAt: OFFICIAL_NEUQUEN_FOOD.publishedAt
+        });
+        touched = true;
+      }
+    });
+
+    if(touched){
+      try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+      try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+      try{ if(typeof window.toast === 'function') window.toast('IPC NQN Alimentos y Bebidas actualizado a Feb 2026', 'ok'); }catch(e){}
+    }
+  }
+
+  async function hardResetAllIndices(){
+    const ok = confirm('Esto borrará TODO el historial de índices (local y, si aplica, remoto). ¿Continuar?');
+    if(!ok) return;
+
+    window.IDX_STORE = {};
+
+    ['idx_v2','indices','IDX_STORE','idx_store','idx_v1'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+
+    try{
+      if(typeof window.sbFetch === 'function'){
+        try { await window.sbFetch('indices','DELETE',null,'?id=not.is.null'); } catch(e) { console.warn('DELETE remote indices failed', e); }
+      }
+    } catch(e) {
+      console.warn('hardResetAllIndices remote delete error', e);
+    }
+
+    try{ if(typeof window.saveIdx === 'function') window.saveIdx(); }catch(e){}
+    try{ if(typeof window._idxSel !== 'undefined') window._idxSel = null; }catch(e){}
+    try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+    try{ if(typeof window.renderIdxDash === 'function') window.renderIdxDash(); }catch(e){}
+    try{ if(typeof window.toast === 'function') window.toast('Todos los índices fueron borrados', 'ok'); }catch(e){}
+  }
+
+  function bindResetButtons(){
+    const btns = Array.from(document.querySelectorAll('button,.btn,[role="button"]'));
+    btns.forEach(btn => {
+      const txt = (btn.textContent || '').toLowerCase().trim();
+      if(/(reset|borrar|vaciar).*(indice|índice)/.test(txt) || /(indice|índice).*(reset|borrar|vaciar)/.test(txt)){
+        btn.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+        btn.setAttribute('data-idx-hard-reset','1');
+      }
+    });
+  }
+
+  function injectHardResetButton(){
+    const dash = document.getElementById('idxDashTop');
+    if(!dash || document.getElementById('idxHardResetBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'idxHardResetBtn';
+    btn.className = 'btn btn-d btn-sm';
+    btn.textContent = '🗑️ Borrar todos los índices';
+    btn.onclick = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); hardResetAllIndices(); };
+    const host = dash.querySelector('[data-idx-toolbar]') || dash;
+    host.appendChild(btn);
+  }
+
+  const prevRun = window.runIdxUpdate;
+  if(typeof prevRun === 'function'){
+    window.runIdxUpdate = async function(id){
+      const def = (window.IDX_CATALOG||[]).find(d => d.id === id);
+      if(def && looksLikeNeuquenFood(def)){
+        seedNeuquenFoodIfStale();
+        const rows = idxRowsSafe(id).slice().sort((a,b)=> String(a.ym).localeCompare(String(b.ym)));
+        const exact = rows.find(r => r.ym === OFFICIAL_NEUQUEN_FOOD.ym);
+        if(exact){
+          try{ if(typeof window.renderIdxView === 'function') window.renderIdxView(); }catch(e){}
+          return;
+        }
+      }
+      return await prevRun.apply(this, arguments);
+    };
+  }
+
+  const prevRunAll = window.runAllIdxUpdates;
+  if(typeof prevRunAll === 'function'){
+    window.runAllIdxUpdates = async function(){
+      seedNeuquenFoodIfStale();
+      const out = await prevRunAll.apply(this, arguments);
+      seedNeuquenFoodIfStale();
+      return out;
+    };
+  }
+
+  if(typeof window.renderIdxDash === 'function'){
+    const _renderIdxDash = window.renderIdxDash;
+    window.renderIdxDash = function(){
+      const out = _renderIdxDash.apply(this, arguments);
+      try{ injectHardResetButton(); }catch(e){}
+      try{ bindResetButtons(); }catch(e){}
+      return out;
+    };
+  }
+
+  window.hardResetAllIndices = hardResetAllIndices;
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      seedNeuquenFoodIfStale();
+      injectHardResetButton();
+      bindResetButtons();
+    }, 350);
+  });
+
+  console.log('[IDX PATCH V94] Neuquén alimentos+bebidas + hard reset cargado');
 })();
 </script>
 
