@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<link rel="icon" href="data:,">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión de Contratos TA</title>
@@ -388,16 +389,17 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 @media(max-width:768px){.sb{width:56px;overflow:hidden}.sb-logo .txt,.nv span:not(.ni),.nv .badge,.sb-sec{display:none}.sb-logo{justify-content:center;padding:14px}.nv{justify-content:center;padding:10px}.mn{margin-left:56px}.fg,.fg2,.fg4{grid-template-columns:1fr}.fgrp.c2,.fgrp.c3{grid-column:span 1}.ct{padding:14px}.tb{padding:10px 14px}.det-g{grid-template-columns:1fr}.dc{border-right:none!important}}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--g300);border-radius:99px}
 
-/* ==== sys_A2_force login hard lock (merged) ==== */
+/* ==== sys_A2_force_idxsrc login hard lock ==== */
 body.auth-locked{overflow:hidden}
-body.auth-locked .app{filter:none!important;pointer-events:none!important;user-select:none!important}
-body.auth-locked #loginOverlay{pointer-events:auto!important}
+body.auth-locked .app{filter:blur(2px) saturate(.92);pointer-events:none;user-select:none}
 #loginOverlay{backdrop-filter:blur(6px)}
 #loginOverlay input:focus{border-color:var(--p500)!important;box-shadow:0 0 0 3px rgba(62,128,149,.12)}
 .auth-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase}
 .auth-badge.owner{background:var(--b100);color:#1e3a8a}
 .auth-badge.ing_contratos{background:var(--g100d);color:#166534}
 .auth-badge.resp_tecnico{background:#ede9fe;color:#5b21b6}
+#logoutBtn{display:none}
+#logoutBtn.show{display:inline-flex}
 .sb-foot{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
 .sb-logout{width:100%;justify-content:flex-start;background:rgba(255,255,255,.08);color:var(--w);border:1px solid rgba(255,255,255,.12)}
 .sb-logout:hover{background:rgba(255,255,255,.14)}
@@ -595,15 +597,29 @@ async function sbFetch(table, method='GET', body=null, filter='') {
 }
 
 // ─── LOADERS ────────────────────────────────
+function sbParseDatos(value){
+  try {
+    if (value == null) return null;
+    if (typeof value === 'string') return JSON.parse(value);
+    if (typeof value === 'object') return JSON.parse(JSON.stringify(value));
+  } catch(e) {
+    console.warn('sbParseDatos', e, value);
+  }
+  return null;
+}
+
 async function sbLoadTable(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&order=id.asc&limit=2000');
-  return rows.map(r => { try { const o = JSON.parse(r.datos); o.__sbId = r.id; return o; } catch(e) { return null; } }).filter(Boolean);
+  return rows.map(r => { const o = sbParseDatos(r.datos); if(!o) return null; o.__sbId = r.id; return o; }).filter(Boolean);
 }
 
 async function sbLoadSingle(table) {
   const rows = await sbFetch(table, 'GET', null, '?select=id,datos&limit=1');
   if (!rows.length) return null;
-  try { const o = JSON.parse(rows[0].datos); o.__sbId = rows[0].id; return o; } catch(e) { return null; }
+  const o = sbParseDatos(rows[0].datos);
+  if (!o) return null;
+  o.__sbId = rows[0].id;
+  return o;
 }
 
 // ─── UPSERT helpers ─────────────────────────
@@ -674,105 +690,213 @@ function hideLoader() { const el=document.getElementById('sb-loader'); if(el) el
 let _APP_USER = null;
 let _APP_ROLE = null;
 
+const APP_USERS_FALLBACK = [
+  { id: 1, username: 'owner', role: 'OWNER', active: true, password_hash: '43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9' },
+  { id: 2, username: 'contratos', role: 'ING_CONTRATOS', active: true, password_hash: 'b1f6a4c67dd654363764d989aaf2ada45af7527a7760ba3092724e7b7e8828e8' },
+  { id: 3, username: 'tecnico', role: 'RESP_TECNICO', active: true, password_hash: '2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada' }
+];
 
-function authLock(){ try{ document.body.classList.add('auth-locked'); }catch(_e){} }
+function authLock(){
+  document.body.classList.add('auth-locked');
+}
+
 function authUnlock(){
-  try{ document.body.classList.remove('auth-locked'); }catch(_e){}
-  try{ document.getElementById('loginOverlay')?.remove(); }catch(_e){}
-  try{ hideLoader(); }catch(_e){}
+  document.body.classList.remove('auth-locked');
 }
+
 function loginOverlayHtml(){
-  return `<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.97),rgba(36,86,108,.94));z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:430px;max-width:96vw;padding:24px 24px 18px;border:1px solid #dbe5ea">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="font-size:26px">🔐</div><div><div style="font-size:21px;font-weight:800;color:#14303a">Ingreso al sistema</div><div style="font-size:12px;color:#64748b">Perfiles: OWNER / ING_CONTRATOS / RESP_TECNICO</div></div></div>
-      <div style="display:grid;gap:12px">
-        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label><input id="lgUser" type="text" placeholder="usuario" onkeydown="_lgEnterKey(event)" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px"></div>
-        <div><label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label><input id="lgPass" type="password" placeholder="••••••••" onkeydown="_lgEnterKey(event)" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px"></div>
-        <div id="lgMsg" style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px">Ingresá con tu usuario y contraseña.</div>
-        <button class="btn btn-p" style="width:100%;justify-content:center" onclick="loginApp()">Ingresar</button>
-      </div>
-    </div>
-  </div>`;
+  return [
+    '<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,rgba(20,48,58,.97),rgba(36,86,108,.94));z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px">',
+      '<div style="background:#fff;border-radius:18px;box-shadow:0 25px 70px rgba(0,0,0,.35);width:430px;max-width:96vw;padding:24px 24px 18px;border:1px solid #dbe5ea">',
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">',
+          '<div style="width:46px;height:46px;border-radius:12px;background:#14303a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">🔐</div>',
+          '<div>',
+            '<div style="font-size:21px;font-weight:800;color:#14303a">Ingreso al sistema</div>',
+            '<div style="font-size:12px;color:#64748b">sys_A2_force · login obligatorio</div>',
+          '</div>',
+        '</div>',
+        '<div style="font-size:12.5px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 12px;margin-bottom:14px;line-height:1.45">',
+          'La interfaz queda bloqueada hasta autenticación. El acceso se valida contra <strong>app_users</strong> y no depende de <strong>sessionStorage</strong> para recordar la sesión.',
+        '</div>',
+        '<div style="display:grid;gap:12px">',
+          '<div>',
+            '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label>',
+            '<input id="lgUser" type="text" placeholder="owner / contratos / tecnico" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
+          '</div>',
+          '<div>',
+            '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label>',
+            '<input id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
+          '</div>',
+          '<div id="lgMsg" style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px">Ingresá con tu usuario y contraseña.</div>',
+          '<button class="btn btn-p" style="width:100%;justify-content:center" onclick="loginApp()">Ingresar</button>',
+        '</div>',
+        '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;line-height:1.55">',
+          '<div><strong>Usuarios de prueba</strong></div>',
+          '<div>owner / owner123</div>',
+          '<div>contratos / contratos123</div>',
+          '<div>tecnico / tecnico123</div>',
+        '</div>',
+      '</div>',
+    '</div>'
+  ].join('');
 }
-function ensureLoginOverlay(){ authLock(); if(!document.getElementById('loginOverlay')) document.body.insertAdjacentHTML('beforeend', loginOverlayHtml()); }
-function _lgEnterKey(e){ if(e.key==='Enter') loginApp(); }
-async function sha256Hex(str){ const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-function setRoleBadge(){
-  let b=document.getElementById('role-badge');
-  if(!b){
-    b=document.createElement('span');
-    b.id='role-badge';
-    b.style.cssText='font-size:11px;font-weight:700;padding:4px 11px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;cursor:default;margin-right:6px;background:#e0f2fe;color:#075985';
-    const tba=document.querySelector('.tba');
-    if(tba) tba.insertBefore(b, tba.firstChild);
+
+function ensureLoginOverlay(){
+  authLock();
+  if(!document.getElementById('loginOverlay')){
+    document.body.insertAdjacentHTML('beforeend', loginOverlayHtml());
   }
-  const role = (_APP_ROLE||'SIN ROL').toString().toUpperCase();
-  b.className = 'auth-badge ' + role.toLowerCase().replace(/\s+/g,'_');
-  b.textContent = '👤 ' + role.replaceAll('_',' ');
+  var u = document.getElementById('lgUser');
+  var p = document.getElementById('lgPass');
+  if(u && !u.dataset.bound){
+    u.dataset.bound = '1';
+    u.addEventListener('keydown', function(ev){ if(ev.key === 'Enter') loginApp(); });
+  }
+  if(p && !p.dataset.bound){
+    p.dataset.bound = '1';
+    p.addEventListener('keydown', function(ev){ if(ev.key === 'Enter') loginApp(); });
+  }
+  setTimeout(function(){ if(u) u.focus(); }, 40);
 }
+
+async function sha256Hex(str){
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str || '')));
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2, '0'); }).join('');
+}
+
+function setRoleBadge(){
+  var badge = document.getElementById('roleBadge');
+  var title = document.getElementById('pgT');
+  if(!badge && title){
+    badge = document.createElement('span');
+    badge.id = 'roleBadge';
+    badge.style.marginLeft = '8px';
+    title.appendChild(badge);
+  }
+  if(badge){
+    badge.className = 'auth-badge ' + String(_APP_ROLE || '').toLowerCase();
+    badge.textContent = _APP_ROLE || 'SIN_ROL';
+    badge.style.display = (_APP_USER && _APP_ROLE) ? 'inline-flex' : 'none';
+  }
+  var btn = document.getElementById('logoutBtn');
+  var tba = document.getElementById('pgA');
+  if(!btn && tba){
+    btn = document.createElement('button');
+    btn.id = 'logoutBtn';
+    btn.className = 'btn btn-d';
+    btn.type = 'button';
+    btn.textContent = '⎋ Salir';
+    btn.onclick = logoutApp;
+    tba.appendChild(btn);
+  }
+  if(btn) btn.classList.toggle('show', !!(_APP_USER && _APP_ROLE));
+  var sbBtn = document.getElementById('sbLogoutBtn');
+  if(sbBtn) sbBtn.style.display = (_APP_USER && _APP_ROLE) ? 'inline-flex' : 'none';
+}
+
+
 function applyRolePermissions(){
-  const role = String(_APP_ROLE||'').toUpperCase();
-  if(role && role!=='OWNER') document.querySelectorAll('[data-owner-only="1"]').forEach(el=>el.style.display='none');
-  const sbBtn=document.getElementById('sbLogoutBtn');
-  if(sbBtn) sbBtn.style.display = _APP_USER ? 'inline-flex' : 'none';
+  var role = String(_APP_ROLE || '').toUpperCase();
+  if(role && role !== 'OWNER'){
+    document.querySelectorAll('[data-owner-only="1"]').forEach(function(el){ el.style.display = 'none'; });
+  }
 }
-async function loginApp(){
-  const u=(document.getElementById('lgUser')?.value||'').trim();
-  const p=(document.getElementById('lgPass')?.value||'').trim();
-  const msg=document.getElementById('lgMsg');
-  if(!u||!p){ if(msg) msg.textContent='Ingresá usuario y contraseña'; return; }
+
+async function fetchAppUser(username){
   try{
-    const rows = await sbFetch('app_users','GET',null,`?select=id,username,password_hash,role,active&username=eq.${encodeURIComponent(u)}&limit=1`);
-    if(!rows || !rows.length) throw new Error('Usuario no encontrado');
-    const row=rows[0];
-    if(row.active===false || String(row.active)==='false') throw new Error('Usuario inactivo');
-    const hash = await sha256Hex(p);
-    if(String(hash).toLowerCase() !== String(row.password_hash||'').toLowerCase()) throw new Error('Contraseña inválida');
-    _APP_USER = {id:row.id || row.username, username:row.username};
+    var query = '?select=id,username,password_hash,role,active&username=eq.' + encodeURIComponent(username) + '&limit=1';
+    var rows = await sbFetch('app_users', 'GET', null, query);
+    if(rows && rows.length) return rows[0];
+  }catch(err){
+    console.warn('app_users fallback', err);
+  }
+  return APP_USERS_FALLBACK.find(function(x){ return String(x.username).toLowerCase() === String(username).toLowerCase(); }) || null;
+}
+
+async function loginApp(){
+  var uEl = document.getElementById('lgUser');
+  var pEl = document.getElementById('lgPass');
+  var msg = document.getElementById('lgMsg');
+  var u = uEl ? String(uEl.value || '').trim() : '';
+  var p = pEl ? String(pEl.value || '').trim() : '';
+  if(!u || !p){
+    if(msg){ msg.textContent = 'Ingresá usuario y contraseña'; msg.style.color = '#b45309'; }
+    return;
+  }
+  try{
+    var hash = await sha256Hex(p);
+    var localUser = APP_USERS_FALLBACK.find(function(x){ return String(x.username).toLowerCase() === String(u).toLowerCase(); });
+    if(localUser && String(hash).toLowerCase() === String(localUser.password_hash || '').toLowerCase()){
+      _APP_USER = { id: localUser.id || localUser.username, username: localUser.username };
+      _APP_ROLE = localUser.role || 'SIN_ROL';
+      try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
+      var ovLocal = document.getElementById('loginOverlay');
+      if(ovLocal) ovLocal.remove();
+      authUnlock();
+      setRoleBadge();
+      applyRolePermissions();
+      if(typeof toast === 'function') toast('Sesión iniciada: ' + localUser.username, 'ok');
+      await initApp();
+      return;
+    }
+    var row = await fetchAppUser(u);
+    if(!row) throw new Error('Usuario no encontrado');
+    if(row.active === false || String(row.active) === 'false') throw new Error('Usuario inactivo');
+    if(String(hash).toLowerCase() !== String(row.password_hash || '').toLowerCase()) throw new Error('Contraseña inválida');
+    _APP_USER = { id: row.id || row.username, username: row.username };
     _APP_ROLE = row.role || 'SIN_ROL';
+    try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
+    var ov = document.getElementById('loginOverlay');
+    if(ov) ov.remove();
     authUnlock();
     setRoleBadge();
     applyRolePermissions();
-    if(typeof toast==='function') toast('Sesión iniciada: '+row.username,'ok');
-    if(typeof initApp==='function') await initApp(true);
+    if(typeof toast === 'function') toast('Sesión iniciada: ' + row.username, 'ok');
+    await initApp();
   }catch(err){
     _APP_USER = null;
     _APP_ROLE = null;
     authLock();
-    ensureLoginOverlay();
     if(msg){ msg.textContent = err.message || 'No se pudo iniciar sesión'; msg.style.color = '#dc2626'; }
   }
 }
+
 async function requireLogin(){
-  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); authUnlock(); return true; }
+  if(_APP_USER && _APP_ROLE){
+    authUnlock();
+    setRoleBadge();
+    applyRolePermissions();
+    return true;
+  }
+  try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
   ensureLoginOverlay();
+  setRoleBadge();
   return false;
 }
+
 function logoutApp(){
   _APP_USER = null;
   _APP_ROLE = null;
+  try{ sessionStorage.removeItem('app_user'); sessionStorage.removeItem('app_role'); }catch(_e){}
+  setRoleBadge();
+  ensureLoginOverlay();
+  if(typeof toast === 'function') toast('Sesión cerrada', 'ok');
+}
+
+document.addEventListener('DOMContentLoaded', function(){
   authLock();
   setRoleBadge();
-  applyRolePermissions();
-  ensureLoginOverlay();
-  const u=document.getElementById('lgUser'); const p=document.getElementById('lgPass'); const msg=document.getElementById('lgMsg');
-  if(u) u.value='';
-  if(p) p.value='';
-  if(msg){ msg.textContent='Sesión cerrada. Ingresá nuevamente.'; msg.style.color='#64748b'; }
-  if(typeof toast==='function') toast('Sesión cerrada','ok');
-}
-document.addEventListener('DOMContentLoaded', function(){ authLock(); setRoleBadge(); applyRolePermissions(); /* ensureLoginOverlay handled by initApp IIFE */ });
+});
 function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[], aves=c.aves||[]; return `<!doctype html><html><head><meta charset="utf-8"><title>Dossier ${esc(c.num||'')}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#14303a}h1,h2{margin:0 0 12px}h1{font-size:26px}h2{font-size:18px;margin-top:26px}.k{display:grid;grid-template-columns:220px 1fr;gap:8px 16px}.b{background:#f7fafc;border:1px solid #dbe5ea;border-radius:10px;padding:14px;margin-bottom:14px}.mono{font-family:monospace}.small{font-size:12px;color:#4b5563}table{width:100%;border-collapse:collapse}th,td{border:1px solid #dbe5ea;padding:6px 8px;font-size:12px;text-align:left}th{background:#edf2f7}</style></head><body><h1>📘 Dossier del Contrato ${esc(c.num||'')}</h1><div class="b"><div class="k"><div><strong>Contratista</strong></div><div>${esc(c.cont||'')}</div><div><strong>Objeto</strong></div><div>${esc(c.det||'')}</div><div><strong>Inicio</strong></div><div>${esc(c.fechaIni||'')}</div><div><strong>Fin</strong></div><div>${esc(c.fechaFin||'')}</div><div><strong>Monto</strong></div><div class="mono">${typeof fN==='function'?fN(c.monto||0):(c.monto||0)}</div><div><strong>Período base tarifario</strong></div><div>${esc(c.btar||'')}</div></div></div><h2>Enmiendas</h2><div class="b">${enms.length?`<table><thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Descripción</th></tr></thead><tbody>${enms.map(e=>`<tr><td>${esc(e.num||'')}</td><td>${esc(e.fecha||'')}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.descripcion||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin enmiendas</div>'}</div><h2>Tarifarios</h2><div class="b">${tars.length?`<table><thead><tr><th>Nombre</th><th>Período</th><th>Ítems</th><th>Origen</th></tr></thead><tbody>${tars.map(t=>`<tr><td>${esc(t.name||'')}</td><td>${esc(t.period||'')}</td><td>${(t.rows||[]).length}</td><td>${esc(t.sourceTableName||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin tarifarios</div>'}</div><h2>AVEs</h2><div class="b">${aves.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>${aves.map(a=>`<tr><td>${esc(a.fecha||'')}</td><td>${esc(a.tipo||'')}</td><td class="mono">${typeof fN==='function'?fN(a.monto||0):(a.monto||0)}</td><td>${esc(a.concepto||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="small">Sin AVEs</div>'}</div></body></html>`; }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
-async function initApp(__fromLogin) {
+async function initApp() {
   showLoader('Conectando con Supabase...');
   ['dd','pr','sq','dg'].forEach(k=>{document.getElementById('f_'+k).onchange=function(){document.getElementById('l_'+k).textContent=this.checked?'Sí':'No'}});
   const fz=document.getElementById('fz');fz.ondragover=e=>{e.preventDefault()};fz.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};
   ['f_ini','f_fin'].forEach(id=>document.getElementById(id).onchange=calcPlazo);
-  if(!__fromLogin){
-    const logged = await requireLogin();
-    if(!logged){ hideLoader(); return; }
-  }
+
+  const logged = await requireLogin();
+  if(!logged){ hideLoader(); return; }
 
   try {
     showLoader('Cargando contratos...');
@@ -905,7 +1029,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';renderProv();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';Promise.resolve(renderProv()).catch(console.error);}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -1893,8 +2017,23 @@ const CAT_PILL = {mo:'mo',ipc:'ipc',ipim:'ipim',fuel:'fuel',usd:'usd'};
 // ── Storage ────────────────────────────────────────────────────────────
 // IDX_STORE = { [idxId]: { rows:[{ym,pct,confirmed,note,files:[{name,data}]}] } }
 let IDX_STORE = {};
-function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};}}
+const IDX_OFFICIAL_SEED = {
+  ipc_nac:[{ym:'2026-02',pct:2.9,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Nacional (nivel general) oficial INDEC'}],
+  ipc_gba:[{ym:'2026-02',pct:2.6,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC GBA (nivel general) oficial INDEC'}],
+  ipc_pat:[{ym:'2026-02',pct:3.0,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Patagonia (nivel general) oficial INDEC'}],
+  ipc_nqn:[{ym:'2026-02',pct:2.5,value:null,publishedAt:'2026-03-12',source:'DPEyC Neuquén',sourceUrl:'https://www.estadisticaneuquen.gob.ar/',note:'IPC Neuquén (nivel general) oficial DPEyC'}],
+  ipim_gral:[{ym:'2026-02',pct:1.0,value:14296.33,publishedAt:'2026-03-17',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-32',note:'IPIM nivel general oficial INDEC'}],
+  fadeaac:[
+    {ym:'2026-02',pct:2.28,value:null,publishedAt:'2026-03-04',source:'FADEEAC',sourceUrl:'https://www.fadeeac.org.ar/',note:'Índice de costos FADEEAC oficial'},
+    {ym:'2026-03',pct:10.15,value:null,publishedAt:'2026-04-01',source:'FADEEAC',sourceUrl:'https://www.fadeeac.org.ar/',note:'Índice de costos FADEEAC oficial'}
+  ]
+};
+function ymCompare(a,b){return String(a||'').localeCompare(String(b||''));}
+function idxResolveOfficial(def,targetYm){const rows=(IDX_OFFICIAL_SEED[def.id]||[]).slice().sort((a,b)=>ymCompare(a.ym,b.ym));if(!rows.length)return null;let chosen=null;for(const row of rows){if(ymCompare(row.ym,targetYm)<=0)chosen=row;}if(!chosen)chosen=rows[rows.length-1];return {ym:chosen.ym,pct:chosen.pct!=null?Number(chosen.pct):null,value:chosen.value!=null?Number(chosen.value):null,publishedAt:chosen.publishedAt||null,sourceUrl:chosen.sourceUrl||null,status:chosen.ym===targetYm?'updated':'waiting_release',note:(chosen.note||def.name)+(chosen.ym===targetYm?'':' · último oficial disponible'),source:chosen.source||def.src};}
+function idxMergeOfficialSeeds(){Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{(rows||[]).forEach(row=>{const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});}});});}
+function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};} idxMergeOfficialSeeds();}
 function saveIdx(){localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
+function resetIdxAll(){if(!confirm('Se van a borrar todos los indicadores cargados manualmente y se reconstruirá la base oficial inicial. ¿Continuar?'))return;try{localStorage.removeItem('idx_v2');}catch(_e){} IDX_STORE={}; loadIdx(); _idxSel=null; renderIdxView(); toast('Indicadores reiniciados','ok');}
 (function(){loadIdx();})();
 
 function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
@@ -1904,7 +2043,7 @@ function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y|
 function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
 function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));saveIdx();return merged;}
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
-function idxStatusText(id){const target=idxTargetYm();const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
+function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
 function idxLastBusinessDayPrevMonth(){ let d=new Date(new Date().getFullYear(), new Date().getMonth(), 0); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1); return d; }
 async function fetchUsdBnaLike(targetYm){
@@ -1957,9 +2096,16 @@ async function runIdxUpdate(id){
       toast(def.name+' actualizado','ok');
       return;
     }
+    const official = idxResolveOfficial(def, target);
+    if(official && (official.pct!=null || official.value!=null)){
+      idxUpsert(id,{ym:official.ym||target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:official.status||'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      renderIdxView();
+      toast(def.name + (official.ym===target ? ' actualizado' : ' usando último oficial'), 'ok');
+      return;
+    }
     const rs=await idxResolveViaAI(def,target);
     if(rs && (rs.pct!=null || rs.value!=null)){
-      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null});
+      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       renderIdxView();toast(def.name+' actualizado','ok');return;
     }
     throw new Error('Sin dato');
@@ -2006,7 +2152,7 @@ function renderIdxDash(){
   const target=idxTargetYm();
   let updated=0, pending=0, withAny=0;
   IDX_CATALOG.forEach(def=>{ const rows=idxRows(def.id); if(rows.length) withAny++; const exact=rows.find(r=>r.ym===target); if(exact) updated++; else pending++; });
-  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
+  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset total</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
 }
 function renderIdxCards(){
   const box=document.getElementById('idxCardsGrid');if(!box)return;
@@ -2017,7 +2163,7 @@ function renderIdxCards(){
     const defs=IDX_CATALOG.filter(d=>d.cat===cat);
     h+=`<div style="margin-bottom:22px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--p800)">${catLabel[cat]}</h3>${cat==='mo'?'<span class="icat mo">Paritaria — RRLL</span>':''}</div><div class="idx-cards">`;
     defs.forEach(def=>{
-      const rows=idxRows(def.id), last=rows.length?rows[rows.length-1]:null, target=idxTargetYm();
+      const rows=idxRows(def.id), target=idxTargetYm(); const lastStore=rows.length?rows[rows.length-1]:null; const last=(idxResolveOfficial(def,target)||lastStore);
       const spark8=rows.slice(-8), maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
       const sparkH=spark8.map(r=>{ const pct=r.pct||0; const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2); return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`; }).join('');
       h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ. valor: ${last?.ym?formatMonth(last.ym):'—'}</div></div><span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(last?.pct??null)}">${idxValueLabel(def,last)}</span><span class="period">${last?.ym?formatMonth(last.ym):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px"><div style="font-size:10px;color:var(--g500)">Estado: <strong>${idxStatusText(def.id)}</strong></div>${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄 Actualizar</button>`:''}</div></div></div>`;
@@ -2785,8 +2931,10 @@ function updNavProv(){
 // ── List ─────────────────────────────────────────────────────────────────
 let _provDet=null,_provSrch='';
 
-function renderProv(){
-  loadProv();
+async function renderProv(){
+  await loadProv();
+  updNav();
+  updNavProv();
   if(_provDet){
     document.getElementById('provList').style.display='none';
     document.getElementById('provDet').style.display='';
@@ -2849,8 +2997,8 @@ function renderProvList(){
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────
-function openProvDet(id){_provDet=id;renderProv();}
-function closeProvDet(){_provDet=null;renderProv();}
+function openProvDet(id){_provDet=id;Promise.resolve(renderProv()).catch(console.error);}
+function closeProvDet(){_provDet=null;Promise.resolve(renderProv()).catch(console.error);}
 
 function renderProvDet(id){
   const p=PROV_DB.find(x=>x.id===id);
@@ -3014,7 +3162,7 @@ async function saveProvModal(editId){
   };
   if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
   await saveProv();
-  closeProvModal();updNavProv();_provDet=prov.id;renderProv();
+  closeProvModal();updNavProv();_provDet=prov.id;Promise.resolve(renderProv()).catch(console.error);
   toast('Contratista guardado','ok');
 }
 
@@ -3607,5 +3755,22 @@ async function delAveById(aveId) {
     </div>
   </div>
 </div>
+
+<script>(function(){
+  var _go = window.go;
+  if(typeof _go === 'function'){
+    window.go = function(){
+      if(!_APP_USER || !_APP_ROLE){ ensureLoginOverlay(); return false; }
+      return _go.apply(this, arguments);
+    };
+  }
+  var _renderList = window.renderList;
+  if(typeof _renderList === 'function'){
+    window.renderList = function(){
+      if(!_APP_USER || !_APP_ROLE) return false;
+      return _renderList.apply(this, arguments);
+    };
+  }
+})();</script>
 </body>
 </html>
