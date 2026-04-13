@@ -738,12 +738,12 @@ function loginOverlayHtml(){
           '</div>',
         '</div>',
         '<div style="font-size:12.5px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 12px;margin-bottom:14px;line-height:1.45">',
-          'La interfaz queda bloqueada hasta autenticación. Ingresá tus credenciales para continuar.',
+          'La interfaz queda bloqueada hasta autenticación. El acceso se valida contra <strong>app_users</strong> y no depende de <strong>sessionStorage</strong> para recordar la sesión.',
         '</div>',
         '<div style="display:grid;gap:12px">',
           '<div>',
             '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Usuario</label>',
-            '<input id="lgUser" type="text" placeholder="Ingresá tu usuario" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
+            '<input id="lgUser" type="text" placeholder="owner / admin / contratos / tecnico" autocomplete="username" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;outline:none">',
           '</div>',
           '<div>',
             '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:#475569;margin-bottom:4px">Contraseña</label>',
@@ -753,10 +753,10 @@ function loginOverlayHtml(){
           '<button class="btn btn-p" style="width:100%;justify-content:center" onclick="loginApp()">Ingresar</button>',
         '</div>',
         '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;line-height:1.55">',
-          '<div><strong></strong></div>',
-          '<div></div>',
-          '<div></div>',
-          '<div></div>',
+          '<div><strong>Usuarios de prueba</strong></div>',
+          '<div>owner / owner123</div>',
+          '<div>contratos / contratos123</div>',
+          '<div>tecnico / tecnico123</div>',
         '</div>',
       '</div>',
     '</div>'
@@ -864,7 +864,6 @@ async function loginApp(){
     applyRolePermissions();
     if(typeof toast === 'function') toast('Sesión iniciada: ' + row.username, 'ok');
     await initApp();
-    authUnlock();
   }catch(err){
     _APP_USER = null;
     _APP_ROLE = null;
@@ -941,8 +940,22 @@ async function initApp() {
   catch(ex) { console.warn('loadProv error', ex); try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];} }
 
   hideLoader();
-  buildPoly(); renderList(); updNav();
+  try{
+    if(typeof buildPoly==='function') buildPoly();
+    else if(typeof window.buildPoly==='function') window.buildPoly();
+    else console.warn('buildPoly missing');
+  }catch(e){ console.warn('buildPoly error', e); }
+  try{
+    if(typeof renderList==='function') renderList();
+    else if(typeof window.renderList==='function') window.renderList();
+    else console.warn('renderList missing');
+  }catch(e){ console.warn('renderList error', e); }
+  try{
+    if(typeof updNav==='function') updNav();
+    else if(typeof window.updNav==='function') window.updNav();
+  }catch(e){ console.warn('updNav error', e); }
 }
+
 
 // ─── PUBLIC API (called throughout app) ──────
 function load() {}
@@ -1038,15 +1051,15 @@ function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vAdmin'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
   document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · F3R</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; renderList(); }
+  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · BP1</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; if(typeof renderList==='function') renderList(); else if(typeof window.renderList==='function') window.renderList(); }
   else if(v==='form'){ document.getElementById('vForm').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[1]) document.querySelectorAll('.sb-nav .nv')[1].classList.add('act'); t.innerHTML='➕ Nuevo Contrato'; a.innerHTML=''; }
-  else if(v==='det'){ document.getElementById('vDet').classList.add('on'); t.innerHTML='📄 Detalle del Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`; renderDet(); window.scrollTo({top:0,behavior:'smooth'}); }
-  else if(v==='me2n'){ document.getElementById('vMe2n').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Purchase Orders (ME2N)'; a.innerHTML=''; renderMe2n(); buildPlantFilter(); }
-  else if(v==='idx'){ document.getElementById('vIdx').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[3]) document.querySelectorAll('.sb-nav .nv')[3].classList.add('act'); t.innerHTML='📊 Master de Índices'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>`; renderIdxView(); }
-  else if(v==='licit'){ document.getElementById('vLicit').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[4]) document.querySelectorAll('.sb-nav .nv')[4].classList.add('act'); t.innerHTML='📋 Licitaciones'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>`; renderLicit(); }
-  else if(v==='prov'){ document.getElementById('vProv').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[5]) document.querySelectorAll('.sb-nav .nv')[5].classList.add('act'); t.innerHTML='🏢 Proveedores'; a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>`; Promise.resolve(renderProv()).catch(console.error); }
-  else if(v==='admin'){ document.getElementById('vAdmin').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[6]) document.querySelectorAll('.sb-nav .nv')[6].classList.add('act'); t.innerHTML='🔐 Administración de usuarios'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="openAdminUserModal(null)">➕ Nuevo usuario</button>`; Promise.resolve(renderAdminUsers()).catch(console.error); }
-  else if(v==='me2ndet'){ document.getElementById('vMe2nDet').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Detalle PO por Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>`; renderMe2nDet(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(v==='det'){ document.getElementById('vDet').classList.add('on'); t.innerHTML='📄 Detalle del Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`; if(typeof renderDet==='function') renderDet(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(v==='me2n'){ document.getElementById('vMe2n').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Purchase Orders (ME2N)'; a.innerHTML=''; if(typeof renderMe2n==='function') renderMe2n(); if(typeof buildPlantFilter==='function') buildPlantFilter(); }
+  else if(v==='idx'){ document.getElementById('vIdx').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[3]) document.querySelectorAll('.sb-nav .nv')[3].classList.add('act'); t.innerHTML='📊 Master de Índices'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Nuevo Índice</button>`; if(typeof renderIdxView==='function') renderIdxView(); }
+  else if(v==='licit'){ document.getElementById('vLicit').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[4]) document.querySelectorAll('.sb-nav .nv')[4].classList.add('act'); t.innerHTML='📋 Licitaciones'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>`; if(typeof renderLicit==='function') renderLicit(); }
+  else if(v==='prov'){ document.getElementById('vProv').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[5]) document.querySelectorAll('.sb-nav .nv')[5].classList.add('act'); t.innerHTML='🏢 Proveedores'; a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>`; Promise.resolve(typeof renderProv==='function'?renderProv():(typeof window.renderProv==='function'?window.renderProv():null)).catch(console.error); }
+  else if(v==='admin'){ document.getElementById('vAdmin').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[6]) document.querySelectorAll('.sb-nav .nv')[6].classList.add('act'); t.innerHTML='🔐 Administración de usuarios'; a.innerHTML=`<button class="btn btn-p btn-sm" onclick="openAdminUserModal(null)">➕ Nuevo usuario</button>`; Promise.resolve(typeof renderAdminUsers==='function'?renderAdminUsers():(typeof window.renderAdminUsers==='function'?window.renderAdminUsers():null)).catch(console.error); }
+  else if(v==='me2ndet'){ document.getElementById('vMe2nDet').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Detalle PO por Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>`; if(typeof renderMe2nDet==='function') renderMe2nDet(); window.scrollTo({top:0,behavior:'smooth'}); }
 }
 
 // POLY AVE CALC
@@ -3470,6 +3483,6 @@ async function delAveById(aveId) {
   </div>
 </div>
 
-<script>if(typeof esc==='function') window.esc=esc; if(typeof renderList==='function') window.renderList=renderList; if(typeof renderProv==='function') window.renderProv=renderProv; if(typeof renderAdminUsers==='function') window.renderAdminUsers=renderAdminUsers; if(typeof renderIdxView==='function') window.renderIdxView=renderIdxView; if(typeof renderProvList==='function') window.renderProvList=renderProvList; if(typeof buildPoly==='function') window.buildPoly=buildPoly; console.info('BUILD F3R loaded');</script>
+<script>if(typeof esc==='function') window.esc=esc; if(typeof renderList==='function') window.renderList=renderList; if(typeof renderProv==='function') window.renderProv=renderProv; if(typeof renderAdminUsers==='function') window.renderAdminUsers=renderAdminUsers; if(typeof buildPoly==='function') window.buildPoly=buildPoly; console.info('BUILD BP1 loaded');</script>
 </body>
 </html>
