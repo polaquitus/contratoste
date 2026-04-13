@@ -952,7 +952,7 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   try{ if(typeof go==='function'&&document.getElementById('vList')&&document.getElementById('vList').classList.contains('on')) window.renderList(); }catch(_e){}
   console.info('BUILD DET1.3 loaded');
 })();
-</script>
+<\/script>
 
 </body></html>`; }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
