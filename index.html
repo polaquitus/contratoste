@@ -410,27 +410,22 @@ body.auth-locked .app{filter:none!important;pointer-events:auto!important;user-s
 
 .rest-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;text-transform:uppercase;letter-spacing:.25px}
 .rest-pill.ok{background:var(--g100d);color:var(--g600)}
-.rest-pill.warn{background:var(--a100);color:#92400e}
-.rest-pill.bad{background:var(--r100);color:var(--r500)}
+.rest-pill.warn{background:var(--a100);color:#92400e}.rest-pill.bad{background:var(--r100);color:var(--r500)}
 .rest-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--g100)}
 .rest-kpi{padding:14px 16px;border-right:1px solid var(--g100);text-align:center}.rest-kpi:last-child{border-right:none}
 .rest-kpi .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--g500);margin-bottom:4px}
 .rest-kpi .val{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--p800)}
 .rest-kpi .sub{font-size:10.5px;color:var(--g500);margin-top:3px}
-.rest-contract-link{color:var(--p700);font-weight:800;text-decoration:none}
-.rest-contract-link:hover{text-decoration:underline}
+.rest-contract-link{color:var(--p700);font-weight:800;text-decoration:none}.rest-contract-link:hover{text-decoration:underline}
 .rest-dash{color:var(--g500)}
 .rest-detail-wrap{background:var(--w);border-radius:var(--radl);box-shadow:var(--shm);overflow:hidden}
 .rest-detail-head{padding:22px 26px;background:linear-gradient(135deg,var(--p700),var(--p600));color:var(--w);display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
-.rest-detail-head .t1{font-size:20px;font-weight:800;margin-bottom:4px}
-.rest-detail-head .t2{font-size:12px;opacity:.82}
-.rest-detail-body{padding:0}
-.rest-detail-section{padding:18px 22px;border-top:1px solid var(--g100)}
+.rest-detail-head .t1{font-size:20px;font-weight:800;margin-bottom:4px}.rest-detail-head .t2{font-size:12px;opacity:.82}
+.rest-detail-body{padding:0}.rest-detail-section{padding:18px 22px;border-top:1px solid var(--g100)}
 .rest-detail-section h3{font-size:13px;font-weight:800;color:var(--p900);margin-bottom:12px;text-transform:uppercase;letter-spacing:.6px}
 .rest-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--g100);border-radius:8px;overflow:hidden}
 .rest-grid .cell{padding:12px 14px;border-right:1px solid var(--g100);border-bottom:1px solid var(--g100);background:var(--w)}
-.rest-grid .cell:nth-child(4n){border-right:none}
-.rest-grid .lab{font-size:10px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.rest-grid .cell:nth-child(4n){border-right:none}.rest-grid .lab{font-size:10px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
 .rest-grid .dat{font-size:13px;font-weight:600;color:var(--g900);word-break:break-word}
 .rest-empty{padding:16px;border:1px dashed var(--g300);border-radius:8px;background:var(--g50);color:var(--g600c);font-size:12px}
 @media(max-width:1100px){.rest-kpi-grid{grid-template-columns:repeat(2,1fr)}.rest-grid{grid-template-columns:repeat(2,1fr)}.rest-grid .cell:nth-child(2n){border-right:none}}
@@ -723,12 +718,12 @@ function showLoader(msg) {
     document.body.appendChild(el);
   }
   const label = document.getElementById('sb-lmsg');
-  if(label) label.textContent = msg || '';
+  if (label) label.textContent = msg || '';
   el.style.display = 'flex';
 }
 function hideLoader() {
   const el = document.getElementById('sb-loader');
-  if(el) el.style.display='none';
+  if (el) el.style.display = 'none';
 }
 // ─── INIT ────────────────────────────────────
 
@@ -978,19 +973,12 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   function toNum(v){
     if(v == null || v === '') return 0;
     if(typeof v === 'number') return isFinite(v) ? v : 0;
-    var s=String(v).trim();
-    if(!s) return 0;
+    var s=String(v).trim(); if(!s) return 0;
     s=s.replace(/\s+/g,'');
-    var comma=s.lastIndexOf(',');
-    var dot=s.lastIndexOf('.');
-    if(comma > -1 && dot > -1){
-      if(comma > dot){ s=s.replace(/\./g,'').replace(',', '.'); }
-      else { s=s.replace(/,/g,''); }
-    }else if(comma > -1){
-      s=s.replace(/\./g,'').replace(',', '.');
-    }else{
-      s=s.replace(/,/g,'');
-    }
+    var comma=s.lastIndexOf(','), dot=s.lastIndexOf('.');
+    if(comma > -1 && dot > -1){ if(comma > dot){ s=s.replace(/\./g,'').replace(',', '.'); } else { s=s.replace(/,/g,''); } }
+    else if(comma > -1){ s=s.replace(/\./g,'').replace(',', '.'); }
+    else { s=s.replace(/,/g,''); }
     s=s.replace(/[^0-9\-.]/g,'');
     var n=parseFloat(s);
     return isFinite(n)?n:0;
@@ -999,16 +987,13 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
     if(!v) return '';
     var s=String(v).trim();
     if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    var m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if(m) return m[3]+'-'+m[2]+'-'+m[1];
-    var d=new Date(s);
-    if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+    var m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m) return m[3]+'-'+m[2]+'-'+m[1];
+    var d=new Date(s); if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
     return s;
   }
   function fmtDate(v){
     var s=normDate(v); if(!s) return '—';
-    var m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(!m) return escHtml(String(v));
+    var m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return escHtml(String(v));
     return m[3]+'/'+m[2]+'/'+m[1];
   }
   function fmtMoney(v,curr){
@@ -1017,16 +1002,10 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
     try{ return new Intl.NumberFormat('es-AR',{style:'currency',currency:c,maximumFractionDigits:2}).format(n); }
     catch(_e){ return c+' '+new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(n); }
   }
-  function fmtPct(v){
-    if(v == null || v === '' || !isFinite(v)) return '—';
-    return new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(v)+'%';
-  }
+  function fmtPct(v){ if(v == null || v === '' || !isFinite(v)) return '—'; return new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(v)+'%'; }
   function estadoContrato(c){
-    var fin = normDate(c && (c.fechaFin||c.fecha_fin||c.f));
-    if(!fin) return '—';
-    var h=new Date(); h.setHours(0,0,0,0);
-    var d=new Date(fin+'T00:00:00');
-    if(isNaN(d.getTime())) return '—';
+    var fin = normDate(c && (c.fechaFin||c.fecha_fin||c.f)); if(!fin) return '—';
+    var h=new Date(); h.setHours(0,0,0,0); var d=new Date(fin+'T00:00:00'); if(isNaN(d.getTime())) return '—';
     return d >= h ? 'ACTIVO' : 'VENCIDO';
   }
   function estadoClass(estado){ return estado==='ACTIVO' ? 'ok' : (estado==='VENCIDO' ? 'bad' : 'warn'); }
@@ -1043,7 +1022,7 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   function getVendor(c){ return c && (c.vendorNum||c.vn||c.vendor||c.vend||''); }
   function getDet(c){ return c && (c.det||c.detalle||c.shortText||c.descripcion||''); }
   function flatObjects(root, maxNodes){
-    var out=[]; var stack=[root]; var seen=[]; var count=0; maxNodes=maxNodes||50000;
+    var out=[], stack=[root], seen=[], count=0; maxNodes=maxNodes||50000;
     while(stack.length && count < maxNodes){
       var cur=stack.pop(); count++;
       if(!cur || typeof cur !== 'object') continue;
@@ -1072,12 +1051,13 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   function getPoPlant(line){ var keys=['plant','werks','centro']; for(var i=0;i<keys.length;i++) if(line && line[keys[i]]) return String(line[keys[i]]); return ''; }
   function getPoText(line){ var keys=['shortText','texto','text','descripcion','description']; for(var i=0;i<keys.length;i++) if(line && line[keys[i]]) return String(line[keys[i]]); return ''; }
   function contractNumsFromObj(o){
-    var vals=[o&&o.num,o&&o.numero,o&&o.nro,o&&o.contract,o&&o.contractNum,o&&o.contractNumber,o&&o.ctto,o&&o.contrato,o&&o.ebeln_contrato,o&&o.oa,o&&o.doc];
-    var out=[]; for(var i=0;i<vals.length;i++) if(vals[i]) out.push(String(vals[i]).trim()); return out;
+    var vals=[o&&o.num,o&&o.numero,o&&o.nro,o&&o.contract,o&&o.contractNum,o&&o.contractNumber,o&&o.ctto,o&&o.contrato,o&&o.ebeln_contrato,o&&o.oa,o&&o.doc], out=[];
+    for(var i=0;i<vals.length;i++) if(vals[i]) out.push(String(vals[i]).trim());
+    return out;
   }
   function getPOLinesForContract(contractNum){
     var target=String(contractNum||'').trim(); if(!target) return [];
-    var data=getME2NSafe(); var objs=flatObjects(data, 100000); var lines=[];
+    var data=getME2NSafe(), objs=flatObjects(data, 100000), lines=[];
     for(var i=0;i<objs.length;i++){
       var o=objs[i], nums=contractNumsFromObj(o);
       if(nums.indexOf(target)!==-1){ var amount=getPoAmount(o); if(amount || getPoNo(o) || getPoText(o) || getPoPlant(o)) lines.push(o); }
@@ -1087,7 +1067,7 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   function getConsumed(c){
     var directKeys=['consumido','consumidoPos','pos','montoPos','consumed','consumption'];
     for(var i=0;i<directKeys.length;i++) if(c && c[directKeys[i]] != null && c[directKeys[i]] !== '') return toNum(c[directKeys[i]]);
-    var lines=getPOLinesForContract(c && (c.num||c.numero||c.nro)); var total=0;
+    var lines=getPOLinesForContract(c && (c.num||c.numero||c.nro)), total=0;
     for(var j=0;j<lines.length;j++) total += getPoAmount(lines[j]);
     return total;
   }
@@ -1095,18 +1075,13 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
     var monto=getMonto(c), consumido=getConsumed(c), rem=monto-consumido, pct=(monto>0)?(rem/monto*100):null;
     return {monto:monto, consumido:consumido, remanente:rem, disponiblePct:pct};
   }
-  window.verDet = function(id){
-    try{ detId=id; }catch(_e){ window.detId=id; }
-    if(typeof go==='function') go('det');
-  };
+  window.verDet = function(id){ try{ detId=id; }catch(_e){ window.detId=id; } if(typeof go==='function') go('det'); };
   function rowHtml(c){
-    var numRaw=String(c&&(c.num||c.numero||c.nro||''));
-    var num=escHtml(numRaw);
-    var cont=escHtml(c&&(c.cont||c.contratista||c.proveedor||''));
+    var numRaw=String(c&&(c.num||c.numero||c.nro||'')), num=escHtml(numRaw), cont=escHtml(c&&(c.cont||c.contratista||c.proveedor||''));
     var curr=getCurr(c), m=getMetrics(c), estado=estadoContrato(c), comp=getCompleteness(c);
     var finClass=(m.disponiblePct!=null && m.disponiblePct<0)?'bad':(m.disponiblePct!=null && m.disponiblePct<25?'warn':'ok');
     var availFill=(m.disponiblePct==null)?0:Math.max(0,Math.min(100,m.disponiblePct));
-    var idAttr = numRaw.replace(/'/g, '&#39;');
+    var idAttr=numRaw.replace(/'/g, '&#39;');
     return ''+
       '<tr class="clickable" onclick="verDet(\''+idAttr+'\')">'+
       '<td class="mono"><a href="javascript:void(0)" class="rest-contract-link" onclick="event.stopPropagation();verDet(\''+idAttr+'\')">'+num+'</a></td>'+
@@ -1123,8 +1098,7 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
   }
   window.renderList = function(){
     var box=document.getElementById('tBody'); if(!box) return false;
-    var arr=getDBSafe();
-    var cnt=document.getElementById('cnt'), lcnt=document.getElementById('lcnt');
+    var arr=getDBSafe(), cnt=document.getElementById('cnt'), lcnt=document.getElementById('lcnt');
     if(cnt) cnt.textContent=String(arr.length||0);
     if(!arr.length){ if(lcnt) lcnt.textContent='0'; box.innerHTML='<div class="empty"><div class="ei">📄</div><p>No hay contratos para mostrar.</p></div>'; return true; }
     var searchEl=document.getElementById('fSrch'), estEl=document.getElementById('fEst'), assetEl=document.getElementById('fAsset'), domEl=document.getElementById('fDom'), respEl=document.getElementById('fResp'), ownEl=document.getElementById('fOwn'), compEl=document.getElementById('fComp');
@@ -1167,20 +1141,20 @@ function renderDossierHtml(c){ const enms=c.enmiendas||[], tars=c.tarifarios||[]
       '<div class="rest-detail-wrap">'+
       '<div class="rest-detail-head"><div><div class="t1">Contrato '+escHtml(num)+'</div><div class="t2">'+escHtml(c&&(c.cont||c.contratista||c.proveedor||''))+'</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="rest-pill '+estadoClass(estado)+'">'+escHtml(estado)+'</span><span class="rest-pill '+compClass(comp)+'">'+escHtml(comp)+'</span></div></div>'+
       '<div class="rest-detail-body">'+
-        '<div class="rest-kpi-grid">'+
-          '<div class="rest-kpi"><div class="lbl">Monto Total</div><div class="val">'+escHtml(fmtMoney(m.monto,curr))+'</div></div>'+
-          '<div class="rest-kpi"><div class="lbl">Consumido (POS)</div><div class="val">'+escHtml(fmtMoney(m.consumido,curr))+'</div><div class="sub">'+escHtml(String(poLines.length))+' línea(s) detectadas</div></div>'+
-          '<div class="rest-kpi"><div class="lbl">Remanente</div><div class="val" style="color:'+(m.remanente<0?'var(--r500)':'var(--g600)')+'">'+escHtml(fmtMoney(m.remanente,curr))+'</div></div>'+
-          '<div class="rest-kpi"><div class="lbl">% Disponible</div><div class="val" style="color:'+(m.disponiblePct!=null&&m.disponiblePct<0?'var(--r500)':'var(--p800)')+'">'+escHtml(fmtPct(m.disponiblePct))+'</div></div>'+
-          '<div class="rest-kpi"><div class="lbl">Vigencia</div><div class="val">'+escHtml(fmtDate(c&&(c.fechaIni||c.fechaInicio||c.i)))+'</div><div class="sub">hasta '+escHtml(fmtDate(c&&(c.fechaFin||c.fecha_fin||c.f)))+'</div></div>'+
-        '</div>'+
-        '<div class="rest-detail-section"><h3>Datos del contrato</h3><div class="rest-grid">'+detailCells.map(function(it){ return '<div class="cell"><div class="lab">'+escHtml(it[0])+'</div><div class="dat">'+escHtml(it[1]||'—')+'</div></div>'; }).join('')+'</div></div>'+
-        '<div class="rest-detail-section"><h3>Consumo / Purchase Orders</h3>'+poHtml+'</div>'+
+      '<div class="rest-kpi-grid">'+
+      '<div class="rest-kpi"><div class="lbl">Monto Total</div><div class="val">'+escHtml(fmtMoney(m.monto,curr))+'</div></div>'+
+      '<div class="rest-kpi"><div class="lbl">Consumido (POS)</div><div class="val">'+escHtml(fmtMoney(m.consumido,curr))+'</div><div class="sub">'+escHtml(String(poLines.length))+' línea(s) detectadas</div></div>'+
+      '<div class="rest-kpi"><div class="lbl">Remanente</div><div class="val" style="color:'+(m.remanente<0?'var(--r500)':'var(--g600)')+'">'+escHtml(fmtMoney(m.remanente,curr))+'</div></div>'+
+      '<div class="rest-kpi"><div class="lbl">% Disponible</div><div class="val" style="color:'+(m.disponiblePct!=null&&m.disponiblePct<0?'var(--r500)':'var(--p800)')+'">'+escHtml(fmtPct(m.disponiblePct))+'</div></div>'+
+      '<div class="rest-kpi"><div class="lbl">Vigencia</div><div class="val">'+escHtml(fmtDate(c&&(c.fechaIni||c.fechaInicio||c.i)))+'</div><div class="sub">hasta '+escHtml(fmtDate(c&&(c.fechaFin||c.fecha_fin||c.f)))+'</div></div>'+
+      '</div>'+
+      '<div class="rest-detail-section"><h3>Datos del contrato</h3><div class="rest-grid">'+detailCells.map(function(it){ return '<div class="cell"><div class="lab">'+escHtml(it[0])+'</div><div class="dat">'+escHtml(it[1]||'—')+'</div></div>'; }).join('')+'</div></div>'+
+      '<div class="rest-detail-section"><h3>Consumo / Purchase Orders</h3>'+poHtml+'</div>'+
       '</div></div>';
     return true;
   };
   try{ if(typeof go==='function' && document.getElementById('vList') && document.getElementById('vList').classList.contains('on')) window.renderList(); }catch(_e){}
-  console.info('BUILD DET1.1 loaded');
+  console.info('BUILD DET1.2 loaded');
 })();
 </script>
 
@@ -1334,7 +1308,7 @@ function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vAdmin'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
   document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · DET1.1.1</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; if(typeof renderList==='function') renderList(); else if(typeof window.renderList==='function') window.renderList(); }
+  if(v==='list'){ document.getElementById('vList').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[0]) document.querySelectorAll('.sb-nav .nv')[0].classList.add('act'); t.innerHTML='📋 Contratos <span class="bc" id="buildTag">sys_A2_force · DET1.2.2</span>'; a.innerHTML=`<button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button>`; if(typeof renderList==='function') renderList(); else if(typeof window.renderList==='function') window.renderList(); }
   else if(v==='form'){ document.getElementById('vForm').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[1]) document.querySelectorAll('.sb-nav .nv')[1].classList.add('act'); t.innerHTML='➕ Nuevo Contrato'; a.innerHTML=''; }
   else if(v==='det'){ document.getElementById('vDet').classList.add('on'); t.innerHTML='📄 Detalle del Contrato'; a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`; if(typeof renderDet==='function') renderDet(); window.scrollTo({top:0,behavior:'smooth'}); }
   else if(v==='me2n'){ document.getElementById('vMe2n').classList.add('on'); if(document.querySelectorAll('.sb-nav .nv')[2]) document.querySelectorAll('.sb-nav .nv')[2].classList.add('act'); t.innerHTML='🛒 Purchase Orders (ME2N)'; a.innerHTML=''; if(typeof renderMe2n==='function') renderMe2n(); if(typeof buildPlantFilter==='function') buildPlantFilter(); }
@@ -3824,7 +3798,7 @@ async function delAveById(aveId) {
   }
   try{ window.buildPoly(); }catch(_e){}
   try{ window.renderList(); }catch(_e){}
-  console.info('BUILD DET1.1 base loaded');
+  console.info('BUILD DET1.2 base loaded');
 })();
 </script>
 </body>
