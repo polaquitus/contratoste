@@ -4192,6 +4192,64 @@ async function delAveById(aveId) {
   renderDet();
   toast('AVE eliminado', 'ok');
 }
+
+
+/* ==== PATCH v7: restaurar Listas de Precios IA en detalle ==== */
+(function(){
+  const __origOpenPriceListImportPicker = (typeof openPriceListImportPicker==='function') ? openPriceListImportPicker : null;
+  openPriceListImportPicker = function(){
+    let inp = document.getElementById('tarAiIn');
+    if(!inp){
+      try{
+        inp = document.createElement('input');
+        inp.type = 'file';
+        inp.id = 'tarAiIn';
+        inp.accept = '.doc,.docx,.xls,.xlsx';
+        inp.style.display = 'none';
+        inp.onchange = function(){ try{ importPriceListsFromFiles(this.files); } finally { this.value=''; } };
+        document.body.appendChild(inp);
+      }catch(e){ console.error('fallback tarAiIn', e); toast('No se pudo crear el selector de listas','er'); return; }
+    }
+    try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker patched', e); toast('No se pudo abrir el selector','er'); }
+  };
+
+  function restoreTarSection(){
+    try{
+      const card = document.getElementById('detCard');
+      if(!card) return;
+      const headers = Array.from(card.querySelectorAll('.section-box h3'));
+      const hdr = headers.find(h => /Listas de Precios \/ Tarifarios/i.test(h.textContent||''));
+      if(!hdr) return;
+      const section = hdr.closest('.section-box');
+      if(!section) return;
+      if(!section.querySelector('#tarContainer')){
+        const cc = (typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(x=>x.id===detId) : null;
+        const count = ((cc&&cc.tarifarios)||[]).length;
+        section.innerHTML = '<h3>💲 Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>';
+      }
+      if(typeof renderTarifario==='function') renderTarifario();
+    }catch(e){ console.error('restoreTarSection', e); }
+  }
+
+  if(typeof renderDet==='function'){
+    const __origRenderDet = renderDet;
+    renderDet = function(){
+      const out = __origRenderDet.apply(this, arguments);
+      try{ restoreTarSection(); }catch(e){ console.error('renderDet restoreTarSection', e); }
+      return out;
+    };
+  }
+
+  const __origGo = (typeof go==='function') ? go : null;
+  if(__origGo){
+    go = function(v){
+      const out = __origGo.apply(this, arguments);
+      if(v==='detail'){ setTimeout(function(){ try{ restoreTarSection(); }catch(e){ console.error(e); } }, 0); }
+      return out;
+    };
+  }
+})();
+
 </script>
 
 <!-- ENM PDF IMPORT MODAL -->
