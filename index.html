@@ -608,8 +608,17 @@ async function sbFetch(table, method='GET', body=null, filter='') {
   const opts = {method, headers: SB_HDR};
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`${method} ${table} ${r.status}`);
-  return method === 'DELETE' ? null : r.json();
+  if (!r.ok) {
+    let detail = '';
+    try {
+      const t = await r.text();
+      detail = t ? ` — ${t.slice(0,400)}` : '';
+    } catch(e) {}
+    throw new Error(`${method} ${table} ${r.status}${detail}`);
+  }
+  if (method === 'DELETE') return null;
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
 }
 
 // ─── LOADERS ────────────────────────────────
@@ -923,9 +932,31 @@ async function saveProv() {
 
 async function sbReplaceContratistas() {
   if (!SB_OK) return;
-  const clean = (PROV_DB||[]).map(p=>{
+
+  const source = (PROV_DB||[]).map(p=>{
     const x={...p};
     delete x.__sbId;
+    delete x.__sbNative;
+    return x;
+  });
+
+  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+
+  const BATCH_SIZE = 250;
+  const minimalHeaders = {...SB_HDR, Prefer:'return=minimal'};
+  const endpoint = `${SB_URL}/rest/v1/contratistas`;
+
+  async function rawDeleteAll(){
+    const r = await fetch(`${endpoint}?id=not.is.null`, { method:'DELETE', headers:minimalHeaders });
+    if (!r.ok) {
+      let detail='';
+      try { detail = await r.text(); } catch(e) {}
+      throw new Error(`DELETE contratistas ${r.status}${detail?` — ${detail.slice(0,300)}`:''}`);
+    }
+  }
+
+  function mapNative(x){
     const mainContact = Array.isArray(x.contacts) && x.contacts.length ? x.contacts[0] : {};
     return {
       vendor_num: String(x.vendorNum || '').trim() || null,
@@ -934,19 +965,44 @@ async function sbReplaceContratistas() {
       telefono: String(x.telefono || x.phone || mainContact.phone || mainContact.telefono || '').trim() || null,
       rubro: String(x.rubro || '').trim() || null,
       active: true,
-      payload: JSON.stringify(x)
+      payload: x
     };
-  });
-  try { await sbFetch('contratistas', 'DELETE', null, '?id=not.is.null'); } catch(e) { console.warn('DELETE contratistas', e); }
-  if (!clean.length) {
-    localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
-    localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
-    return;
   }
-  const res = await sbFetch('contratistas', 'POST', clean);
-  if (Array.isArray(res)) res.forEach((r,i)=>{ if(PROV_DB[i]) PROV_DB[i].__sbId = r.id; });
-  localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
-  localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+
+  function mapLegacy(x){
+    return { datos: JSON.stringify(x) };
+  }
+
+  async function postChunk(rows){
+    const r = await fetch(endpoint, {
+      method:'POST',
+      headers:minimalHeaders,
+      body: JSON.stringify(rows)
+    });
+    if (!r.ok) {
+      let detail='';
+      try { detail = await r.text(); } catch(e) {}
+      throw new Error(`POST contratistas ${r.status}${detail?` — ${detail.slice(0,500)}`:''}`);
+    }
+  }
+
+  async function syncBatched(mapper){
+    for (let i=0; i<source.length; i+=BATCH_SIZE) {
+      const chunk = source.slice(i, i+BATCH_SIZE).map(mapper);
+      await postChunk(chunk);
+    }
+  }
+
+  await rawDeleteAll();
+  if (!source.length) return;
+
+  try {
+    await syncBatched(mapNative);
+  } catch(nativeErr) {
+    console.warn('[sbReplaceContratistas] native insert failed; falling back to legacy datos format', nativeErr);
+    await rawDeleteAll();
+    await syncBatched(mapLegacy);
+  }
 }
 
 
@@ -3438,14 +3494,18 @@ async function saveProvModal(editId){
   };
   if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
   await saveProv();
-  closeProvModal();updNavProv();_provDet=prov.id;renderProv();
+  if (SB_OK) await loadProv();
+  closeProvModal();updNav();updNavProv();_provDet=prov.id;renderProv();
   toast('Contratista guardado','ok');
 }
 
 function closeProvModal(){document.getElementById('provModalBack').style.display='none';}
-function deleteProv(id){
+async function deleteProv(id){
   if(!confirm('¿Eliminar este proveedor?'))return;
-  PROV_DB=PROV_DB.filter(p=>p.id!==id);saveProv();renderProvList();updNavProv();toast('Eliminado','ok');
+  PROV_DB=PROV_DB.filter(p=>p.id!==id);
+  await saveProv();
+  if (SB_OK) await loadProv();
+  renderProvList();updNav();updNavProv();toast('Eliminado','ok');
 }
 
 // ── SAP Vendors Import ────────────────────────────────────────────────────
@@ -3479,29 +3539,68 @@ function importProvModal(){
 
 function processSapProvImport(input){
   const file=input.files[0];if(!file)return;
+  const resultBox=document.getElementById('sapProvResult');
+  if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px">Procesando <strong>${esc(file.name)}</strong>…</div>`;
   const reader=new FileReader();
   reader.onload=async e=>{
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      let added=0,skipped=0;
+      if(!json.length){ throw new Error('El Excel está vacío.'); }
+
+      const headers=(json[0]||[]).map(v=>String(v||'').trim());
+      const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+      const headerNorm=headers.map(norm);
+      let nameIdx=headerNorm.findIndex(h=>['name of vendor','vendor name','name vendor','proveedor','nombre proveedor','nombre'].includes(h));
+      let vendorIdx=headerNorm.findIndex(h=>['vendor2','vendor','vendor number','numero vendor','n vendor','nro vendor'].includes(h));
+      if(nameIdx<0) nameIdx=0;
+      if(vendorIdx<0) vendorIdx=1;
+
+      const existingVendorSet=new Set((PROV_DB||[]).map(p=>String(p.vendorNum||'').trim()).filter(Boolean));
+      const existingNameSet=new Set((PROV_DB||[]).map(p=>norm(p.name)).filter(Boolean));
+      const staged=[];
+      let added=0,skipped=0,empty=0;
+
       for(let i=1;i<json.length;i++){
-        const r=json[i];
-        const nameRaw=String(r[0]||'').trim();
-        const vnum=String(r[1]||'').trim();
-        if(!nameRaw||nameRaw==='nan')continue;
+        const r=json[i]||[];
+        const nameRaw=String(r[nameIdx]||'').trim();
+        const vnum=String(r[vendorIdx]||'').trim();
+        if(!nameRaw||norm(nameRaw)==='nan'){ empty++; continue; }
         const cleanName=nameRaw.replace(/^\d+\s+/,'').trim();
-        if(vnum && PROV_DB.find(p=>String(p.vendorNum||'').trim()===vnum)){skipped++;continue;}
-        PROV_DB.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+added,name:cleanName,vendorNum:vnum,rubro:'',website:'',obs:'',contacts:[],brochure:null,createdAt:new Date().toISOString()});
+        const cleanNameNorm=norm(cleanName);
+        if((vnum && existingVendorSet.has(vnum)) || (!vnum && existingNameSet.has(cleanNameNorm))){ skipped++; continue; }
+        existingVendorSet.add(vnum);
+        existingNameSet.add(cleanNameNorm);
+        staged.push({
+          id:'prov_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'_'+i,
+          name:cleanName,
+          vendorNum:vnum,
+          rubro:'',website:'',obs:'',contacts:[],brochure:null,
+          createdAt:new Date().toISOString()
+        });
         added++;
       }
+
+      if(!staged.length){
+        if(resultBox) resultBox.innerHTML=`<div class="info-box amber" style="margin-top:10px">No se agregaron proveedores nuevos. ${skipped} ya existían${empty?`, ${empty} filas vacías`:''}.</div>`;
+        toast('No había proveedores nuevos para importar','er');
+        return;
+      }
+
+      PROV_DB = [...PROV_DB, ...staged];
+      if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px">Importados <strong>${added}</strong> proveedores. Sincronizando con Supabase…</div>`;
       await saveProv();
       if (SB_OK) await loadProv();
       updNav(); updNavProv(); renderProvList();
-      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados y sincronizados. ${skipped} ya existían.</div>`;
+      if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados y sincronizados. ${skipped} ya existían${empty?`, ${empty} filas vacías`:''}.</div>`;
       toast(`${added} contratistas de SAP importados${SB_OK?' y sincronizados':''}`,'ok');
-    }catch(err){toast('Error procesando o sincronizando el archivo','er');console.error(err);}
+    }catch(err){
+      console.error(err);
+      const msg = err && err.message ? err.message : 'Error desconocido';
+      if(resultBox) resultBox.innerHTML=`<div class="info-box amber" style="margin-top:10px"><strong>Error al importar/sincronizar:</strong><br>${esc(msg)}</div>`;
+      toast('Error procesando o sincronizando el archivo','er');
+    }
   };
   reader.readAsArrayBuffer(file);
 }
