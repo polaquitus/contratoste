@@ -816,7 +816,7 @@ async function initApp(__fromLogin) {
   }
 
   try { showLoader('Cargando contratistas...'); await loadProv(); }
-  catch(ex) { console.warn('loadProv error', ex); try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];} }
+  catch(ex) { console.warn('loadProv error', ex); PROV_DB = []; }
 
   hideLoader();
   buildPoly(); renderList(); updNav();
@@ -885,12 +885,12 @@ async function loadProv() {
       console.warn('[loadProv] proveedores also failed:', e3.message);
     }
   }
-  // Fallback: localStorage
-  try {
-    PROV_DB = JSON.parse(localStorage.getItem('contr_v1')) || JSON.parse(localStorage.getItem('prov_v1')) || [];
-  } catch(e){ PROV_DB = []; }
+  // Sin fallback automático a localStorage: la UI de proveedores carga sólo desde BD.
+  // Se mantiene localStorage como respaldo/migración explícita, pero no como fuente visible.
+  PROV_DB = [];
   updNav(); if(typeof updNavProv==='function') updNavProv();
 }
+
 
 async function save() {
   if (!SB_OK) { localStorage.setItem('cta_v7', JSON.stringify(DB)); return; }
@@ -3181,8 +3181,7 @@ function parseExcelDate(v){
 // ═══════════════════════════════════════════════════════════════════════
 //  PROVEEDORES MODULE
 // ═══════════════════════════════════════════════════════════════════════
-let PROV_DB=[];
-function saveProv(){localStorage.setItem('prov_v1',JSON.stringify(PROV_DB));localStorage.setItem('contr_v1',JSON.stringify(PROV_DB));}
+// Usa el PROV_DB global y la saveProv async definidos arriba.
 // loadProv is defined above as async (loads from Supabase contratistas table)
 
 function updNavProv(){
