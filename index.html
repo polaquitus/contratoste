@@ -4194,218 +4194,226 @@ async function delAveById(aveId) {
 }
 
 
-/* ==== PATCH v10: selector global resiliente + import Excel dirigido ==== */
+/* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
+  window.APP_VERSION='v14-base';
+  function setVersionBadgeV14(){
+    try{
+      var el=document.getElementById('buildTag');
+      if(el) el.textContent='v14-base · Stable';
+    }catch(_e){}
+  }
+
   function ensureGlobalTarAiInput(){
-    let inp = document.getElementById('tarAiIn');
+    var inp = document.getElementById('tarAiIn');
     if(!inp){
       inp = document.createElement('input');
       inp.type = 'file';
       inp.id = 'tarAiIn';
       inp.accept = '.doc,.docx,.xls,.xlsx';
       inp.style.display = 'none';
-      inp.onchange = function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally { this.value=''; } };
+      inp.onchange = function(){
+        try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); }
+        finally{ this.value=''; }
+      };
       document.body.appendChild(inp);
     }
     return inp;
   }
+
   openPriceListImportPicker = function(){
-    const inp = ensureGlobalTarAiInput();
-    try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v10', e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); }
+    var inp = ensureGlobalTarAiInput();
+    try{ inp.click(); }
+    catch(e){ console.error('openPriceListImportPicker v14', e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); }
   };
-  function restoreTarSectionV10(){
+
+  function restoreTarSectionV14(){
     try{
-      const card = document.getElementById('detCard'); if(!card) return;
-      const boxes = Array.from(card.querySelectorAll('.section-box'));
-      const sec = boxes.find(b => /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')));
+      var card=document.getElementById('detCard');
+      if(!card) return;
+      var boxes=Array.from(card.querySelectorAll('.section-box'));
+      var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); });
       if(!sec) return;
       if(!sec.querySelector('#tarContainer')){
-        const cc = (typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(x=>x.id===detId) : null;
-        const count = ((cc&&cc.tarifarios)||[]).length;
-        sec.innerHTML = '<h3>💲 Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>';
+        var cc=(typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(function(x){ return x.id===detId; }) : null;
+        var count=((cc&&cc.tarifarios)||[]).length;
+        sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>';
       }
       ensureGlobalTarAiInput();
       if(typeof renderTarifario==='function') renderTarifario();
-    }catch(e){ console.error('restoreTarSectionV10', e); }
+    }catch(e){ console.error('restoreTarSectionV14', e); }
   }
+
   if(typeof renderDet==='function'){
-    const __origRenderDet = renderDet;
-    renderDet = function(){ const out = __origRenderDet.apply(this, arguments); setTimeout(restoreTarSectionV10, 0); return out; };
+    var __origRenderDet = renderDet;
+    renderDet = function(){
+      var out = __origRenderDet.apply(this, arguments);
+      setTimeout(restoreTarSectionV14, 0);
+      setTimeout(setVersionBadgeV14, 0);
+      return out;
+    };
   }
+
   if(typeof go==='function'){
-    const __origGo = go;
-    go = function(v){ const out = __origGo.apply(this, arguments); if(v==='detail') setTimeout(restoreTarSectionV10, 0); return out; };
+    var __origGo = go;
+    go = function(v){
+      var out = __origGo.apply(this, arguments);
+      if(v==='detail') setTimeout(restoreTarSectionV14, 0);
+      setTimeout(setVersionBadgeV14, 0);
+      return out;
+    };
   }
+
   function __pad2(n){ return String(n).padStart(2,'0'); }
-  function __toYm(v){ try{ if(v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${__pad2(v.getMonth()+1)}`; const d=new Date(v); if(!isNaN(d)) return `${d.getFullYear()}-${__pad2(d.getMonth()+1)}`; }catch(_e){} if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||'')); return null; }
-  function __num(v){ if(v==null||v==='') return null; if(typeof v==='number') return Number.isFinite(v)?v:null; let s=String(v).trim(); if(!s) return null; s=s.replace(/\s+/g,'').replace(/\$/g,''); if(s.includes(',') && s.includes('.')){ if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); } else if(s.includes(',')){ s=s.replace(/\./g,'').replace(',','.'); } const n=Number(s); return Number.isFinite(n)?n:null; }
-  function __itemCode(v){ const n=__num(v); if(n==null) return String(v||'').trim(); return n.toFixed(2).replace('.',','); }
-  function __cleanText(v){ return String(v==null?'':v).trim(); }
-  function __isSectionTitle(row, txt){ return row.some(c=>String(c||'').toLowerCase().includes(String(txt||'').toLowerCase())); }
-  function __skipDesc(desc){ const d=String(desc||'').trim().toLowerCase(); return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d); }
-  function __parseServicioBasico(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO BÁSICO MENSUAL')); if(start<0) return null; const endCandidates=[rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR')), rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'))].filter(i=>i>=0); const end=endCandidates.length?Math.min(...endCandidates):rows.length; const data=[]; for(let i=start;i<end;i++){ const r=rows[i]||[]; const item=r[0], desc=__cleanText(r[1]), price=__num(r[2]); if(__num(item)==null || __skipDesc(desc) || price==null || price<=0) continue; data.push([__itemCode(item), desc, 'MES', price]); } if(!data.length) return null; return {name:'Servicio Básico Mensual', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
-  function __parseEventuales(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR')); if(start<0) return null; const end=rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO')); const stop=end>=0?end:rows.length; const data=[]; for(let i=start;i<stop;i++){ const r=rows[i]||[]; const item=__num(r[0]), desc=__cleanText(r[1]); const vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])]; if(item==null || __skipDesc(desc) || vals.every(v=>v==null)) continue; data.push([__itemCode(item), desc, vals[0], vals[1], vals[2], vals[3]]); } if(!data.length) return null; return {name:'Equipos Eventuales con Operador', cols:['N° Item','Descripción','0-15 Días Diurno','0-15 Días Nocturno','>15 Días Diurno','>15 Días Nocturno'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
-  function __parseCalcareo(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO')); if(start<0) return null; const data=[]; for(let i=start;i<rows.length;i++){ const r=rows[i]||[]; const item=__num(r[0]), desc=__cleanText(r[1]); const p3=__num(r[3]), p2=__num(r[2]); if(item==null || __skipDesc(desc)) continue; const price=p3!=null?p3:p2; if(price==null || price<=0) continue; const unit=p3!=null?__cleanText(r[2]):''; data.push([__itemCode(item), desc, unit, price]); } if(!data.length) return null; return {name:'Servicio de Provisión de Calcáreo', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
-  if(typeof parsePriceListExcelFile==='function'){
-    const __origParse = parsePriceListExcelFile;
-    parsePriceListExcelFile = async function(file, cc){ const buf=await file.arrayBuffer(); const wb=XLSX.read(new Uint8Array(buf),{type:'array'}); const sheetName=wb.SheetNames.find(n=>String(n||'').toLowerCase().includes('tarifario final')); if(sheetName){ const ws=wb.Sheets[sheetName]; const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); const periodRow=rows.find(r=>Array.isArray(r)&&r.some(v=>v instanceof Date))||[]; const period=__toYm(periodRow.find(v=>v instanceof Date))||cc?.btar||cc?.fechaIni?.substring(0,7)||null; const out=[__parseServicioBasico(rows,period,file.name),__parseEventuales(rows,period,file.name),__parseCalcareo(rows,period,file.name)].filter(Boolean); if(out.length) return out; } return __origParse(file, cc); };
-  }
-  if(typeof delTarTable==='function'){
-    delTarTable = function(i){ if(!confirm('¿Eliminar esta tabla del tarifario?')) return; const tars=(typeof getTar==='function'?(getTar()||[]):[]); tars.splice(i,1); if(!tars.length){ _tarTab=0; _tarPeriod=null; if(typeof setTar==='function') setTar([]); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok'); return; } if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1); if(typeof setTar==='function') setTar(tars); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Tabla eliminada','ok'); };
-  }
-  setTimeout(function(){ try{ ensureGlobalTarAiInput(); }catch(_e){} },0);
-})();
-
-
-/* ==== PATCH v11: item visible + versión visible ==== */
-(function(){
-  window.APP_VERSION='v11';
-  function setVersionBadge(){ try{ const el=document.getElementById('buildTag'); if(el) el.textContent='v11 · Excel Target'; }catch(_e){} }
-  setVersionBadge(); setTimeout(setVersionBadge,0);
-  fN = function(n){ if(n==null||n==='') return '—'; if(typeof n==='string'){ const s=n.trim(); if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')) return s.replace('.',','); } const num=Number(n); if(!Number.isFinite(num)) return String(n); return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
-  if(typeof isNumericCol==='function'){ const __origIsNumericCol=isNumericCol; isNumericCol=function(tar,ci){ const col=String((tar?.cols?.[ci])||'').toLowerCase(); if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item)(\s|$)/.test(col)) return false; return __origIsNumericCol(tar,ci); }; }
-  if(typeof renderTarifario==='function'){ const __origRenderTarifario=renderTarifario; renderTarifario=function(){ setVersionBadge(); return __origRenderTarifario.apply(this,arguments); }; }
-})();
-
-
-/* ==== PATCH v13: Administración de usuarios estable ==== */
-(function(){
-  window.APP_VERSION='v13';
-  window.APP_USERS_DB=[];
-  window.USER_EDIT_ID=null;
-  function setVersionBadgeV13(){ try{ const el=document.getElementById('buildTag'); if(el) el.textContent='v13 · Users Admin'; }catch(_e){} }
-  function ensureUsersNav(){
-    const nav=document.querySelector('.sb-nav'); if(!nav) return;
-    if(document.getElementById('navUsersAdmin')) return;
-    const sec=document.createElement('div'); sec.className='sb-sec'; sec.textContent='Administración';
-    const a=document.createElement('a'); a.id='navUsersAdmin'; a.className='nv'; a.href='#';
-    a.innerHTML='<span class="ni">👤</span><span>Usuarios</span>';
-    a.onclick=function(){ go('users'); return false; };
-    nav.appendChild(sec); nav.appendChild(a);
-  }
-  function ensureUsersView(){
-    const ct=document.querySelector('.ct'); if(!ct) return;
-    if(document.getElementById('vUsers')) return;
-    const wrap=document.createElement('div'); wrap.id='vUsers'; wrap.className='vw';
-    wrap.innerHTML='<div class="card"><div class="thdr"><h2>Administración de Usuarios</h2><span class="tcnt" id="usersCnt">0</span></div><div class="tfl"><div class="info-box amber" style="margin:0;width:100%">Por seguridad, el sistema no muestra contraseñas actuales ni hashes. Solo permite crear usuarios y resetear contraseña.</div></div><div id="usersBody"></div></div>';
-    ct.appendChild(wrap);
-    const modal=document.createElement('div');
-    modal.id='userAdminModalBack';
-    modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;align-items:center;justify-content:center';
-    modal.innerHTML='<div style="background:var(--w);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:620px;max-width:96vw;max-height:92vh;overflow-y:auto"><div class="idx-modal-hdr"><h3 id="userAdminModalTitle">Nuevo usuario</h3><button class="btn btn-s btn-sm" type="button" onclick="closeUserAdminModal()">✕</button></div><div class="idx-modal-body"><div class="fg fg2"><div class="fgrp"><label>Usuario</label><input type="text" id="ua_username" placeholder="nombre.apellido"></div><div class="fgrp"><label>Rol</label><select id="ua_role"><option value="OWNER">OWNER</option><option value="ING_CONTRATOS">ING_CONTRATOS</option><option value="RESP_TECNICO">RESP_TECNICO</option><option value="SIN_ROL">SIN_ROL</option></select></div><div class="fgrp"><label>Contraseña temporal</label><input type="text" id="ua_password" placeholder="Solo para alta o reseteo"></div><div class="fgrp"><label>Estado</label><select id="ua_active"><option value="true">Activo</option><option value="false">Inactivo</option></select></div></div><div class="info-box blue">Alta: ingresá usuario + contraseña temporal. Edición: la contraseña es opcional; si la completás, se resetea.</div></div><div class="idx-modal-foot"><button class="btn btn-s" type="button" onclick="closeUserAdminModal()">Cancelar</button><button class="btn btn-p" type="button" onclick="saveUserAdmin()">Guardar</button></div></div>';
-    document.body.appendChild(modal);
-  }
-  function usersRowsHtml(){
-    const arr=window.APP_USERS_DB||[];
-    if(!arr.length) return '<div class="empty"><div class="ei">👤</div><p>No hay usuarios cargados.</p></div>';
-    return '<table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Seguridad</th><th style="width:280px">Acciones</th></tr></thead><tbody>'+arr.map(function(u){
-      const active = !(u.active===false || String(u.active)==='false');
-      return '<tr>'+
-        '<td style="font-weight:700">'+esc(u.username||'')+'</td>'+
-        '<td>'+esc(u.role||'SIN_ROL')+'</td>'+
-        '<td><span class="bdg '+(active?'act':'exp')+'">'+(active?'ACTIVO':'INACTIVO')+'</span></td>'+
-        '<td><span style="font-size:11px;color:var(--g500)">Contraseña oculta</span></td>'+
-        '<td><div style="display:flex;gap:6px;flex-wrap:wrap">'+
-          '<button class="btn btn-s btn-sm" onclick="openUserAdminModal('+u.id+')">✏️ Editar</button>'+
-          '<button class="btn btn-a btn-sm" onclick="resetUserPassword('+u.id+')">🔐 Reset pass</button>'+
-          '<button class="btn btn-s btn-sm" onclick="toggleUserActive('+u.id+')">'+(active?'⛔ Inactivar':'✅ Activar')+'</button>'+
-          '<button class="btn btn-d btn-sm" onclick="deleteUserAdmin('+u.id+')">🗑️ Eliminar</button>'+
-        '</div></td></tr>';
-    }).join('')+'</tbody></table>';
-  }
-  window.renderUsersView = function(){
-    ensureUsersView();
-    const body=document.getElementById('usersBody'); const cnt=document.getElementById('usersCnt');
-    if(body) body.innerHTML = usersRowsHtml();
-    if(cnt) cnt.textContent = String((window.APP_USERS_DB||[]).length||0);
-    setVersionBadgeV13();
-  };
-  window.loadAppUsers = async function(){
-    if(typeof sbFetch!=='function') throw new Error('No está disponible la conexión a usuarios');
-    showLoader('Cargando usuarios...');
-    try{ window.APP_USERS_DB = await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; return window.APP_USERS_DB; }
-    finally{ hideLoader(); }
-  };
-  window.reloadUsersAdmin = function(){ window.loadAppUsers().then(window.renderUsersView).catch(function(err){ console.error(err); toast(err.message||'No se pudieron cargar usuarios','er'); }); };
-  window.openUserAdminModal = function(id){
-    ensureUsersView();
-    window.USER_EDIT_ID = id || null;
-    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); });
-    document.getElementById('userAdminModalTitle').textContent = row ? 'Editar usuario' : 'Nuevo usuario';
-    document.getElementById('ua_username').value = row && row.username ? row.username : '';
-    document.getElementById('ua_username').disabled = !!row;
-    document.getElementById('ua_role').value = row && row.role ? row.role : 'SIN_ROL';
-    document.getElementById('ua_password').value = '';
-    document.getElementById('ua_active').value = String(row && (row.active===false || String(row.active)==='false') ? false : true);
-    document.getElementById('userAdminModalBack').style.display='flex';
-  };
-  window.closeUserAdminModal = function(){ const m=document.getElementById('userAdminModalBack'); if(m) m.style.display='none'; window.USER_EDIT_ID=null; };
-  window.saveUserAdmin = async function(){
-    const username=(document.getElementById('ua_username').value||'').trim();
-    const role=(document.getElementById('ua_role').value||'SIN_ROL').trim();
-    const password=(document.getElementById('ua_password').value||'').trim();
-    const active=(document.getElementById('ua_active').value||'true')==='true';
-    if(!window.USER_EDIT_ID && (!username || !password)){ toast('Usuario y contraseña temporal son obligatorios','er'); return; }
-    showLoader(window.USER_EDIT_ID?'Guardando usuario...':'Creando usuario...');
+  function __toYm(v){
     try{
-      if(window.USER_EDIT_ID){
-        const body={role:role,active:active};
-        if(password){ body.password_hash = await sha256Hex(password); }
-        await sbFetch('app_users','PATCH',body,'?id=eq.'+window.USER_EDIT_ID);
-      }else{
-        const exists=(window.APP_USERS_DB||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); });
-        if(exists) throw new Error('Ese usuario ya existe');
-        const password_hash=await sha256Hex(password);
-        await sbFetch('app_users','POST',{username:username,password_hash:password_hash,role:role,active:active});
-      }
-      await window.loadAppUsers(); window.renderUsersView(); window.closeUserAdminModal(); toast(window.USER_EDIT_ID?'Usuario actualizado':'Usuario creado','ok');
-    }catch(err){ console.error('saveUserAdmin', err); toast(err.message||'No se pudo guardar el usuario','er'); }
-    finally{ hideLoader(); }
-  };
-  window.deleteUserAdmin = async function(id){
-    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); });
-    if(!confirm('¿Eliminar el usuario '+(row&&row.username?row.username:id)+'?')) return;
-    showLoader('Eliminando usuario...');
-    try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+id); await window.loadAppUsers(); window.renderUsersView(); toast('Usuario eliminado','ok'); }
-    catch(err){ console.error('deleteUserAdmin',err); toast(err.message||'No se pudo eliminar','er'); }
-    finally{ hideLoader(); }
-  };
-  window.toggleUserActive = async function(id){
-    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); }); if(!row) return;
-    const nextActive = !(row.active===false || String(row.active)==='false');
-    showLoader('Actualizando estado...');
-    try{ await sbFetch('app_users','PATCH',{active:!nextActive},'?id=eq.'+id); await window.loadAppUsers(); window.renderUsersView(); toast('Estado actualizado','ok'); }
-    catch(err){ console.error('toggleUserActive',err); toast(err.message||'No se pudo actualizar','er'); }
-    finally{ hideLoader(); }
-  };
-  window.resetUserPassword = async function(id){
-    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); }); if(!row) return;
-    const pwd=prompt('Nueva contraseña temporal para '+row.username+':','');
-    if(!pwd) return;
-    showLoader('Reseteando contraseña...');
-    try{ const password_hash=await sha256Hex(pwd); await sbFetch('app_users','PATCH',{password_hash:password_hash},'?id=eq.'+id); toast('Contraseña reseteada','ok'); }
-    catch(err){ console.error('resetUserPassword',err); toast(err.message||'No se pudo resetear la contraseña','er'); }
-    finally{ hideLoader(); }
-  };
-  const __origGoUsers = go;
-  go = function(v){
-    if(v==='users'){
-      document.querySelectorAll('.vw').forEach(function(el){ el.classList.remove('on'); });
-      document.querySelectorAll('.sb-nav .nv').forEach(function(el){ el.classList.remove('act'); });
-      ensureUsersNav(); ensureUsersView();
-      document.getElementById('vUsers').classList.add('on');
-      const nav=document.getElementById('navUsersAdmin'); if(nav) nav.classList.add('act');
-      const t=document.getElementById('pgT'); const a=document.getElementById('pgA');
-      if(t) t.innerHTML='👤 Usuarios <span class="bc" id="buildTag">v13 · Users Admin</span>';
-      if(a) a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="reloadUsersAdmin()">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openUserAdminModal()">➕ Nuevo usuario</button></div>';
-      window.reloadUsersAdmin();
-      window.scrollTo({top:0,behavior:'smooth'});
-      return;
+      if(v instanceof Date && !isNaN(v)) return String(v.getFullYear())+'-'+__pad2(v.getMonth()+1);
+      var d=new Date(v);
+      if(!isNaN(d)) return String(d.getFullYear())+'-'+__pad2(d.getMonth()+1);
+    }catch(_e){}
+    if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||''));
+    return null;
+  }
+  function __num(v){
+    if(v==null||v==='') return null;
+    if(typeof v==='number') return Number.isFinite(v)?v:null;
+    var s=String(v).trim();
+    if(!s) return null;
+    s=s.replace(/\s+/g,'').replace(/\$/g,'');
+    if(s.includes(',') && s.includes('.')){
+      if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
+      else s=s.replace(/,/g,'');
+    }else if(s.includes(',')){
+      s=s.replace(/\./g,'').replace(',','.');
     }
-    const out=__origGoUsers.apply(this, arguments); setTimeout(setVersionBadgeV13,0); return out;
+    var n=Number(s);
+    return Number.isFinite(n)?n:null;
+  }
+  function __itemCode(v){
+    var n=__num(v);
+    if(n==null) return String(v||'').trim();
+    return n.toFixed(2).replace('.',',');
+  }
+  function __cleanText(v){ return String(v==null?'':v).trim(); }
+  function __isSectionTitle(row, txt){ return row.some(function(c){ return String(c||'').toLowerCase().includes(String(txt||'').toLowerCase()); }); }
+  function __skipDesc(desc){
+    var d=String(desc||'').trim().toLowerCase();
+    return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d);
+  }
+
+  function __parseServicioBasico(rows, period, fileName){
+    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'SERVICIO BÁSICO MENSUAL'); });
+    if(start<0) return null;
+    var ends=[
+      rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR'); }),
+      rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); })
+    ].filter(function(i){ return i>=0; });
+    var end=ends.length?Math.min.apply(null, ends):rows.length;
+    var data=[];
+    for(var i=start;i<end;i++){
+      var r=rows[i]||[];
+      var item=r[0], desc=__cleanText(r[1]), price=__num(r[2]);
+      if(__num(item)==null || __skipDesc(desc) || price==null || price<=0) continue;
+      data.push([__itemCode(item), desc, 'MES', price]);
+    }
+    if(!data.length) return null;
+    return {name:'Servicio Basico Mensual', cols:['N Item','Descripcion','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+  }
+
+  function __parseEventuales(rows, period, fileName){
+    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR'); });
+    if(start<0) return null;
+    var end=rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); });
+    var stop=end>=0?end:rows.length;
+    var data=[];
+    for(var i=start;i<stop;i++){
+      var r=rows[i]||[];
+      var item=__num(r[0]), desc=__cleanText(r[1]);
+      var vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])];
+      if(item==null || __skipDesc(desc) || vals.every(function(v){ return v==null; })) continue;
+      data.push([__itemCode(item), desc, vals[0], vals[1], vals[2], vals[3]]);
+    }
+    if(!data.length) return null;
+    return {name:'Equipos Eventuales con Operador', cols:['N Item','Descripcion','0-15 Dias Diurno','0-15 Dias Nocturno','Mayor 15 Dias Diurno','Mayor 15 Dias Nocturno'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+  }
+
+  function __parseCalcareo(rows, period, fileName){
+    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); });
+    if(start<0) return null;
+    var data=[];
+    for(var i=start;i<rows.length;i++){
+      var r=rows[i]||[];
+      var item=__num(r[0]), desc=__cleanText(r[1]);
+      var p3=__num(r[3]), p2=__num(r[2]);
+      if(item==null || __skipDesc(desc)) continue;
+      var price=(p3!=null)?p3:p2;
+      if(price==null || price<=0) continue;
+      var unit=(p3!=null)?__cleanText(r[2]):'';
+      data.push([__itemCode(item), desc, unit, price]);
+    }
+    if(!data.length) return null;
+    return {name:'Servicio de Provision de Calcareo', cols:['N Item','Descripcion','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+  }
+
+  if(typeof parsePriceListExcelFile==='function'){
+    var __origParse = parsePriceListExcelFile;
+    parsePriceListExcelFile = async function(file, cc){
+      var buf=await file.arrayBuffer();
+      var wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+      var sheetName=wb.SheetNames.find(function(n){ return String(n||'').toLowerCase().includes('tarifario final'); });
+      if(sheetName){
+        var ws=wb.Sheets[sheetName];
+        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        var periodRow=rows.find(function(r){ return Array.isArray(r) && r.some(function(v){ return v instanceof Date; }); }) || [];
+        var foundDate=periodRow.find(function(v){ return v instanceof Date; });
+        var period=__toYm(foundDate) || (cc&&cc.btar) || (cc&&cc.fechaIni&&cc.fechaIni.substring(0,7)) || null;
+        var out=[__parseServicioBasico(rows, period, file.name), __parseEventuales(rows, period, file.name), __parseCalcareo(rows, period, file.name)].filter(Boolean);
+        if(out.length) return out;
+      }
+      return __origParse(file, cc);
+    };
+  }
+
+  fN = function(n){
+    if(n==null||n==='') return '—';
+    if(typeof n==='string'){
+      var s=n.trim();
+      if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')) return s.replace('.',',');
+    }
+    var num=Number(n);
+    if(!Number.isFinite(num)) return String(n);
+    return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
   };
-  document.addEventListener('DOMContentLoaded', function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV13(); });
-  setTimeout(function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV13(); },0);
+
+  if(typeof isNumericCol==='function'){
+    var __origIsNumericCol = isNumericCol;
+    isNumericCol = function(tar, ci){
+      var col=String((tar&&tar.cols&&tar.cols[ci])||'').toLowerCase();
+      if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item|n item)(\s|$)/.test(col)) return false;
+      return __origIsNumericCol(tar, ci);
+    };
+  }
+
+  if(typeof delTarTable==='function'){
+    delTarTable = function(i){
+      if(!confirm('Eliminar esta tabla del tarifario?')) return;
+      var tars=(typeof getTar==='function'?(getTar()||[]):[]);
+      tars.splice(i,1);
+      if(!tars.length){
+        _tarTab=0; _tarPeriod=null;
+        if(typeof setTar==='function') setTar([]);
+        if(typeof renderTarifario==='function') renderTarifario();
+        if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok');
+        return;
+      }
+      if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1);
+      if(typeof setTar==='function') setTar(tars);
+      if(typeof renderTarifario==='function') renderTarifario();
+      if(typeof toast==='function') toast('Tabla eliminada','ok');
+    };
+  }
+
+  setTimeout(function(){ try{ ensureGlobalTarAiInput(); setVersionBadgeV14(); }catch(_e){} },0);
 })();
 
 </script>
