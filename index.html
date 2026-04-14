@@ -4194,8 +4194,66 @@ async function delAveById(aveId) {
 }
 
 
-/* ==== PATCH v9: Excel dirigido a TARIFARIO FINAL + borrado real de listas ==== */
+/* ==== PATCH v10: selector global resiliente + import Excel dirigido ==== */
 (function(){
+  function ensureGlobalTarAiInput(){
+    let inp = document.getElementById('tarAiIn');
+    if(!inp){
+      inp = document.createElement('input');
+      inp.type = 'file';
+      inp.id = 'tarAiIn';
+      inp.accept = '.doc,.docx,.xls,.xlsx';
+      inp.style.display = 'none';
+      inp.onchange = function(){
+        try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); }
+        finally { this.value=''; }
+      };
+      document.body.appendChild(inp);
+    }
+    return inp;
+  }
+
+  const __origOpenPriceListImportPicker = (typeof openPriceListImportPicker==='function') ? openPriceListImportPicker : null;
+  openPriceListImportPicker = function(){
+    const inp = ensureGlobalTarAiInput();
+    try{ inp.click(); }
+    catch(e){ console.error('openPriceListImportPicker v10', e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); }
+  };
+
+  function restoreTarSectionV10(){
+    try{
+      const card = document.getElementById('detCard');
+      if(!card) return;
+      const boxes = Array.from(card.querySelectorAll('.section-box'));
+      let sec = boxes.find(b => /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')));
+      if(!sec) return;
+      if(!sec.querySelector('#tarContainer')){
+        const cc = (typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(x=>x.id===detId) : null;
+        const count = ((cc&&cc.tarifarios)||[]).length;
+        sec.innerHTML = '<h3>💲 Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>';
+      }
+      ensureGlobalTarAiInput();
+      if(typeof renderTarifario==='function') renderTarifario();
+    }catch(e){ console.error('restoreTarSectionV10', e); }
+  }
+
+  if(typeof renderDet==='function'){
+    const __origRenderDet = renderDet;
+    renderDet = function(){
+      const out = __origRenderDet.apply(this, arguments);
+      setTimeout(restoreTarSectionV10, 0);
+      return out;
+    };
+  }
+  if(typeof go==='function'){
+    const __origGo = go;
+    go = function(v){
+      const out = __origGo.apply(this, arguments);
+      if(v==='detail') setTimeout(restoreTarSectionV10, 0);
+      return out;
+    };
+  }
+
   function __pad2(n){ return String(n).padStart(2,'0'); }
   function __toYm(v){
     try{
@@ -4227,12 +4285,10 @@ async function delAveById(aveId) {
     return n.toFixed(2).replace('.',',');
   }
   function __cleanText(v){ return String(v==null?'':v).trim(); }
-  function __isSectionTitle(row, txt){
-    return row.some(c=>String(c||'').toLowerCase().includes(String(txt||'').toLowerCase()));
-  }
+  function __isSectionTitle(row, txt){ return row.some(c=>String(c||'').toLowerCase().includes(String(txt||'').toLowerCase())); }
   function __skipDesc(desc){
     const d=String(desc||'').trim().toLowerCase();
-    return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d);
+    return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d);
   }
   function __parseServicioBasico(rows, period, fileName){
     const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO BÁSICO MENSUAL'));
@@ -4242,15 +4298,12 @@ async function delAveById(aveId) {
     const data=[];
     for(let i=start;i<end;i++){
       const r=rows[i]||[];
-      const c0=r[0], c1=__cleanText(r[1]), c2=r[2];
-      if(__num(c0)==null) continue;
-      if(__skipDesc(c1)) continue;
-      const price=__num(c2);
-      if(price==null || price<=0) continue;
-      data.push([__itemCode(c0), c1, 'MES', price]);
+      const item=r[0], desc=__cleanText(r[1]), price=__num(r[2]);
+      if(__num(item)==null || __skipDesc(desc) || price==null || price<=0) continue;
+      data.push([__itemCode(item), desc, 'MES', price]);
     }
     if(!data.length) return null;
-    return {name:'Servicio Básico Mensual', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+    return {name:'Servicio Básico Mensual', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
   }
   function __parseEventuales(rows, period, fileName){
     const start=rows.findIndex(r=>__isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR'));
@@ -4260,15 +4313,13 @@ async function delAveById(aveId) {
     const data=[];
     for(let i=start;i<stop;i++){
       const r=rows[i]||[];
-      const item=__num(r[0]);
-      const desc=__cleanText(r[1]);
-      const p1=__num(r[2]), p2=__num(r[3]), p3=__num(r[4]), p4=__num(r[5]);
-      if(item==null || !desc || __skipDesc(desc)) continue;
-      if([p1,p2,p3,p4].every(v=>v==null)) continue;
-      data.push([__itemCode(item), desc, p1, p2, p3, p4]);
+      const item=__num(r[0]), desc=__cleanText(r[1]);
+      const vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])];
+      if(item==null || __skipDesc(desc) || vals.every(v=>v==null)) continue;
+      data.push([__itemCode(item), desc, vals[0], vals[1], vals[2], vals[3]]);
     }
     if(!data.length) return null;
-    return {name:'Equipos Eventuales con Operador', cols:['N° Item','Descripción','0-15 Días Diurno','0-15 Días Nocturno','>15 Días Diurno','>15 Días Nocturno'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+    return {name:'Equipos Eventuales con Operador', cols:['N° Item','Descripción','0-15 Días Diurno','0-15 Días Nocturno','>15 Días Diurno','>15 Días Nocturno'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
   }
   function __parseCalcareo(rows, period, fileName){
     const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'));
@@ -4276,59 +4327,56 @@ async function delAveById(aveId) {
     const data=[];
     for(let i=start;i<rows.length;i++){
       const r=rows[i]||[];
-      const item=__num(r[0]);
-      const desc=__cleanText(r[1]);
-      const maybeUnit=__cleanText(r[2]);
-      const maybePrice=__num(r[3]);
-      const altPrice=__num(r[2]);
-      if(item==null || !desc || __skipDesc(desc)) continue;
-      const price = maybePrice!=null?maybePrice:altPrice;
+      const item=__num(r[0]), desc=__cleanText(r[1]);
+      const p3=__num(r[3]), p2=__num(r[2]);
+      if(item==null || __skipDesc(desc)) continue;
+      const price = p3!=null ? p3 : p2;
       if(price==null || price<=0) continue;
-      const unit = maybePrice!=null ? maybeUnit : '';
+      const unit = p3!=null ? __cleanText(r[2]) : '';
       data.push([__itemCode(item), desc, unit, price]);
     }
     if(!data.length) return null;
-    return {name:'Servicio de Provisión de Calcáreo', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
+    return {name:'Servicio de Provisión de Calcáreo', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
   }
-  const __origParsePriceListExcelFile = (typeof parsePriceListExcelFile==='function') ? parsePriceListExcelFile : null;
-  parsePriceListExcelFile = async function(file, cc){
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
-    const sheetName = wb.SheetNames.find(n=>String(n||'').toLowerCase().includes('tarifario final'));
-    if(sheetName){
-      const ws = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      const periodCandidate = rows.find(r=>Array.isArray(r) && r.some(v=>v instanceof Date)) || [];
-      const period = __toYm(periodCandidate.find(v=>v instanceof Date)) || cc?.btar || cc?.fechaIni?.substring(0,7) || null;
-      const out = [
-        __parseServicioBasico(rows, period, file.name),
-        __parseEventuales(rows, period, file.name),
-        __parseCalcareo(rows, period, file.name)
-      ].filter(Boolean);
-      if(out.length) return out;
-    }
-    if(__origParsePriceListExcelFile) return __origParsePriceListExcelFile(file, cc);
-    return [];
-  };
 
-  const __origDelTarTable = (typeof delTarTable==='function') ? delTarTable : null;
-  delTarTable = function(i){
-    if(!confirm('¿Eliminar esta tabla del tarifario?')) return;
-    const tars = (typeof getTar==='function' ? (getTar()||[]) : []);
-    tars.splice(i,1);
-    if(!tars.length){
-      _tarTab = 0;
-      _tarPeriod = null;
-      if(typeof setTar==='function') setTar([]);
+  if(typeof parsePriceListExcelFile==='function'){
+    const __origParse = parsePriceListExcelFile;
+    parsePriceListExcelFile = async function(file, cc){
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+      const sheetName = wb.SheetNames.find(n=>String(n||'').toLowerCase().includes('tarifario final'));
+      if(sheetName){
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        const periodRow = rows.find(r=>Array.isArray(r) && r.some(v=>v instanceof Date)) || [];
+        const period = __toYm(periodRow.find(v=>v instanceof Date)) || cc?.btar || cc?.fechaIni?.substring(0,7) || null;
+        const out=[__parseServicioBasico(rows, period, file.name), __parseEventuales(rows, period, file.name), __parseCalcareo(rows, period, file.name)].filter(Boolean);
+        if(out.length) return out;
+      }
+      return __origParse(file, cc);
+    };
+  }
+
+  if(typeof delTarTable==='function'){
+    delTarTable = function(i){
+      if(!confirm('¿Eliminar esta tabla del tarifario?')) return;
+      const tars = (typeof getTar==='function' ? (getTar()||[]) : []);
+      tars.splice(i,1);
+      if(!tars.length){
+        _tarTab = 0; _tarPeriod = null;
+        if(typeof setTar==='function') setTar([]);
+        if(typeof renderTarifario==='function') renderTarifario();
+        if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok');
+        return;
+      }
+      if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1);
+      if(typeof setTar==='function') setTar(tars);
       if(typeof renderTarifario==='function') renderTarifario();
-      if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok');
-      return;
-    }
-    if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1);
-    if(typeof setTar==='function') setTar(tars);
-    if(typeof renderTarifario==='function') renderTarifario();
-    if(typeof toast==='function') toast('Tabla eliminada','ok');
-  };
+      if(typeof toast==='function') toast('Tabla eliminada','ok');
+    };
+  }
+
+  setTimeout(function(){ try{ ensureGlobalTarAiInput(); }catch(_e){} }, 0);
 })();
 
 </script>
