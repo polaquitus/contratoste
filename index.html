@@ -729,8 +729,9 @@ function setRoleBadge(){
   b.textContent = '👤 ' + role.replaceAll('_',' ');
 }
 function applyRolePermissions(){
-  const role = String(_APP_ROLE||'').toUpperCase();
-  if(role && role!=='OWNER') document.querySelectorAll('[data-owner-only="1"]').forEach(el=>el.style.display='none');
+  const role = String(_APP_ROLE||'').trim().toUpperCase();
+  const isSuper = role==='OWNER' || role==='ADMIN' || role==='ADMIN_USUARIOS';
+  document.querySelectorAll('[data-owner-only="1"]').forEach(el=>{ el.style.display = isSuper ? '' : 'none'; });
   const sbBtn=document.getElementById('sbLogoutBtn');
   if(sbBtn) sbBtn.style.display = _APP_USER ? 'inline-flex' : 'none';
 }
@@ -753,6 +754,9 @@ async function loginApp(){
     applyRolePermissions();
     if(typeof toast==='function') toast('Sesión iniciada: '+row.username,'ok');
     if(typeof initApp==='function') await initApp(true);
+    if(typeof applyPermissions==='function') applyPermissions();
+    applyRolePermissions();
+    setTimeout(function(){ try{ if(typeof applyPermissions==='function') applyPermissions(); applyRolePermissions(); }catch(_e){} },0);
   }catch(err){
     _APP_USER = null;
     _APP_ROLE = null;
@@ -762,7 +766,7 @@ async function loginApp(){
   }
 }
 async function requireLogin(){
-  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); authUnlock(); return true; }
+  if(_APP_USER && _APP_ROLE){ setRoleBadge(); authUnlock(); if(typeof applyPermissions==='function') applyPermissions(); applyRolePermissions(); return true; }
   ensureLoginOverlay();
   return false;
 }
@@ -771,6 +775,7 @@ function logoutApp(){
   _APP_ROLE = null;
   authLock();
   setRoleBadge();
+  if(typeof applyPermissions==='function') applyPermissions();
   applyRolePermissions();
   ensureLoginOverlay();
   const u=document.getElementById('lgUser'); const p=document.getElementById('lgPass'); const msg=document.getElementById('lgMsg');
@@ -4221,7 +4226,7 @@ async function delAveById(aveId) {
 
 /* ==== PATCH v19: role matrix con safeguard OWNER/ADMIN ==== */
 (function(){
-  window.APP_VERSION='v22';
+  window.APP_VERSION='v23';
   var ROLE_DEFAULTS={
     OWNER:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
     ADMIN:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
@@ -4230,7 +4235,7 @@ async function delAveById(aveId) {
     SIN_ROL:{list:true,form:false,detail:true,me2n:false,idx:false,licit:false,prov:false,users:false}
   };
   var ROLE_LABELS={list:'Contratos',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
-  var ROLE_STORAGE_KEY='role_permissions_v22';
+  var ROLE_STORAGE_KEY='role_permissions_v23';
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
   function forcePrivileged(matrix){
     matrix.OWNER=clone(ROLE_DEFAULTS.OWNER);
@@ -4279,7 +4284,7 @@ async function delAveById(aveId) {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v22 · Role Matrix Safe';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v23 · Role Matrix Safe';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -4328,13 +4333,13 @@ async function delAveById(aveId) {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v22 · Role Matrix Safe'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v23 · Role Matrix Safe'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); applyPermissions(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
-      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'OWNER y ADMIN siempre conservan acceso total. El resto de los roles se controla desde esta tabla y los cambios se guardan en este navegador (clave v22).'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); tr.appendChild(make('td','', role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(role==='OWNER' || role==='ADMIN'){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
+      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'OWNER y ADMIN siempre conservan acceso total. En v23 también quedan visibles todos los elementos marcados como owner-only para ambos roles. Los cambios se guardan en este navegador (clave v23).'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); tr.appendChild(make('td','', role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(role==='OWNER' || role==='ADMIN'){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
       function collectPanelMatrix(){ var matrix=getRoleMatrix(); refs.panel.querySelectorAll('input[type="checkbox"][data-role][data-mod]').forEach(function(chk){ var role=chk.getAttribute('data-role'); var mod=chk.getAttribute('data-mod'); if(role==='OWNER' || role==='ADMIN') return; if(matrix[role] && typeof matrix[role][mod] !== 'undefined') matrix[role][mod]=chk.checked; }); return matrix; }
-      function onPanelClick(ev){ var id=(ev.target&&ev.target.id)||''; if(id==='rolesSaveBtn'){ var matrix=collectPanelMatrix(); saveRoleMatrix(matrix); applyPermissions(); toast('Permisos guardados','ok'); } if(id==='rolesResetBtn'){ resetRoleMatrix(); renderPermissionPanel(); applyPermissions(); toast('Permisos reseteados','ok'); } if(id==='rolesRestorePrivBtn'){ var m=getRoleMatrix(); saveRoleMatrix(forcePrivileged(m)); renderPermissionPanel(); applyPermissions(); toast('OWNER y ADMIN restaurados (v22)','ok'); } }
+      function onPanelClick(ev){ var id=(ev.target&&ev.target.id)||''; if(id==='rolesSaveBtn'){ var matrix=collectPanelMatrix(); saveRoleMatrix(matrix); applyPermissions(); toast('Permisos guardados','ok'); } if(id==='rolesResetBtn'){ resetRoleMatrix(); renderPermissionPanel(); applyPermissions(); toast('Permisos reseteados','ok'); } if(id==='rolesRestorePrivBtn'){ var m=getRoleMatrix(); saveRoleMatrix(forcePrivileged(m)); renderPermissionPanel(); applyPermissions(); toast('OWNER y ADMIN restaurados (v23)','ok'); } }
       function renderUsers(){ ensureView(); clear(refs.body); text(refs.count,String((state.list||[]).length)); if(!state.list.length){ var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return; } var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); state.list.forEach(function(u){ var tr=make('tr',''); var td1=make('td','',u.username||''); td1.style.fontWeight='700'; var td2=make('td','',u.role||'SIN_ROL'); var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge); var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small); var td5=make('td',''); td5.style.width='320px'; var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap'; actions.appendChild(actionButton('Editar','edit',u.id)); actions.appendChild(actionButton('Reset pass','reset',u.id)); actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id)); actions.appendChild(actionButton('Eliminar','delete',u.id,true)); td5.appendChild(actions); [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); refs.body.appendChild(tbl); }
       function actionButton(label,action,id,danger){ var cls=danger?'btn btn-d btn-sm':'btn btn-s btn-sm'; var b=make('button',cls,label); b.type='button'; b.setAttribute('data-action',action); b.setAttribute('data-id',String(id)); return b; }
       function onBodyClick(ev){ var btn=ev.target.closest('button[data-action]'); if(!btn) return; var action=btn.getAttribute('data-action'); var id=btn.getAttribute('data-id'); if(action==='edit') openModal(id); else if(action==='toggle') toggleActive(id); else if(action==='reset') resetPassword(id); else if(action==='delete') deleteUser(id); }
@@ -4348,8 +4353,8 @@ async function delAveById(aveId) {
       function boot(){ ensureNav(); ensureView(); installGoHook(); }
       return {boot:boot,show:showPage,reload:reload};
   })();
-  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
-  setTimeout(function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
+  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); applyPermissions(); applyRolePermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
+  setTimeout(function(){ try{ UsersAdmin.boot(); applyPermissions(); applyRolePermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
 })();
 
 </script>
