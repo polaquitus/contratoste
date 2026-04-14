@@ -923,9 +923,26 @@ async function saveProv() {
 
 async function sbReplaceContratistas() {
   if (!SB_OK) return;
-  const clean = (PROV_DB||[]).map(p=>{ const x={...p}; delete x.__sbId; return {datos: JSON.stringify(x)}; });
+  const clean = (PROV_DB||[]).map(p=>{
+    const x={...p};
+    delete x.__sbId;
+    const mainContact = Array.isArray(x.contacts) && x.contacts.length ? x.contacts[0] : {};
+    return {
+      vendor_num: String(x.vendorNum || '').trim() || null,
+      nombre: String(x.name || '').trim(),
+      email: String(x.email || mainContact.email || '').trim() || null,
+      telefono: String(x.telefono || x.phone || mainContact.phone || mainContact.telefono || '').trim() || null,
+      rubro: String(x.rubro || '').trim() || null,
+      active: true,
+      payload: JSON.stringify(x)
+    };
+  });
   try { await sbFetch('contratistas', 'DELETE', null, '?id=not.is.null'); } catch(e) { console.warn('DELETE contratistas', e); }
-  if (!clean.length) return;
+  if (!clean.length) {
+    localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+    localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+    return;
+  }
   const res = await sbFetch('contratistas', 'POST', clean);
   if (Array.isArray(res)) res.forEach((r,i)=>{ if(PROV_DB[i]) PROV_DB[i].__sbId = r.id; });
   localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
@@ -3479,10 +3496,12 @@ function processSapProvImport(input){
         PROV_DB.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+added,name:cleanName,vendorNum:vnum,rubro:'',website:'',obs:'',contacts:[],brochure:null,createdAt:new Date().toISOString()});
         added++;
       }
-      await saveProv();updNavProv();renderProvList();
-      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados. ${skipped} ya existían.</div>`;
-      toast(`${added} contratistas de SAP importados`,'ok');
-    }catch(err){toast('Error procesando el archivo','er');console.error(err);}
+      await saveProv();
+      if (SB_OK) await loadProv();
+      updNav(); updNavProv(); renderProvList();
+      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados y sincronizados. ${skipped} ya existían.</div>`;
+      toast(`${added} contratistas de SAP importados${SB_OK?' y sincronizados':''}`,'ok');
+    }catch(err){toast('Error procesando o sincronizando el archivo','er');console.error(err);}
   };
   reader.readAsArrayBuffer(file);
 }
