@@ -4219,66 +4219,51 @@ async function delAveById(aveId) {
 })();
 
 
-/* ==== PATCH v15: usuarios aislado y seguro ==== */
+/* ==== PATCH v18: usuarios aislado + tabla editable de permisos por rol ==== */
 (function(){
-  window.APP_VERSION='v15';
-  var UsersAdmin=(function(){
-    var state={list:[],loaded:false,currentId:null};
-    var refs={root:null,body:null,count:null,nav:null,modal:null,title:null,inpUser:null,selRole:null,selActive:null,inpPass:null};
-    function setBuildTag(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v15 · Users Module'; }catch(_e){} }
-    function q(id){ return document.getElementById(id); }
-    function text(el, value){ if(el) el.textContent=value; }
-    function clear(el){ while(el && el.firstChild) el.removeChild(el.firstChild); }
-    function make(tag, cls, txt){ var el=document.createElement(tag); if(cls) el.className=cls; if(txt!=null) el.textContent=txt; return el; }
-    function boolActive(v){ return !(v===false || String(v)==='false'); }
-    function ensureNav(){ var nav=document.querySelector('.sb-nav'); if(!nav) return; if(q('navUsersModule')){ refs.nav=q('navUsersModule'); return; } var sec=make('div','sb-sec','Administracion'); var a=make('a','nv'); a.id='navUsersModule'; a.href='#'; var s1=make('span','ni','U'); var s2=make('span','', 'Usuarios'); a.appendChild(s1); a.appendChild(s2); a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); }); nav.appendChild(sec); nav.appendChild(a); refs.nav=a; }
-    function ensureView(){ var ct=document.querySelector('.ct'); if(!ct) return; if(q('vUsersModule')){ refs.root=q('vUsersModule'); refs.body=q('usersModuleBody'); refs.count=q('usersModuleCount'); return; } var wrap=make('div','vw'); wrap.id='vUsersModule'; var card=make('div','card'); var hdr=make('div','thdr'); hdr.appendChild(make('h2','', 'Administracion de Usuarios')); var cnt=make('span','tcnt','0'); cnt.id='usersModuleCount'; hdr.appendChild(cnt); var fl=make('div','tfl'); var note=make('div','info-box amber','Por seguridad, las contrasenas actuales no se muestran. Se permite alta, edicion, cambio de estado, eliminacion y reseteo de contrasena.'); note.style.margin='0'; note.style.width='100%'; fl.appendChild(note); var body=make('div',''); body.id='usersModuleBody'; card.appendChild(hdr); card.appendChild(fl); card.appendChild(body); wrap.appendChild(card); ct.appendChild(wrap); refs.root=wrap; refs.body=body; refs.count=cnt; buildModal(); body.addEventListener('click', onBodyClick); }
-    function buildModal(){ if(q('usersModuleModalBack')){ cacheModal(); return; } var back=make('div',''); back.id='usersModuleModalBack'; back.style.display='none'; back.style.position='fixed'; back.style.inset='0'; back.style.background='rgba(0,0,0,.45)'; back.style.zIndex='700'; back.style.alignItems='center'; back.style.justifyContent='center'; var box=make('div',''); box.style.background='var(--w)'; box.style.borderRadius='14px'; box.style.boxShadow='0 20px 60px rgba(0,0,0,.3)'; box.style.width='620px'; box.style.maxWidth='96vw'; box.style.maxHeight='92vh'; box.style.overflowY='auto'; var hdr=make('div','idx-modal-hdr'); var ttl=make('h3','', 'Nuevo usuario'); ttl.id='usersModuleModalTitle'; var x=make('button','btn btn-s btn-sm','X'); x.type='button'; x.addEventListener('click', closeModal); hdr.appendChild(ttl); hdr.appendChild(x); var body=make('div','idx-modal-body'); var grid=make('div','fg fg2'); var g1=make('div','fgrp'); g1.appendChild(make('label','', 'Usuario')); var inpUser=make('input',''); inpUser.type='text'; inpUser.id='usersModuleUser'; g1.appendChild(inpUser); var g2=make('div','fgrp'); g2.appendChild(make('label','', 'Rol')); var selRole=make('select',''); selRole.id='usersModuleRole'; ['OWNER','ING_CONTRATOS','RESP_TECNICO','SIN_ROL','ADMIN'].forEach(function(v){ var o=make('option','',v); o.value=v; selRole.appendChild(o); }); g2.appendChild(selRole); var g3=make('div','fgrp'); g3.appendChild(make('label','', 'Contrasena temporal')); var inpPass=make('input',''); inpPass.type='text'; inpPass.id='usersModulePass'; g3.appendChild(inpPass); var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(xo){ var o=make('option','',xo.t); o.value=xo.v; selActive.appendChild(o); }); g4.appendChild(selActive); grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
-    function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-    function setHeader(){ var t=q('pgT'); var a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v15 · Users Module'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
-    function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
-    function showPage(){ ensureNav(); ensureView(); setHeader(); setBuildTag(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); window.scrollTo({top:0,behavior:'smooth'}); if(!state.loaded) reload(); else render(); }
-    async function reload(){ if(typeof sbFetch!=='function') { toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list = await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded = true; render(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
-    function render(){ ensureView(); clear(refs.body); text(refs.count, String((state.list||[]).length)); if(!state.list.length){ var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return; } var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); state.list.forEach(function(u){ var tr=make('tr',''); var td1=make('td','',u.username||''); td1.style.fontWeight='700'; var td2=make('td','',u.role||'SIN_ROL'); var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge); var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small); var td5=make('td',''); td5.style.width='300px'; var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap'; actions.appendChild(actionButton('Editar','edit',u.id)); actions.appendChild(actionButton('Reset pass','reset',u.id)); actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id)); actions.appendChild(actionButton('Eliminar','delete',u.id,true)); td5.appendChild(actions); [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); refs.body.appendChild(tbl); }
-    function actionButton(label, action, id, danger){ var cls=danger?'btn btn-d btn-sm':'btn btn-s btn-sm'; var b=make('button',cls,label); b.type='button'; b.setAttribute('data-action',action); b.setAttribute('data-id',String(id)); return b; }
-    function onBodyClick(ev){ var btn=ev.target.closest('button[data-action]'); if(!btn) return; var action=btn.getAttribute('data-action'); var id=btn.getAttribute('data-id'); if(action==='edit') openModal(id); else if(action==='toggle') toggleActive(id); else if(action==='reset') resetPassword(id); else if(action==='delete') deleteUser(id); }
-    function openModal(id){ buildModal(); state.currentId=id?String(id):null; var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }) || null; text(refs.title, row ? 'Editar usuario' : 'Nuevo usuario'); refs.inpUser.value = row ? (row.username||'') : ''; refs.inpUser.disabled = !!row; refs.selRole.value = row ? (row.role||'SIN_ROL') : 'SIN_ROL'; refs.selActive.value = String(row ? boolActive(row.active) : true); refs.inpPass.value = ''; refs.modal.style.display='flex'; }
-    function closeModal(){ if(refs.modal) refs.modal.style.display='none'; state.currentId=null; }
-    async function saveUser(){ var username=(refs.inpUser.value||'').trim(); var role=(refs.selRole.value||'SIN_ROL').trim(); var active=(refs.selActive.value==='true'); var password=(refs.inpPass.value||'').trim(); if(!state.currentId && (!username || !password)){ toast('Usuario y contrasena temporal son obligatorios','er'); return; } showLoader(state.currentId?'Guardando usuario...':'Creando usuario...'); try{ if(state.currentId){ var body={role:role,active:active}; if(password){ body.password_hash = await sha256Hex(password); } await sbFetch('app_users','PATCH',body,'?id=eq.'+encodeURIComponent(state.currentId)); } else { var exists=(state.list||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); }); if(exists) throw new Error('Ese usuario ya existe'); await sbFetch('app_users','POST',{username:username,password_hash:await sha256Hex(password),role:role,active:active}); } closeModal(); await reload(); toast(state.currentId?'Usuario actualizado':'Usuario creado','ok'); }catch(err){ console.error('users save',err); toast(err.message||'No se pudo guardar el usuario','er'); } finally{ hideLoader(); } }
-    async function toggleActive(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; showLoader('Actualizando estado...'); try{ await sbFetch('app_users','PATCH',{active:!boolActive(row.active)},'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Estado actualizado','ok'); } catch(err){ console.error('users toggle',err); toast(err.message||'No se pudo actualizar','er'); } finally{ hideLoader(); } }
-    async function resetPassword(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; var pwd=prompt('Nueva contrasena temporal para '+(row.username||id)+':',''); if(!pwd) return; showLoader('Reseteando contrasena...'); try{ await sbFetch('app_users','PATCH',{password_hash:await sha256Hex(pwd)},'?id=eq.'+encodeURIComponent(id)); toast('Contrasena reseteada','ok'); } catch(err){ console.error('users reset',err); toast(err.message||'No se pudo resetear la contrasena','er'); } finally{ hideLoader(); } }
-    async function deleteUser(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!confirm('Eliminar el usuario '+((row&&row.username)||id)+'?')) return; showLoader('Eliminando usuario...'); try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Usuario eliminado','ok'); } catch(err){ console.error('users delete',err); toast(err.message||'No se pudo eliminar el usuario','er'); } finally{ hideLoader(); } }
-    function installGoHook(){ if(typeof go!=='function') return; var originalGo=go; go=function(v){ if(v==='users'){ showPage(); return; } return originalGo.apply(this,arguments); }; }
-    function boot(){ ensureNav(); ensureView(); installGoHook(); setBuildTag(); }
-    return {boot:boot,show:showPage,reload:reload};
-  })();
-  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot',err); } });
-  setTimeout(function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
-})();
+  window.APP_VERSION='v18';
+  var ROLE_DEFAULTS={
+    OWNER:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
+    ADMIN:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
+    ING_CONTRATOS:{list:true,form:true,detail:true,me2n:true,idx:false,licit:true,prov:true,users:false},
+    RESP_TECNICO:{list:true,form:false,detail:true,me2n:true,idx:false,licit:false,prov:false,users:false},
+    SIN_ROL:{list:true,form:false,detail:true,me2n:false,idx:false,licit:false,prov:false,users:false}
+  };
+  var ROLE_LABELS={list:'Contratos',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
+  var ROLE_STORAGE_KEY='role_permissions_v18';
 
-
-/* ==== PATCH v17: corrige permisos y rol OWNER/ADMIN ==== */
-(function(){
-  function currentRole(){
+  function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+  function getRoleMatrix(){
     try{
-      var r=(typeof _APP_ROLE!=='undefined' && _APP_ROLE) ? _APP_ROLE : (window._APP_ROLE || 'SIN_ROL');
+      var raw=localStorage.getItem(ROLE_STORAGE_KEY);
+      if(!raw) return clone(ROLE_DEFAULTS);
+      var parsed=JSON.parse(raw);
+      var out=clone(ROLE_DEFAULTS);
+      Object.keys(out).forEach(function(role){
+        Object.keys(out[role]).forEach(function(mod){
+          if(parsed && parsed[role] && typeof parsed[role][mod] !== 'undefined') out[role][mod]=!!parsed[role][mod];
+        });
+      });
+      return out;
+    }catch(_e){ return clone(ROLE_DEFAULTS); }
+  }
+  function saveRoleMatrix(matrix){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(matrix)); }
+  function resetRoleMatrix(){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(ROLE_DEFAULTS)); }
+  function roleName(){
+    try{
+      var r=(typeof _APP_ROLE!=='undefined' && _APP_ROLE) ? _APP_ROLE : 'SIN_ROL';
       r=String(r||'SIN_ROL').toUpperCase();
-      if(r==='ADMIN' || r==='ADMIN_USUARIOS') return 'OWNER';
+      if(r==='ADMIN_USUARIOS') r='ADMIN';
       return r;
     }catch(_e){ return 'SIN_ROL'; }
   }
-  var ROLE_MODULES={
-    OWNER:['list','form','detail','me2n','idx','licit','prov','users'],
-    ING_CONTRATOS:['list','form','detail','me2n','licit','prov'],
-    RESP_TECNICO:['list','detail','me2n'],
-    SIN_ROL:['list','detail']
-  };
   function canAccess(mod){
-    var role=currentRole();
-    var arr=ROLE_MODULES[role] || ROLE_MODULES.SIN_ROL;
-    return arr.indexOf(mod)>=0;
+    var matrix=getRoleMatrix();
+    var r=roleName();
+    if(!matrix[r]) r='SIN_ROL';
+    return !!(matrix[r] && matrix[r][mod]);
   }
-  function attachModuleIds(){
+  function applyPermissions(){
     var navs=document.querySelectorAll('.sb-nav .nv');
     if(navs[0]) navs[0].setAttribute('data-mod','list');
     if(navs[1]) navs[1].setAttribute('data-mod','form');
@@ -4286,48 +4271,186 @@ async function delAveById(aveId) {
     if(navs[3]) navs[3].setAttribute('data-mod','idx');
     if(navs[4]) navs[4].setAttribute('data-mod','licit');
     if(navs[5]) navs[5].setAttribute('data-mod','prov');
-    var users=document.getElementById('navUsersModule'); if(users) users.setAttribute('data-mod','users');
-  }
-  function applyPermissionsV17(){
-    attachModuleIds();
+    var usersNav=document.getElementById('navUsersModule'); if(usersNav) usersNav.setAttribute('data-mod','users');
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){
       var mod=el.getAttribute('data-mod');
       el.style.display = canAccess(mod) ? '' : 'none';
     });
-    var tba=document.getElementById('pgA');
-    if(tba){
-      tba.querySelectorAll('button').forEach(function(btn){
+    var pgA=document.getElementById('pgA');
+    if(pgA){
+      pgA.querySelectorAll('button').forEach(function(btn){
         var txt=(btn.textContent||'').toLowerCase();
         if(txt.indexOf('nuevo contrato')>=0) btn.style.display = canAccess('form') ? '' : 'none';
       });
     }
-    var sbBtn=document.getElementById('sbLogoutBtn');
-    if(sbBtn) sbBtn.style.display = (typeof _APP_USER!=='undefined' && _APP_USER) ? 'inline-flex' : 'none';
-    try{ var b=document.getElementById('buildTag'); if(b) b.textContent='v17 · Permissions Fixed'; }catch(_e){}
-  }
-
-  if(typeof applyRolePermissions==='function'){
-    var __origApply=applyRolePermissions;
-    applyRolePermissions=function(){ var out=__origApply.apply(this,arguments); setTimeout(applyPermissionsV17,0); return out; };
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v18 · Role Matrix';
   }
 
   if(typeof go==='function'){
-    var __origGo17=go;
+    var __origGoRole=go;
     go=function(v){
       var map={list:'list',form:'form',detail:'detail',me2n:'me2n',idx:'idx',licit:'licit',prov:'prov',users:'users'};
       var mod=map[v] || 'list';
       if(!canAccess(mod)){
         if(typeof toast==='function') toast('Tu rol no tiene permiso para entrar a este modulo','er');
-        return __origGo17.call(this,'list');
+        return __origGoRole.call(this,'list');
       }
-      var out=__origGo17.apply(this,arguments);
-      setTimeout(applyPermissionsV17,0);
+      var out=__origGoRole.apply(this, arguments);
+      setTimeout(applyPermissions,0);
       return out;
     };
   }
 
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(applyPermissionsV17,0); });
-  setTimeout(applyPermissionsV17,0);
+  var UsersAdmin=(function(){
+    var state={list:[],loaded:false,currentId:null};
+    var refs={root:null,body:null,count:null,nav:null,modal:null,title:null,inpUser:null,selRole:null,selActive:null,inpPass:null,panel:null};
+    function q(id){ return document.getElementById(id); }
+    function text(el, value){ if(el) el.textContent=value; }
+    function clear(el){ while(el && el.firstChild) el.removeChild(el.firstChild); }
+    function make(tag, cls, txt){ var el=document.createElement(tag); if(cls) el.className=cls; if(txt!=null) el.textContent=txt; return el; }
+    function boolActive(v){ return !(v===false || String(v)==='false'); }
+    function setBuildTag(){ try{ var el=q('buildTag'); if(el) el.textContent='v18 · Role Matrix'; }catch(_e){} }
+
+    function ensureNav(){
+      var nav=document.querySelector('.sb-nav'); if(!nav) return;
+      if(q('navUsersModule')){ refs.nav=q('navUsersModule'); return; }
+      var sec=make('div','sb-sec','Administracion');
+      var a=make('a','nv'); a.id='navUsersModule'; a.href='#';
+      a.appendChild(make('span','ni','U')); a.appendChild(make('span','', 'Usuarios'));
+      a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); });
+      nav.appendChild(sec); nav.appendChild(a); refs.nav=a;
+    }
+
+    function ensureView(){
+      var ct=document.querySelector('.ct'); if(!ct) return;
+      if(q('vUsersModule')){ refs.root=q('vUsersModule'); refs.body=q('usersModuleBody'); refs.count=q('usersModuleCount'); refs.panel=q('usersPermPanel'); return; }
+      var wrap=make('div','vw'); wrap.id='vUsersModule';
+      var card=make('div','card');
+      var hdr=make('div','thdr'); hdr.appendChild(make('h2','', 'Administracion de Usuarios')); var cnt=make('span','tcnt','0'); cnt.id='usersModuleCount'; hdr.appendChild(cnt);
+      var fl=make('div','tfl'); var note=make('div','info-box amber','Por seguridad, las contrasenas actuales no se muestran. Se permite alta, edicion, cambio de estado, eliminacion y reseteo de contrasena.'); note.style.margin='0'; note.style.width='100%'; fl.appendChild(note);
+      var panel=make('div',''); panel.id='usersPermPanel';
+      var body=make('div',''); body.id='usersModuleBody';
+      card.appendChild(hdr); card.appendChild(fl); card.appendChild(panel); card.appendChild(body); wrap.appendChild(card); ct.appendChild(wrap);
+      refs.root=wrap; refs.body=body; refs.count=cnt; refs.panel=panel;
+      buildModal();
+      body.addEventListener('click', onBodyClick);
+      panel.addEventListener('click', onPanelClick);
+      panel.addEventListener('change', onPanelChange);
+    }
+
+    function buildModal(){
+      if(q('usersModuleModalBack')){ cacheModal(); return; }
+      var back=make('div',''); back.id='usersModuleModalBack'; back.style.display='none'; back.style.position='fixed'; back.style.inset='0'; back.style.background='rgba(0,0,0,.45)'; back.style.zIndex='700'; back.style.alignItems='center'; back.style.justifyContent='center';
+      var box=make('div',''); box.style.background='var(--w)'; box.style.borderRadius='14px'; box.style.boxShadow='0 20px 60px rgba(0,0,0,.3)'; box.style.width='620px'; box.style.maxWidth='96vw'; box.style.maxHeight='92vh'; box.style.overflowY='auto';
+      var hdr=make('div','idx-modal-hdr'); var ttl=make('h3','', 'Nuevo usuario'); ttl.id='usersModuleModalTitle'; var x=make('button','btn btn-s btn-sm','X'); x.type='button'; x.addEventListener('click', closeModal); hdr.appendChild(ttl); hdr.appendChild(x);
+      var body=make('div','idx-modal-body');
+      var grid=make('div','fg fg2');
+      var g1=make('div','fgrp'); g1.appendChild(make('label','', 'Usuario')); var inpUser=make('input',''); inpUser.type='text'; inpUser.id='usersModuleUser'; g1.appendChild(inpUser);
+      var g2=make('div','fgrp'); g2.appendChild(make('label','', 'Rol')); var selRole=make('select',''); selRole.id='usersModuleRole'; ['OWNER','ADMIN','ING_CONTRATOS','RESP_TECNICO','SIN_ROL'].forEach(function(v){ var o=make('option','',v); o.value=v; selRole.appendChild(o); }); g2.appendChild(selRole);
+      var g3=make('div','fgrp'); g3.appendChild(make('label','', 'Contrasena temporal')); var inpPass=make('input',''); inpPass.type='text'; inpPass.id='usersModulePass'; g3.appendChild(inpPass);
+      var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
+      grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4);
+      var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.');
+      body.appendChild(grid); body.appendChild(info);
+      var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save);
+      box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal();
+    }
+    function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
+
+    function setHeader(){
+      var t=q('pgT'), a=q('pgA'); if(!t||!a) return;
+      clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v18 · Role Matrix'); bc.id='buildTag'; t.appendChild(bc);
+      clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px';
+      var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload);
+      var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); });
+      wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap);
+    }
+
+    function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
+    function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); applyPermissions(); }
+
+    async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
+
+    function renderPermissionPanel(){
+      ensureView(); clear(refs.panel);
+      var box=make('div','info-box blue'); box.style.margin='12px 0';
+      var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px';
+      var desc=make('div','', 'Los cambios se guardan en este navegador. Si queres persistencia global, lo siguiente es llevar esta matriz a Supabase.'); desc.style.fontSize='12px'; desc.style.marginBottom='10px';
+      box.appendChild(title); box.appendChild(desc);
+      var tbl=make('table',''); tbl.style.marginTop='4px';
+      var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead);
+      var tb=make('tbody','');
+      var matrix=getRoleMatrix();
+      Object.keys(matrix).forEach(function(role){
+        var tr=make('tr',''); tr.appendChild(make('td','', role));
+        Object.keys(ROLE_LABELS).forEach(function(mod){
+          var td=make('td',''); td.style.textAlign='center';
+          var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod);
+          td.appendChild(chk); tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); box.appendChild(tbl);
+      var act=make('div',''); act.style.display='flex'; act.style.gap='8px'; act.style.marginTop='10px';
+      var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn';
+      var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn';
+      act.appendChild(save); act.appendChild(reset); box.appendChild(act);
+      refs.panel.appendChild(box);
+    }
+
+    function collectPanelMatrix(){
+      var matrix=clone(ROLE_DEFAULTS);
+      refs.panel.querySelectorAll('input[type="checkbox"][data-role][data-mod]').forEach(function(chk){
+        var role=chk.getAttribute('data-role'); var mod=chk.getAttribute('data-mod');
+        if(matrix[role] && typeof matrix[role][mod] !== 'undefined') matrix[role][mod]=chk.checked;
+      });
+      return matrix;
+    }
+
+    function onPanelClick(ev){
+      var id=(ev.target && ev.target.id)||'';
+      if(id==='rolesSaveBtn'){
+        var matrix=collectPanelMatrix(); saveRoleMatrix(matrix); applyPermissions(); toast('Permisos guardados','ok');
+      }
+      if(id==='rolesResetBtn'){
+        resetRoleMatrix(); renderPermissionPanel(); applyPermissions(); toast('Permisos reseteados','ok');
+      }
+    }
+    function onPanelChange(ev){ if(ev.target && ev.target.matches('input[type="checkbox"][data-role][data-mod]')){} }
+
+    function renderUsers(){
+      ensureView(); clear(refs.body); text(refs.count, String((state.list||[]).length));
+      if(!state.list.length){ var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return; }
+      var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead);
+      var tb=make('tbody','');
+      state.list.forEach(function(u){
+        var tr=make('tr','');
+        var td1=make('td','',u.username||''); td1.style.fontWeight='700';
+        var td2=make('td','',u.role||'SIN_ROL');
+        var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge);
+        var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small);
+        var td5=make('td',''); td5.style.width='320px'; var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap';
+        actions.appendChild(actionButton('Editar','edit',u.id)); actions.appendChild(actionButton('Reset pass','reset',u.id)); actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id)); actions.appendChild(actionButton('Eliminar','delete',u.id,true)); td5.appendChild(actions);
+        [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); refs.body.appendChild(tbl);
+    }
+
+    function actionButton(label, action, id, danger){ var cls=danger?'btn btn-d btn-sm':'btn btn-s btn-sm'; var b=make('button',cls,label); b.type='button'; b.setAttribute('data-action',action); b.setAttribute('data-id',String(id)); return b; }
+    function onBodyClick(ev){ var btn=ev.target.closest('button[data-action]'); if(!btn) return; var action=btn.getAttribute('data-action'); var id=btn.getAttribute('data-id'); if(action==='edit') openModal(id); else if(action==='toggle') toggleActive(id); else if(action==='reset') resetPassword(id); else if(action==='delete') deleteUser(id); }
+
+    function openModal(id){ buildModal(); state.currentId=id?String(id):null; var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }) || null; text(refs.title,row?'Editar usuario':'Nuevo usuario'); refs.inpUser.value=row?(row.username||''):''; refs.inpUser.disabled=!!row; refs.selRole.value=row?(row.role||'SIN_ROL'):'SIN_ROL'; refs.selActive.value=String(row?boolActive(row.active):true); refs.inpPass.value=''; refs.modal.style.display='flex'; }
+    function closeModal(){ if(refs.modal) refs.modal.style.display='none'; state.currentId=null; }
+    async function saveUser(){ var username=(refs.inpUser.value||'').trim(); var role=(refs.selRole.value||'SIN_ROL').trim(); var active=(refs.selActive.value==='true'); var password=(refs.inpPass.value||'').trim(); if(!state.currentId && (!username || !password)){ toast('Usuario y contrasena temporal son obligatorios','er'); return; } showLoader(state.currentId?'Guardando usuario...':'Creando usuario...'); try{ if(state.currentId){ var body={role:role,active:active}; if(password){ body.password_hash=await sha256Hex(password); } await sbFetch('app_users','PATCH',body,'?id=eq.'+encodeURIComponent(state.currentId)); } else { var exists=(state.list||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); }); if(exists) throw new Error('Ese usuario ya existe'); await sbFetch('app_users','POST',{username:username,password_hash:await sha256Hex(password),role:role,active:active}); } closeModal(); await reload(); toast(state.currentId?'Usuario actualizado':'Usuario creado','ok'); }catch(err){ console.error('users save',err); toast(err.message||'No se pudo guardar el usuario','er'); } finally{ hideLoader(); } }
+    async function toggleActive(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; showLoader('Actualizando estado...'); try{ await sbFetch('app_users','PATCH',{active:!boolActive(row.active)},'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Estado actualizado','ok'); }catch(err){ console.error('users toggle',err); toast(err.message||'No se pudo actualizar','er'); }finally{ hideLoader(); } }
+    async function resetPassword(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; var pwd=prompt('Nueva contrasena temporal para '+(row.username||id)+':',''); if(!pwd) return; showLoader('Reseteando contrasena...'); try{ await sbFetch('app_users','PATCH',{password_hash:await sha256Hex(pwd)},'?id=eq.'+encodeURIComponent(id)); toast('Contrasena reseteada','ok'); }catch(err){ console.error('users reset',err); toast(err.message||'No se pudo resetear la contrasena','er'); }finally{ hideLoader(); } }
+    async function deleteUser(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!confirm('Eliminar el usuario '+((row&&row.username)||id)+'?')) return; showLoader('Eliminando usuario...'); try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Usuario eliminado','ok'); }catch(err){ console.error('users delete',err); toast(err.message||'No se pudo eliminar el usuario','er'); }finally{ hideLoader(); } }
+    function installGoHook(){ if(typeof go!=='function') return; var originalGo=go; go=function(v){ if(v==='users'){ showPage(); return; } return originalGo.apply(this,arguments); }; }
+    function boot(){ ensureNav(); ensureView(); installGoHook(); setBuildTag(); }
+    return {boot:boot,show:showPage,reload:reload};
+  })();
+  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
+  setTimeout(function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
 })();
 
 </script>
