@@ -4204,10 +4204,7 @@ async function delAveById(aveId) {
       inp.id = 'tarAiIn';
       inp.accept = '.doc,.docx,.xls,.xlsx';
       inp.style.display = 'none';
-      inp.onchange = function(){
-        try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); }
-        finally { this.value=''; }
-      };
+      inp.onchange = function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally { this.value=''; } };
       document.body.appendChild(inp);
     }
     return inp;
@@ -4220,7 +4217,7 @@ async function delAveById(aveId) {
     try{
       const card = document.getElementById('detCard'); if(!card) return;
       const boxes = Array.from(card.querySelectorAll('.section-box'));
-      let sec = boxes.find(b => /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')));
+      const sec = boxes.find(b => /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')));
       if(!sec) return;
       if(!sec.querySelector('#tarContainer')){
         const cc = (typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(x=>x.id===detId) : null;
@@ -4240,7 +4237,7 @@ async function delAveById(aveId) {
     go = function(v){ const out = __origGo.apply(this, arguments); if(v==='detail') setTimeout(restoreTarSectionV10, 0); return out; };
   }
   function __pad2(n){ return String(n).padStart(2,'0'); }
-  function __toYm(v){ try{ if(v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${__pad2(v.getMonth()+1)}`; const d = new Date(v); if(!isNaN(d)) return `${d.getFullYear()}-${__pad2(d.getMonth()+1)}`; }catch(_e){} if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||'')); return null; }
+  function __toYm(v){ try{ if(v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${__pad2(v.getMonth()+1)}`; const d=new Date(v); if(!isNaN(d)) return `${d.getFullYear()}-${__pad2(d.getMonth()+1)}`; }catch(_e){} if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||'')); return null; }
   function __num(v){ if(v==null||v==='') return null; if(typeof v==='number') return Number.isFinite(v)?v:null; let s=String(v).trim(); if(!s) return null; s=s.replace(/\s+/g,'').replace(/\$/g,''); if(s.includes(',') && s.includes('.')){ if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); } else if(s.includes(',')){ s=s.replace(/\./g,'').replace(',','.'); } const n=Number(s); return Number.isFinite(n)?n:null; }
   function __itemCode(v){ const n=__num(v); if(n==null) return String(v||'').trim(); return n.toFixed(2).replace('.',','); }
   function __cleanText(v){ return String(v==null?'':v).trim(); }
@@ -4248,162 +4245,167 @@ async function delAveById(aveId) {
   function __skipDesc(desc){ const d=String(desc||'').trim().toLowerCase(); return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d); }
   function __parseServicioBasico(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO BÁSICO MENSUAL')); if(start<0) return null; const endCandidates=[rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR')), rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'))].filter(i=>i>=0); const end=endCandidates.length?Math.min(...endCandidates):rows.length; const data=[]; for(let i=start;i<end;i++){ const r=rows[i]||[]; const item=r[0], desc=__cleanText(r[1]), price=__num(r[2]); if(__num(item)==null || __skipDesc(desc) || price==null || price<=0) continue; data.push([__itemCode(item), desc, 'MES', price]); } if(!data.length) return null; return {name:'Servicio Básico Mensual', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
   function __parseEventuales(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR')); if(start<0) return null; const end=rows.findIndex((r,i)=>i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO')); const stop=end>=0?end:rows.length; const data=[]; for(let i=start;i<stop;i++){ const r=rows[i]||[]; const item=__num(r[0]), desc=__cleanText(r[1]); const vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])]; if(item==null || __skipDesc(desc) || vals.every(v=>v==null)) continue; data.push([__itemCode(item), desc, vals[0], vals[1], vals[2], vals[3]]); } if(!data.length) return null; return {name:'Equipos Eventuales con Operador', cols:['N° Item','Descripción','0-15 Días Diurno','0-15 Días Nocturno','>15 Días Diurno','>15 Días Nocturno'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
-  function __parseCalcareo(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO')); if(start<0) return null; const data=[]; for(let i=start;i<rows.length;i++){ const r=rows[i]||[]; const item=__num(r[0]), desc=__cleanText(r[1]); const p3=__num(r[3]), p2=__num(r[2]); if(item==null || __skipDesc(desc)) continue; const price = p3!=null ? p3 : p2; if(price==null || price<=0) continue; const unit = p3!=null ? __cleanText(r[2]) : ''; data.push([__itemCode(item), desc, unit, price]); } if(!data.length) return null; return {name:'Servicio de Provisión de Calcáreo', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
+  function __parseCalcareo(rows, period, fileName){ const start=rows.findIndex(r=>__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO')); if(start<0) return null; const data=[]; for(let i=start;i<rows.length;i++){ const r=rows[i]||[]; const item=__num(r[0]), desc=__cleanText(r[1]); const p3=__num(r[3]), p2=__num(r[2]); if(item==null || __skipDesc(desc)) continue; const price=p3!=null?p3:p2; if(price==null || price<=0) continue; const unit=p3!=null?__cleanText(r[2]):''; data.push([__itemCode(item), desc, unit, price]); } if(!data.length) return null; return {name:'Servicio de Provisión de Calcáreo', cols:['N° Item','Descripción','Unidad','Precio'], rows:data, period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true}; }
   if(typeof parsePriceListExcelFile==='function'){
     const __origParse = parsePriceListExcelFile;
-    parsePriceListExcelFile = async function(file, cc){ const buf = await file.arrayBuffer(); const wb = XLSX.read(new Uint8Array(buf), {type:'array'}); const sheetName = wb.SheetNames.find(n=>String(n||'').toLowerCase().includes('tarifario final')); if(sheetName){ const ws = wb.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); const periodRow = rows.find(r=>Array.isArray(r) && r.some(v=>v instanceof Date)) || []; const period = __toYm(periodRow.find(v=>v instanceof Date)) || cc?.btar || cc?.fechaIni?.substring(0,7) || null; const out=[__parseServicioBasico(rows, period, file.name), __parseEventuales(rows, period, file.name), __parseCalcareo(rows, period, file.name)].filter(Boolean); if(out.length) return out; } return __origParse(file, cc); };
+    parsePriceListExcelFile = async function(file, cc){ const buf=await file.arrayBuffer(); const wb=XLSX.read(new Uint8Array(buf),{type:'array'}); const sheetName=wb.SheetNames.find(n=>String(n||'').toLowerCase().includes('tarifario final')); if(sheetName){ const ws=wb.Sheets[sheetName]; const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); const periodRow=rows.find(r=>Array.isArray(r)&&r.some(v=>v instanceof Date))||[]; const period=__toYm(periodRow.find(v=>v instanceof Date))||cc?.btar||cc?.fechaIni?.substring(0,7)||null; const out=[__parseServicioBasico(rows,period,file.name),__parseEventuales(rows,period,file.name),__parseCalcareo(rows,period,file.name)].filter(Boolean); if(out.length) return out; } return __origParse(file, cc); };
   }
   if(typeof delTarTable==='function'){
-    delTarTable = function(i){ if(!confirm('¿Eliminar esta tabla del tarifario?')) return; const tars = (typeof getTar==='function' ? (getTar()||[]) : []); tars.splice(i,1); if(!tars.length){ _tarTab = 0; _tarPeriod = null; if(typeof setTar==='function') setTar([]); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok'); return; } if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1); if(typeof setTar==='function') setTar(tars); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Tabla eliminada','ok'); };
+    delTarTable = function(i){ if(!confirm('¿Eliminar esta tabla del tarifario?')) return; const tars=(typeof getTar==='function'?(getTar()||[]):[]); tars.splice(i,1); if(!tars.length){ _tarTab=0; _tarPeriod=null; if(typeof setTar==='function') setTar([]); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok'); return; } if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1); if(typeof setTar==='function') setTar(tars); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Tabla eliminada','ok'); };
   }
-  setTimeout(function(){ try{ ensureGlobalTarAiInput(); }catch(_e){} }, 0);
+  setTimeout(function(){ try{ ensureGlobalTarAiInput(); }catch(_e){} },0);
 })();
 
 
 /* ==== PATCH v11: item visible + versión visible ==== */
 (function(){
-  window.APP_VERSION = 'v11';
-  function setVersionBadge(){ try{ const el = document.getElementById('buildTag'); if(el) el.textContent = 'v11 · Excel Target'; }catch(_e){} }
-  setVersionBadge(); setTimeout(setVersionBadge, 0);
-  fN = function(n){ if(n==null||n==='') return '—'; if(typeof n === 'string'){ const s = n.trim(); if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')) return s.replace('.',','); } const num = Number(n); if(!Number.isFinite(num)) return String(n); return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
-  if(typeof isNumericCol==='function'){
-    const __origIsNumericCol = isNumericCol;
-    isNumericCol = function(tar, ci){ const col = String((tar?.cols?.[ci]) || '').toLowerCase(); if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item)(\s|$)/.test(col)) return false; return __origIsNumericCol(tar, ci); };
-  }
-  if(typeof renderTarifario==='function'){ const __origRenderTarifario = renderTarifario; renderTarifario = function(){ setVersionBadge(); return __origRenderTarifario.apply(this, arguments); }; }
+  window.APP_VERSION='v11';
+  function setVersionBadge(){ try{ const el=document.getElementById('buildTag'); if(el) el.textContent='v11 · Excel Target'; }catch(_e){} }
+  setVersionBadge(); setTimeout(setVersionBadge,0);
+  fN = function(n){ if(n==null||n==='') return '—'; if(typeof n==='string'){ const s=n.trim(); if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')) return s.replace('.',','); } const num=Number(n); if(!Number.isFinite(num)) return String(n); return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  if(typeof isNumericCol==='function'){ const __origIsNumericCol=isNumericCol; isNumericCol=function(tar,ci){ const col=String((tar?.cols?.[ci])||'').toLowerCase(); if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item)(\s|$)/.test(col)) return false; return __origIsNumericCol(tar,ci); }; }
+  if(typeof renderTarifario==='function'){ const __origRenderTarifario=renderTarifario; renderTarifario=function(){ setVersionBadge(); return __origRenderTarifario.apply(this,arguments); }; }
 })();
 
 
-/* ==== PATCH v12: Administración de usuarios (segura, sin mostrar contraseñas) ==== */
+/* ==== PATCH v13: Administración de usuarios estable ==== */
 (function(){
-  window.APP_VERSION = 'v12';
-  let APP_USERS_DB = [];
-  let USER_EDIT_ID = null;
-  function setVersionBadgeV12(){ try{ const el=document.getElementById('buildTag'); if(el) el.textContent='v12 · Users Admin'; }catch(_e){} }
+  window.APP_VERSION='v13';
+  window.APP_USERS_DB=[];
+  window.USER_EDIT_ID=null;
+  function setVersionBadgeV13(){ try{ const el=document.getElementById('buildTag'); if(el) el.textContent='v13 · Users Admin'; }catch(_e){} }
   function ensureUsersNav(){
     const nav=document.querySelector('.sb-nav'); if(!nav) return;
     if(document.getElementById('navUsersAdmin')) return;
     const sec=document.createElement('div'); sec.className='sb-sec'; sec.textContent='Administración';
-    const a=document.createElement('a'); a.id='navUsersAdmin'; a.className='nv'; a.href='#'; a.onclick=function(){ go('users'); return false; };
+    const a=document.createElement('a'); a.id='navUsersAdmin'; a.className='nv'; a.href='#';
     a.innerHTML='<span class="ni">👤</span><span>Usuarios</span>';
+    a.onclick=function(){ go('users'); return false; };
     nav.appendChild(sec); nav.appendChild(a);
   }
   function ensureUsersView(){
     const ct=document.querySelector('.ct'); if(!ct) return;
     if(document.getElementById('vUsers')) return;
-    const wrap=document.createElement('div');
-    wrap.id='vUsers'; wrap.className='vw';
-    wrap.innerHTML=`<div class="card"><div class="thdr"><h2>Administración de Usuarios</h2><span class="tcnt" id="usersCnt">0</span></div><div class="tfl"><div class="info-box amber" style="margin:0;width:100%">Por seguridad, el sistema no muestra contraseñas actuales. Solo permite crear usuarios y resetear contraseña.</div></div><div id="usersBody"></div></div>`;
+    const wrap=document.createElement('div'); wrap.id='vUsers'; wrap.className='vw';
+    wrap.innerHTML='<div class="card"><div class="thdr"><h2>Administración de Usuarios</h2><span class="tcnt" id="usersCnt">0</span></div><div class="tfl"><div class="info-box amber" style="margin:0;width:100%">Por seguridad, el sistema no muestra contraseñas actuales ni hashes. Solo permite crear usuarios y resetear contraseña.</div></div><div id="usersBody"></div></div>';
     ct.appendChild(wrap);
     const modal=document.createElement('div');
     modal.id='userAdminModalBack';
     modal.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:700;align-items:center;justify-content:center';
-    modal.innerHTML=`<div style="background:var(--w);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:620px;max-width:96vw;max-height:92vh;overflow-y:auto"><div class="idx-modal-hdr"><h3 id="userAdminModalTitle">Nuevo usuario</h3><button class="btn btn-s btn-sm" type="button" onclick="closeUserAdminModal()">✕</button></div><div class="idx-modal-body"><div class="fg fg2"><div class="fgrp"><label>Usuario</label><input type="text" id="ua_username" placeholder="nombre.apellido"></div><div class="fgrp"><label>Rol</label><select id="ua_role"><option value="OWNER">OWNER</option><option value="ING_CONTRATOS">ING_CONTRATOS</option><option value="RESP_TECNICO">RESP_TECNICO</option><option value="SIN_ROL">SIN_ROL</option></select></div><div class="fgrp"><label>Contraseña temporal</label><input type="text" id="ua_password" placeholder="Solo para alta o reseteo"></div><div class="fgrp"><label>Estado</label><select id="ua_active"><option value="true">Activo</option><option value="false">Inactivo</option></select></div></div><div class="info-box blue">Alta: ingresá usuario + contraseña temporal. Edición: la contraseña es opcional; si la completás, se resetea.</div></div><div class="idx-modal-foot"><button class="btn btn-s" type="button" onclick="closeUserAdminModal()">Cancelar</button><button class="btn btn-p" type="button" onclick="saveUserAdmin()">Guardar</button></div></div>`;
+    modal.innerHTML='<div style="background:var(--w);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:620px;max-width:96vw;max-height:92vh;overflow-y:auto"><div class="idx-modal-hdr"><h3 id="userAdminModalTitle">Nuevo usuario</h3><button class="btn btn-s btn-sm" type="button" onclick="closeUserAdminModal()">✕</button></div><div class="idx-modal-body"><div class="fg fg2"><div class="fgrp"><label>Usuario</label><input type="text" id="ua_username" placeholder="nombre.apellido"></div><div class="fgrp"><label>Rol</label><select id="ua_role"><option value="OWNER">OWNER</option><option value="ING_CONTRATOS">ING_CONTRATOS</option><option value="RESP_TECNICO">RESP_TECNICO</option><option value="SIN_ROL">SIN_ROL</option></select></div><div class="fgrp"><label>Contraseña temporal</label><input type="text" id="ua_password" placeholder="Solo para alta o reseteo"></div><div class="fgrp"><label>Estado</label><select id="ua_active"><option value="true">Activo</option><option value="false">Inactivo</option></select></div></div><div class="info-box blue">Alta: ingresá usuario + contraseña temporal. Edición: la contraseña es opcional; si la completás, se resetea.</div></div><div class="idx-modal-foot"><button class="btn btn-s" type="button" onclick="closeUserAdminModal()">Cancelar</button><button class="btn btn-p" type="button" onclick="saveUserAdmin()">Guardar</button></div></div>';
     document.body.appendChild(modal);
   }
-  async function loadAppUsers(){
-    if(typeof sbFetch!=='function') throw new Error('No está disponible la conexión a usuarios');
-    showLoader('Cargando usuarios...');
-    try{ APP_USERS_DB = await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; }
-    finally{ hideLoader(); }
-    return APP_USERS_DB;
-  }
   function usersRowsHtml(){
-    if(!APP_USERS_DB.length) return '<div class="empty"><div class="ei">👤</div><p>No hay usuarios cargados.</p></div>';
-    return `<table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Seguridad</th><th style="width:260px">Acciones</th></tr></thead><tbody>${APP_USERS_DB.map(u=>`<tr><td style="font-weight:700">${esc(u.username||'')}</td><td>${esc(u.role||'SIN_ROL')}</td><td><span class="bdg ${u.active===false?'exp':'act'}">${u.active===false?'INACTIVO':'ACTIVO'}</span></td><td><span style="font-size:11px;color:var(--g500)">Contraseña oculta</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="openUserAdminModal(${u.id})">✏️ Editar</button><button class="btn btn-a btn-sm" onclick="resetUserPassword(${u.id})">🔐 Reset pass</button><button class="btn btn-s btn-sm" onclick="toggleUserActive(${u.id})">${u.active===false?'✅ Activar':'⛔ Inactivar'}</button><button class="btn btn-d btn-sm" onclick="deleteUserAdmin(${u.id})">🗑️ Eliminar</button></div></td></tr>`).join('')}</tbody></table>`;
+    const arr=window.APP_USERS_DB||[];
+    if(!arr.length) return '<div class="empty"><div class="ei">👤</div><p>No hay usuarios cargados.</p></div>';
+    return '<table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Seguridad</th><th style="width:280px">Acciones</th></tr></thead><tbody>'+arr.map(function(u){
+      const active = !(u.active===false || String(u.active)==='false');
+      return '<tr>'+
+        '<td style="font-weight:700">'+esc(u.username||'')+'</td>'+
+        '<td>'+esc(u.role||'SIN_ROL')+'</td>'+
+        '<td><span class="bdg '+(active?'act':'exp')+'">'+(active?'ACTIVO':'INACTIVO')+'</span></td>'+
+        '<td><span style="font-size:11px;color:var(--g500)">Contraseña oculta</span></td>'+
+        '<td><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          '<button class="btn btn-s btn-sm" onclick="openUserAdminModal('+u.id+')">✏️ Editar</button>'+
+          '<button class="btn btn-a btn-sm" onclick="resetUserPassword('+u.id+')">🔐 Reset pass</button>'+
+          '<button class="btn btn-s btn-sm" onclick="toggleUserActive('+u.id+')">'+(active?'⛔ Inactivar':'✅ Activar')+'</button>'+
+          '<button class="btn btn-d btn-sm" onclick="deleteUserAdmin('+u.id+')">🗑️ Eliminar</button>'+
+        '</div></td></tr>';
+    }).join('')+'</tbody></table>';
   }
-  function renderUsersView(){
+  window.renderUsersView = function(){
     ensureUsersView();
     const body=document.getElementById('usersBody'); const cnt=document.getElementById('usersCnt');
-    if(body) body.innerHTML=usersRowsHtml();
-    if(cnt) cnt.textContent=String(APP_USERS_DB.length||0);
-    setVersionBadgeV12();
-  }
-  function openUserAdminModal(id){
-    ensureUsersView();
-    USER_EDIT_ID = id || null;
-    const row = APP_USERS_DB.find(x=>String(x.id)===String(id));
-    document.getElementById('userAdminModalTitle').textContent = row ? 'Editar usuario' : 'Nuevo usuario';
-    document.getElementById('ua_username').value = row?.username || '';
-    document.getElementById('ua_username').disabled = !!row;
-    document.getElementById('ua_role').value = row?.role || 'SIN_ROL';
-    document.getElementById('ua_password').value = '';
-    document.getElementById('ua_active').value = String(row?.active===false ? false : true);
-    document.getElementById('userAdminModalBack').style.display='flex';
-  }
-  function closeUserAdminModal(){ const m=document.getElementById('userAdminModalBack'); if(m) m.style.display='none'; USER_EDIT_ID=null; }
-  async function saveUserAdmin(){
-    const username=(document.getElementById('ua_username')?.value||'').trim();
-    const role=(document.getElementById('ua_role')?.value||'SIN_ROL').trim();
-    const password=(document.getElementById('ua_password')?.value||'').trim();
-    const active=(document.getElementById('ua_active')?.value||'true')==='true';
-    if(!USER_EDIT_ID && (!username || !password)){ toast('Usuario y contraseña temporal son obligatorios','er'); return; }
-    showLoader(USER_EDIT_ID?'Guardando usuario...':'Creando usuario...');
-    try{
-      if(USER_EDIT_ID){
-        const body={role,active};
-        if(password){ body.password_hash = await sha256Hex(password); }
-        await sbFetch('app_users','PATCH',body,`?id=eq.${USER_EDIT_ID}`);
-      }else{
-        const exists=(APP_USERS_DB||[]).some(u=>String(u.username||'').toLowerCase()===username.toLowerCase());
-        if(exists) throw new Error('Ese usuario ya existe');
-        const password_hash = await sha256Hex(password);
-        await sbFetch('app_users','POST',{username,password_hash,role,active});
-      }
-      await loadAppUsers(); renderUsersView(); closeUserAdminModal();
-      toast(USER_EDIT_ID?'Usuario actualizado':'Usuario creado','ok');
-    }catch(err){ console.error('saveUserAdmin',err); toast(err.message||'No se pudo guardar el usuario','er'); }
+    if(body) body.innerHTML = usersRowsHtml();
+    if(cnt) cnt.textContent = String((window.APP_USERS_DB||[]).length||0);
+    setVersionBadgeV13();
+  };
+  window.loadAppUsers = async function(){
+    if(typeof sbFetch!=='function') throw new Error('No está disponible la conexión a usuarios');
+    showLoader('Cargando usuarios...');
+    try{ window.APP_USERS_DB = await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; return window.APP_USERS_DB; }
     finally{ hideLoader(); }
-  }
-  async function deleteUserAdmin(id){
-    const row=APP_USERS_DB.find(x=>String(x.id)===String(id));
-    if(!confirm(`¿Eliminar el usuario ${row?.username||id}?`)) return;
+  };
+  window.reloadUsersAdmin = function(){ window.loadAppUsers().then(window.renderUsersView).catch(function(err){ console.error(err); toast(err.message||'No se pudieron cargar usuarios','er'); }); };
+  window.openUserAdminModal = function(id){
+    ensureUsersView();
+    window.USER_EDIT_ID = id || null;
+    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); });
+    document.getElementById('userAdminModalTitle').textContent = row ? 'Editar usuario' : 'Nuevo usuario';
+    document.getElementById('ua_username').value = row && row.username ? row.username : '';
+    document.getElementById('ua_username').disabled = !!row;
+    document.getElementById('ua_role').value = row && row.role ? row.role : 'SIN_ROL';
+    document.getElementById('ua_password').value = '';
+    document.getElementById('ua_active').value = String(row && (row.active===false || String(row.active)==='false') ? false : true);
+    document.getElementById('userAdminModalBack').style.display='flex';
+  };
+  window.closeUserAdminModal = function(){ const m=document.getElementById('userAdminModalBack'); if(m) m.style.display='none'; window.USER_EDIT_ID=null; };
+  window.saveUserAdmin = async function(){
+    const username=(document.getElementById('ua_username').value||'').trim();
+    const role=(document.getElementById('ua_role').value||'SIN_ROL').trim();
+    const password=(document.getElementById('ua_password').value||'').trim();
+    const active=(document.getElementById('ua_active').value||'true')==='true';
+    if(!window.USER_EDIT_ID && (!username || !password)){ toast('Usuario y contraseña temporal son obligatorios','er'); return; }
+    showLoader(window.USER_EDIT_ID?'Guardando usuario...':'Creando usuario...');
+    try{
+      if(window.USER_EDIT_ID){
+        const body={role:role,active:active};
+        if(password){ body.password_hash = await sha256Hex(password); }
+        await sbFetch('app_users','PATCH',body,'?id=eq.'+window.USER_EDIT_ID);
+      }else{
+        const exists=(window.APP_USERS_DB||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); });
+        if(exists) throw new Error('Ese usuario ya existe');
+        const password_hash=await sha256Hex(password);
+        await sbFetch('app_users','POST',{username:username,password_hash:password_hash,role:role,active:active});
+      }
+      await window.loadAppUsers(); window.renderUsersView(); window.closeUserAdminModal(); toast(window.USER_EDIT_ID?'Usuario actualizado':'Usuario creado','ok');
+    }catch(err){ console.error('saveUserAdmin', err); toast(err.message||'No se pudo guardar el usuario','er'); }
+    finally{ hideLoader(); }
+  };
+  window.deleteUserAdmin = async function(id){
+    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); });
+    if(!confirm('¿Eliminar el usuario '+(row&&row.username?row.username:id)+'?')) return;
     showLoader('Eliminando usuario...');
-    try{ await sbFetch('app_users','DELETE',null,`?id=eq.${id}`); await loadAppUsers(); renderUsersView(); toast('Usuario eliminado','ok'); }
+    try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+id); await window.loadAppUsers(); window.renderUsersView(); toast('Usuario eliminado','ok'); }
     catch(err){ console.error('deleteUserAdmin',err); toast(err.message||'No se pudo eliminar','er'); }
     finally{ hideLoader(); }
-  }
-  async function toggleUserActive(id){
-    const row=APP_USERS_DB.find(x=>String(x.id)===String(id)); if(!row) return;
+  };
+  window.toggleUserActive = async function(id){
+    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); }); if(!row) return;
+    const nextActive = !(row.active===false || String(row.active)==='false');
     showLoader('Actualizando estado...');
-    try{ await sbFetch('app_users','PATCH',{active:!(row.active===false)},`?id=eq.${id}`); await loadAppUsers(); renderUsersView(); toast('Estado actualizado','ok'); }
+    try{ await sbFetch('app_users','PATCH',{active:!nextActive},'?id=eq.'+id); await window.loadAppUsers(); window.renderUsersView(); toast('Estado actualizado','ok'); }
     catch(err){ console.error('toggleUserActive',err); toast(err.message||'No se pudo actualizar','er'); }
     finally{ hideLoader(); }
-  }
-  async function resetUserPassword(id){
-    const row=APP_USERS_DB.find(x=>String(x.id)===String(id)); if(!row) return;
-    const pwd = prompt(`Nueva contraseña temporal para ${row.username}:`,'');
+  };
+  window.resetUserPassword = async function(id){
+    const row=(window.APP_USERS_DB||[]).find(function(x){ return String(x.id)===String(id); }); if(!row) return;
+    const pwd=prompt('Nueva contraseña temporal para '+row.username+':','');
     if(!pwd) return;
     showLoader('Reseteando contraseña...');
-    try{ const password_hash = await sha256Hex(pwd); await sbFetch('app_users','PATCH',{password_hash},`?id=eq.${id}`); toast('Contraseña reseteada','ok'); }
+    try{ const password_hash=await sha256Hex(pwd); await sbFetch('app_users','PATCH',{password_hash:password_hash},'?id=eq.'+id); toast('Contraseña reseteada','ok'); }
     catch(err){ console.error('resetUserPassword',err); toast(err.message||'No se pudo resetear la contraseña','er'); }
     finally{ hideLoader(); }
-  }
-  window.openUserAdminModal=openUserAdminModal;
-  window.closeUserAdminModal=closeUserAdminModal;
-  window.saveUserAdmin=saveUserAdmin;
-  window.deleteUserAdmin=deleteUserAdmin;
-  window.toggleUserActive=toggleUserActive;
-  window.resetUserPassword=resetUserPassword;
+  };
   const __origGoUsers = go;
   go = function(v){
     if(v==='users'){
-      document.querySelectorAll('.vw').forEach(el=>el.classList.remove('on'));
-      document.querySelectorAll('.sb-nav .nv').forEach(el=>el.classList.remove('act'));
+      document.querySelectorAll('.vw').forEach(function(el){ el.classList.remove('on'); });
+      document.querySelectorAll('.sb-nav .nv').forEach(function(el){ el.classList.remove('act'); });
       ensureUsersNav(); ensureUsersView();
       document.getElementById('vUsers').classList.add('on');
       const nav=document.getElementById('navUsersAdmin'); if(nav) nav.classList.add('act');
       const t=document.getElementById('pgT'); const a=document.getElementById('pgA');
-      if(t) t.innerHTML='👤 Usuarios <span class="bc" id="buildTag">v12 · Users Admin</span>';
-      if(a) a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="loadAppUsers().then(renderUsersView).catch(err=>toast(err.message||\'Error\',\'er\'))">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openUserAdminModal()">➕ Nuevo usuario</button></div>';
-      loadAppUsers().then(renderUsersView).catch(err=>{ console.error(err); toast(err.message||'No se pudieron cargar usuarios','er'); renderUsersView(); });
+      if(t) t.innerHTML='👤 Usuarios <span class="bc" id="buildTag">v13 · Users Admin</span>';
+      if(a) a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="reloadUsersAdmin()">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openUserAdminModal()">➕ Nuevo usuario</button></div>';
+      window.reloadUsersAdmin();
       window.scrollTo({top:0,behavior:'smooth'});
       return;
     }
-    const out=__origGoUsers.apply(this, arguments); setTimeout(setVersionBadgeV12,0); return out;
+    const out=__origGoUsers.apply(this, arguments); setTimeout(setVersionBadgeV13,0); return out;
   };
-  document.addEventListener('DOMContentLoaded', function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV12(); });
-  setTimeout(function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV12(); },0);
+  document.addEventListener('DOMContentLoaded', function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV13(); });
+  setTimeout(function(){ ensureUsersNav(); ensureUsersView(); setVersionBadgeV13(); },0);
 })();
 
 </script>
