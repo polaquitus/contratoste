@@ -608,17 +608,8 @@ async function sbFetch(table, method='GET', body=null, filter='') {
   const opts = {method, headers: SB_HDR};
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts);
-  if (!r.ok) {
-    let detail = '';
-    try {
-      const t = await r.text();
-      detail = t ? ` — ${t.slice(0,400)}` : '';
-    } catch(e) {}
-    throw new Error(`${method} ${table} ${r.status}${detail}`);
-  }
-  if (method === 'DELETE') return null;
-  const txt = await r.text();
-  return txt ? JSON.parse(txt) : null;
+  if (!r.ok) throw new Error(`${method} ${table} ${r.status}`);
+  return method === 'DELETE' ? null : r.json();
 }
 
 // ─── LOADERS ────────────────────────────────
@@ -825,7 +816,7 @@ async function initApp(__fromLogin) {
   }
 
   try { showLoader('Cargando contratistas...'); await loadProv(); }
-  catch(ex) { console.warn('loadProv error', ex); PROV_DB = []; }
+  catch(ex) { console.warn('loadProv error', ex); try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];} }
 
   hideLoader();
   buildPoly(); renderList(); updNav();
@@ -894,12 +885,12 @@ async function loadProv() {
       console.warn('[loadProv] proveedores also failed:', e3.message);
     }
   }
-  // Sin fallback automático a localStorage: la UI de proveedores carga sólo desde BD.
-  // Se mantiene localStorage como respaldo/migración explícita, pero no como fuente visible.
-  PROV_DB = [];
+  // Fallback: localStorage
+  try {
+    PROV_DB = JSON.parse(localStorage.getItem('contr_v1')) || JSON.parse(localStorage.getItem('prov_v1')) || [];
+  } catch(e){ PROV_DB = []; }
   updNav(); if(typeof updNavProv==='function') updNavProv();
 }
-
 
 async function save() {
   if (!SB_OK) { localStorage.setItem('cta_v7', JSON.stringify(DB)); return; }
@@ -932,77 +923,13 @@ async function saveProv() {
 
 async function sbReplaceContratistas() {
   if (!SB_OK) return;
-
-  const source = (PROV_DB||[]).map(p=>{
-    const x={...p};
-    delete x.__sbId;
-    delete x.__sbNative;
-    return x;
-  });
-
+  const clean = (PROV_DB||[]).map(p=>{ const x={...p}; delete x.__sbId; return {datos: JSON.stringify(x)}; });
+  try { await sbFetch('contratistas', 'DELETE', null, '?id=not.is.null'); } catch(e) { console.warn('DELETE contratistas', e); }
+  if (!clean.length) return;
+  const res = await sbFetch('contratistas', 'POST', clean);
+  if (Array.isArray(res)) res.forEach((r,i)=>{ if(PROV_DB[i]) PROV_DB[i].__sbId = r.id; });
   localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
   localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
-
-  const BATCH_SIZE = 250;
-  const minimalHeaders = {...SB_HDR, Prefer:'return=minimal'};
-  const endpoint = `${SB_URL}/rest/v1/contratistas`;
-
-  async function rawDeleteAll(){
-    const r = await fetch(`${endpoint}?id=not.is.null`, { method:'DELETE', headers:minimalHeaders });
-    if (!r.ok) {
-      let detail='';
-      try { detail = await r.text(); } catch(e) {}
-      throw new Error(`DELETE contratistas ${r.status}${detail?` — ${detail.slice(0,300)}`:''}`);
-    }
-  }
-
-  function mapNative(x){
-    const mainContact = Array.isArray(x.contacts) && x.contacts.length ? x.contacts[0] : {};
-    return {
-      vendor_num: String(x.vendorNum || '').trim() || null,
-      nombre: String(x.name || '').trim(),
-      email: String(x.email || mainContact.email || '').trim() || null,
-      telefono: String(x.telefono || x.phone || mainContact.phone || mainContact.telefono || '').trim() || null,
-      rubro: String(x.rubro || '').trim() || null,
-      active: true,
-      payload: x
-    };
-  }
-
-  function mapLegacy(x){
-    return { datos: JSON.stringify(x) };
-  }
-
-  async function postChunk(rows){
-    const r = await fetch(endpoint, {
-      method:'POST',
-      headers:minimalHeaders,
-      body: JSON.stringify(rows)
-    });
-    if (!r.ok) {
-      let detail='';
-      try { detail = await r.text(); } catch(e) {}
-      throw new Error(`POST contratistas ${r.status}${detail?` — ${detail.slice(0,500)}`:''}`);
-    }
-  }
-
-  async function syncBatched(mapper){
-    for (let i=0; i<source.length; i+=BATCH_SIZE) {
-      const chunk = source.slice(i, i+BATCH_SIZE).map(mapper);
-      await postChunk(chunk);
-    }
-  }
-
-  await rawDeleteAll();
-  if (!source.length) return;
-
-  try {
-    await syncBatched(mapNative);
-  } catch(nativeErr) {
-    console.warn('[sbReplaceContratistas] native insert failed; falling back to legacy datos format', nativeErr);
-    await rawDeleteAll();
-    await syncBatched(mapLegacy);
-  }
 }
 
 
@@ -1026,7 +953,7 @@ function go(v){
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
   if(v==='list'){document.getElementById('vList').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go(\'form\')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
   else if(v==='form'){document.getElementById('vForm').classList.add('on');document.querySelectorAll('.sb-nav .nv')[1].classList.add('act');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openEnmImportPicker()">🤖 Importar Enmiendas</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
+  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
@@ -1719,6 +1646,179 @@ function importTarExcel(input){
   input.value='';
 }
 
+// ===== LISTAS DE PRECIOS CON IA (WORD/EXCEL) =====
+function openPriceListImportPicker(){
+  const inp=document.getElementById('tarAiIn');
+  if(!inp){toast('No se encontró el selector de listas','er');return;}
+  try{inp.click();}catch(e){console.error('openPriceListImportPicker',e);toast('No se pudo abrir el selector','er');}
+}
+function normalizeImportedPriceValue(v){
+  if(v==null||v==='') return '';
+  if(typeof v==='number') return v;
+  let s=String(v).trim();
+  if(!s) return '';
+  s=s.replace(/\s+/g,'').replace(/[^\d,.-]/g,'');
+  if(!s) return '';
+  const hasComma=s.includes(',');
+  const hasDot=s.includes('.');
+  if(hasComma && hasDot){
+    if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+  } else if(hasComma){
+    s=s.replace(/\./g,'').replace(',','.');
+  }
+  const n=parseFloat(s);
+  return Number.isFinite(n)?n:(String(v).trim());
+}
+function detectPeriodFromText(txt){
+  const s=String(txt||'');
+  let m=s.match(/\b(20\d{2})[-_/](0[1-9]|1[0-2])\b/); if(m) return `${m[1]}-${m[2]}`;
+  m=s.match(/\b(0[1-9]|1[0-2])[-_/](20\d{2})\b/); if(m) return `${m[2]}-${m[1]}`;
+  const map={ene:'01',enero:'01',feb:'02',febrero:'02',mar:'03',marzo:'03',abr:'04',abril:'04',may:'05',mayo:'05',jun:'06',junio:'06',jul:'07',julio:'07',ago:'08',agosto:'08',sep:'09',sept:'09',septiembre:'09',oct:'10',octubre:'10',nov:'11',noviembre:'11',dic:'12',diciembre:'12'};
+  const low=s.toLowerCase();
+  for(const [k,v] of Object.entries(map)){
+    const r1=new RegExp(`\\b${k}\\s*(?:de\\s*)?(20\\d{2})\\b`,'i');
+    const r2=new RegExp(`\\b(20\\d{2})\\s*(?:-|/)??\\s*${k}\\b`,'i');
+    let mm=low.match(r1); if(mm) return `${mm[1]}-${v}`;
+    mm=low.match(r2); if(mm) return `${mm[1]}-${v}`;
+  }
+  return null;
+}
+function getMimeTypeFromPriceFile(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(ext==='docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if(ext==='doc') return 'application/msword';
+  return file.type||'application/octet-stream';
+}
+async function analyzePriceListsWithGemini(filePayload, cc, fileName=''){
+  const prompt=`Sos un asistente experto en contratos de petróleo y gas argentinos. Extraé únicamente las LISTAS DE PRECIOS o tarifarios base presentes en el documento.\n\nContexto del contrato:\n- Número: ${cc.num}\n- Contratista: ${cc.cont}\n- Archivo: ${fileName}\n\nDevolvé SOLO JSON válido con este esquema exacto:\n{\n  "listasDePrecios": [\n    {\n      "periodo": "YYYY-MM" o null,\n      "nombre": "nombre corto de la lista" o null,\n      "items": [\n        {"item": "código o número", "descripcion": "descripción del ítem", "unidad": "unidad", "precio": número o texto numérico}\n      ]\n    }\n  ]\n}\n\nReglas:\n- Si hay varias tablas, extraelas todas.\n- Si el período no está explícito, devolvé null.\n- No inventes filas ni precios.\n- No devuelvas explicaciones ni markdown.`;
+  let response = await callGeminiForEnm([{text: prompt}, {inline_data: {mime_type: filePayload.mimeType, data: filePayload.data}}]);
+  if((!response || !response.ok) && filePayload.fallbackText){
+    response = await callGeminiForEnm([{text: prompt}, {text: `Contenido del documento:\n\n${filePayload.fallbackText.slice(0,120000)}`}]);
+  }
+  if (!response || !response.ok) {
+    const errText = response ? await response.text().catch(()=>'') : '';
+    if (response && response.status === 429) throw new Error('Límite de requests alcanzado. Esperá 1 minuto.');
+    if (response && response.status === 400) throw new Error('Archivo inválido o demasiado grande para analizar.');
+    throw new Error(`IA no disponible ${response ? response.status : 'N/A'}: ${errText.slice(0,180)}`);
+  }
+  const data=await response.json();
+  const parts=data?.candidates?.[0]?.content?.parts||[];
+  const txt=parts.map(p=>p.text||'').join('\n').trim();
+  return extractJsonFromGeminiText(txt);
+}
+function normalizeAiPriceLists(result, fileName, cc){
+  const lists=Array.isArray(result?.listasDePrecios)?result.listasDePrecios:[];
+  const fallbackPeriod=cc?.btar||cc?.fechaIni?.substring(0,7)||null;
+  const clean=[];
+  lists.forEach((lst,idx)=>{
+    const period=detectPeriodFromText(lst?.periodo||lst?.nombre||fileName)||fallbackPeriod;
+    const rows=(Array.isArray(lst?.items)?lst.items:[]).map(it=>[
+      String(it?.item??'').trim(),
+      String(it?.descripcion??'').trim(),
+      String(it?.unidad??'').trim(),
+      normalizeImportedPriceValue(it?.precio)
+    ]).filter(r=>r.some(v=>String(v??'').trim()!==''));
+    if(!rows.length) return;
+    clean.push({
+      name:String(lst?.nombre||(`Lista IA ${idx+1}`)).trim()||(`Lista IA ${idx+1}`),
+      cols:['Item','Descripción','Unidad','Precio'],
+      rows,
+      period,
+      source:'WORD_IA',
+      sourceFileName:fileName,
+      importedAt:new Date().toISOString(),
+      editable:true
+    });
+  });
+  return clean;
+}
+function standardizeExcelPriceList(sheetName, json, cc, fileName){
+  if(!Array.isArray(json)||json.length<1) return null;
+  const headers=(json[0]||[]).map(v=>String(v||'').trim());
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const h=headers.map(norm);
+  const idxBySyn=(syns)=>h.findIndex(x=>syns.some(s=>x.includes(s)));
+  let itemIdx=idxBySyn(['item','codigo','cod','n item','n° item','numero item','posicion']);
+  let descIdx=idxBySyn(['descripcion','detalle','concepto','texto breve','short text','servicio']);
+  let unitIdx=idxBySyn(['unidad','uom','um','unit']);
+  let priceIdx=idxBySyn(['precio','valor unitario','precio unitario','tarifa','rate','importe','valor']);
+  if(descIdx<0) descIdx=1>=headers.length?0:1;
+  if(itemIdx<0) itemIdx=0;
+  if(unitIdx<0) unitIdx=Math.min(2, headers.length-1);
+  if(priceIdx<0) priceIdx=Math.min(3, headers.length-1);
+  const rows=json.slice(1).filter(r=>Array.isArray(r)&&r.some(v=>String(v||'').trim()!=='' )).map(r=>[
+    String(r[itemIdx]??'').trim(),
+    String(r[descIdx]??'').trim(),
+    String(r[unitIdx]??'').trim(),
+    normalizeImportedPriceValue(r[priceIdx]??'')
+  ]).filter(r=>r.some(v=>String(v??'').trim()!==''));
+  if(!rows.length) return null;
+  const blobText=[sheetName, ...json.slice(0,8).flat()].join(' ');
+  return {
+    name:String(sheetName||'Lista Excel').trim(),
+    cols:['Item','Descripción','Unidad','Precio'],
+    rows,
+    period:detectPeriodFromText(blobText)||(cc?.btar||cc?.fechaIni?.substring(0,7)||null),
+    source:'EXCEL',
+    sourceFileName:fileName,
+    importedAt:new Date().toISOString(),
+    editable:true
+  };
+}
+async function parsePriceListExcelFile(file, cc){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+  const out=[];
+  wb.SheetNames.forEach(sn=>{
+    const ws=wb.Sheets[sn];
+    const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    const table=standardizeExcelPriceList(sn,json,cc,file.name);
+    if(table) out.push(table);
+  });
+  return out;
+}
+async function importPriceListsFromFiles(files){
+  if(!files||!files.length) return;
+  const cc=DB.find(x=>x.id===detId); if(!cc){toast('No hay contrato seleccionado','er');return;}
+  const imported=[]; const errors=[];
+  try{ if(typeof showLoader==='function') showLoader('Analizando listas de precios...'); }catch(e){}
+  for(const file of Array.from(files)){
+    const ext=(file.name.split('.').pop()||'').toLowerCase();
+    try{
+      if(['xls','xlsx'].includes(ext)){
+        const parsed=await parsePriceListExcelFile(file, cc);
+        if(!parsed.length) throw new Error('No se detectaron tablas útiles en el Excel');
+        imported.push(...parsed);
+        continue;
+      }
+      if(!['doc','docx'].includes(ext)) throw new Error('Formato no soportado. Usá Word o Excel.');
+      if(file.size>20*1024*1024) throw new Error('Archivo muy grande (máx 20MB).');
+      const payload=await buildGeminiFilePayload(file);
+      payload.mimeType = payload.mimeType || getMimeTypeFromPriceFile(file);
+      const result=await analyzePriceListsWithGemini(payload, cc, file.name);
+      const parsed=normalizeAiPriceLists(result, file.name, cc);
+      if(!parsed.length) throw new Error('La IA no encontró listas de precios en el documento');
+      imported.push(...parsed);
+    }catch(err){
+      console.error('importPriceListsFromFiles', file.name, err);
+      errors.push(`${file.name}: ${err.message||'Error inesperado'}`);
+    }
+  }
+  try{ if(typeof hideLoader==='function') hideLoader(); }catch(e){}
+  if(!imported.length){
+    toast(errors.length?errors[0]:'No se importaron listas','er');
+    return;
+  }
+  const current=getTar()||[];
+  await setTar(current.concat(imported));
+  renderTarifario();
+  const msg=`${imported.length} ${imported.length===1?'lista importada':'listas importadas'}${errors.length?` · ${errors.length} archivo(s) con error`:''}`;
+  toast(msg,'ok');
+  if(errors.length) console.warn('Errores de importación de listas:', errors);
+}
+
+
 function togglePanel(id){document.getElementById(id).classList.toggle('vis');}
 
 function openEnmPanel(){
@@ -2311,7 +2411,44 @@ let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};
 function getTarPeriodValue(cc,t){return t?.period||cc?.btar||cc?.fechaIni?.substring(0,7)||'';}
 function getTarEnmLabel(cc,enmNum){if(!enmNum)return 'Base contractual';const enm=(cc.enmiendas||[]).find(e=>e.num===enmNum);if(!enm)return 'Enm.N°'+enmNum;const tipo=enm.tipo==='ACTUALIZACION_TARIFAS'?'Actualización de Tarifas':enm.tipo==='EXTENSION'?'Extensión':enm.tipo==='SCOPE'?'Scope':enm.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return 'Enm.N°'+enmNum+' · '+tipo;}
 function setTarPeriod(period){_tarPeriod=period;_tarTab=0;renderTarifario();}
-function renderTarifario(){const box=document.getElementById('tarContainer');if(!box)return;const cc=DB.find(x=>x.id===detId);if(!cc)return;const raw=getTar();if(!raw.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tarifario. Importá un Excel o creá una tabla.</p></div>';return;}const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;const visible=all.filter(t=>t._period===_tarPeriod);if(!visible.length){box.innerHTML='<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];const enmLabel=enmNums.length===1?getTarEnmLabel(cc,enmNums[0]):enmNums.length>1?'Múltiples enmiendas':'Base contractual';const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';let h='<div class="tar-period-nav">';periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});h+='</div>';h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Origen: ${enmLabel}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span></div>`;h+='<div class="tar-tabs">';visible.forEach((tab,vi)=>{h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';if(t&&t.cols&&t.rows){let rows=[...t.rows];if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';t.cols.forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';rows.forEach((row,ri)=>{const origRi=t.rows.indexOf(row);h+='<tr>';t.cols.forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});h+='</tbody></table></div>';h+=`<div class="tar-actions"><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems</span></div></div>`;}box.innerHTML=h;}
+function renderTarifario(){
+  const box=document.getElementById('tarContainer');if(!box)return;
+  const cc=DB.find(x=>x.id===detId);if(!cc)return;
+  const raw=getTar();
+  const importCtl = '<input type="file" id="tarAiIn" accept=".doc,.docx,.xls,.xlsx" style="display:none" onchange="importPriceListsFromFiles(this.files);this.value=\'\'">';
+  const topActions = `<div class="tar-actions" style="margin-bottom:10px;border:1px solid var(--g200);border-radius:8px;background:var(--g50)"><button class="btn btn-p btn-sm" onclick="openPriceListImportPicker()">🤖 Importar listas (Word/Excel)</button><button class="btn btn-s btn-sm" onclick="addTarTable()">➕ Nueva tabla</button>${raw.length?'<span style="margin-left:auto;font-size:11px;color:var(--g500)">Editá precios inline, agregá/borrá filas o eliminá la tabla seleccionada.</span>':''}</div>`;
+  if(!raw.length){box.innerHTML=importCtl+topActions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin listas de precios. Importá desde Word/Excel con IA o creá una tabla manual.</p></div>';return;}
+  const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));
+  let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();
+  if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}
+  if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;
+  const visible=all.filter(t=>t._period===_tarPeriod);
+  if(!visible.length){box.innerHTML=importCtl+topActions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}
+  const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;
+  const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];
+  const enmLabel=enmNums.length===1?getTarEnmLabel(cc,enmNums[0]):enmNums.length>1?'Múltiples enmiendas':'Base contractual';
+  const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';
+  const srcLabel=t?.source==='WORD_IA'?'IA Word':t?.source==='EXCEL'?'Excel':t?.source||'Manual';
+  let h=importCtl+topActions;
+  h+='<div class="tar-period-nav">';
+  periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});
+  h+='</div>';
+  h+=`<div class="tar-period-meta"><span class="tar-period-tag">Período: ${periodLabel}</span><span class="tar-period-tag">Origen: ${enmLabel}</span><span class="tar-period-tag neutral">Fuente: ${esc(srcLabel)}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span></div>`;
+  h+='<div class="tar-tabs">';
+  visible.forEach((tab,vi)=>{h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});
+  h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';
+  if(t&&t.cols&&t.rows){
+    let rows=[...t.rows];
+    if(_tarSort.ci!==null){const ci=_tarSort.ci,dir=_tarSort.dir;rows.sort((a,b)=>{const av=a[ci]??'',bv=b[ci]??'';const an=parseFloat(av),bn=parseFloat(bv);if(!isNaN(an)&&!isNaN(bn))return(an-bn)*dir;return String(av).localeCompare(String(bv))*dir;});}
+    h+='<div class="tar-wrap"><div style="overflow-x:auto;position:relative"><table class="tar-tbl"><thead><tr>';
+    t.cols.forEach((col,ci)=>{const on=_tarSort.ci===ci,ico=on?(_tarSort.dir===1?'↑':'↓'):'↕',isN=isNumericCol(t,ci);h+=`<th onclick="sortTar(${ci})"><span>${esc(col)}</span><span class="tsi ${on?'on':''}">${ico}</span>${isN?'<span style="font-size:8px;opacity:.25;margin-left:2px">#</span>':''}<button class="col-del" onclick="event.stopPropagation();delTarCol(${t._idx},${ci})">✕</button></th>`;});
+    h+='<th style="width:36px;background:var(--g200)"></th></tr></thead><tbody>';
+    rows.forEach((row,ri)=>{const origRi=t.rows.indexOf(row);h+='<tr>';t.cols.forEach((col,ci)=>{const isN=isNumericCol(t,ci),raw=row[ci];const dv=isN&&raw!==''&&raw!=null?fN(raw):String(raw??'');h+=`<td><input type="text" class="${isN?'num':''}" value="${esc(dv)}" onchange="editTarCell(${t._idx},${origRi>=0?origRi:ri},${ci},this.value)"></td>`;});h+=`<td style="border:none;position:relative"><button class="btn btn-d btn-sm" style="position:absolute;left:4px;top:50%;transform:translateY(-50%);padding:3px 6px;font-size:10px" onclick="delTarRow(${t._idx},${origRi>=0?origRi:ri})">✕</button></td></tr>`;});
+    h+='</tbody></table></div>';
+    h+=`<div class="tar-actions"><button class="btn btn-p btn-sm" onclick="openPriceListImportPicker()">🤖 Importar listas</button><button class="btn btn-s btn-sm" onclick="addTarRow(${t._idx})">＋ Fila</button><button class="btn btn-s btn-sm" onclick="addTarCol(${t._idx})">＋ Columna</button><button class="btn btn-s btn-sm" onclick="renameTarTable(${t._idx})">✏️ Renombrar</button><button class="btn btn-d btn-sm" onclick="delTarTable(${t._idx})">🗑️ Eliminar tabla seleccionada</button><button class="btn btn-s btn-sm" onclick="_tarSort={ci:null,dir:1};renderTarifario()">↺ Sin orden</button><span style="margin-left:auto;font-size:11px;color:var(--g500)">${rows.length} ítems · ${esc(t.sourceFileName||'origen manual')}</span></div></div>`;
+  }
+  box.innerHTML=h;
+}
 function switchTarTab(i){_tarTab=i;renderTarifario();}
 function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_tarSort.dir=1;}renderTarifario();}
 
@@ -3254,7 +3391,8 @@ function parseExcelDate(v){
 // ═══════════════════════════════════════════════════════════════════════
 //  PROVEEDORES MODULE
 // ═══════════════════════════════════════════════════════════════════════
-// Usa el PROV_DB global y la saveProv async definidos arriba.
+let PROV_DB=[];
+function saveProv(){localStorage.setItem('prov_v1',JSON.stringify(PROV_DB));localStorage.setItem('contr_v1',JSON.stringify(PROV_DB));}
 // loadProv is defined above as async (loads from Supabase contratistas table)
 
 function updNavProv(){
@@ -3494,18 +3632,14 @@ async function saveProvModal(editId){
   };
   if(editId){const i=PROV_DB.findIndex(p=>p.id===editId);if(i>=0)PROV_DB[i]=prov;else PROV_DB.push(prov);} else PROV_DB.push(prov);
   await saveProv();
-  if (SB_OK) await loadProv();
-  closeProvModal();updNav();updNavProv();_provDet=prov.id;renderProv();
+  closeProvModal();updNavProv();_provDet=prov.id;renderProv();
   toast('Contratista guardado','ok');
 }
 
 function closeProvModal(){document.getElementById('provModalBack').style.display='none';}
-async function deleteProv(id){
+function deleteProv(id){
   if(!confirm('¿Eliminar este proveedor?'))return;
-  PROV_DB=PROV_DB.filter(p=>p.id!==id);
-  await saveProv();
-  if (SB_OK) await loadProv();
-  renderProvList();updNav();updNavProv();toast('Eliminado','ok');
+  PROV_DB=PROV_DB.filter(p=>p.id!==id);saveProv();renderProvList();updNavProv();toast('Eliminado','ok');
 }
 
 // ── SAP Vendors Import ────────────────────────────────────────────────────
@@ -3539,68 +3673,27 @@ function importProvModal(){
 
 function processSapProvImport(input){
   const file=input.files[0];if(!file)return;
-  const resultBox=document.getElementById('sapProvResult');
-  if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px">Procesando <strong>${esc(file.name)}</strong>…</div>`;
   const reader=new FileReader();
   reader.onload=async e=>{
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      if(!json.length){ throw new Error('El Excel está vacío.'); }
-
-      const headers=(json[0]||[]).map(v=>String(v||'').trim());
-      const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-      const headerNorm=headers.map(norm);
-      let nameIdx=headerNorm.findIndex(h=>['name of vendor','vendor name','name vendor','proveedor','nombre proveedor','nombre'].includes(h));
-      let vendorIdx=headerNorm.findIndex(h=>['vendor2','vendor','vendor number','numero vendor','n vendor','nro vendor'].includes(h));
-      if(nameIdx<0) nameIdx=0;
-      if(vendorIdx<0) vendorIdx=1;
-
-      const existingVendorSet=new Set((PROV_DB||[]).map(p=>String(p.vendorNum||'').trim()).filter(Boolean));
-      const existingNameSet=new Set((PROV_DB||[]).map(p=>norm(p.name)).filter(Boolean));
-      const staged=[];
-      let added=0,skipped=0,empty=0;
-
+      let added=0,skipped=0;
       for(let i=1;i<json.length;i++){
-        const r=json[i]||[];
-        const nameRaw=String(r[nameIdx]||'').trim();
-        const vnum=String(r[vendorIdx]||'').trim();
-        if(!nameRaw||norm(nameRaw)==='nan'){ empty++; continue; }
+        const r=json[i];
+        const nameRaw=String(r[0]||'').trim();
+        const vnum=String(r[1]||'').trim();
+        if(!nameRaw||nameRaw==='nan')continue;
         const cleanName=nameRaw.replace(/^\d+\s+/,'').trim();
-        const cleanNameNorm=norm(cleanName);
-        if((vnum && existingVendorSet.has(vnum)) || (!vnum && existingNameSet.has(cleanNameNorm))){ skipped++; continue; }
-        existingVendorSet.add(vnum);
-        existingNameSet.add(cleanNameNorm);
-        staged.push({
-          id:'prov_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)+'_'+i,
-          name:cleanName,
-          vendorNum:vnum,
-          rubro:'',website:'',obs:'',contacts:[],brochure:null,
-          createdAt:new Date().toISOString()
-        });
+        if(vnum && PROV_DB.find(p=>String(p.vendorNum||'').trim()===vnum)){skipped++;continue;}
+        PROV_DB.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+added,name:cleanName,vendorNum:vnum,rubro:'',website:'',obs:'',contacts:[],brochure:null,createdAt:new Date().toISOString()});
         added++;
       }
-
-      if(!staged.length){
-        if(resultBox) resultBox.innerHTML=`<div class="info-box amber" style="margin-top:10px">No se agregaron proveedores nuevos. ${skipped} ya existían${empty?`, ${empty} filas vacías`:''}.</div>`;
-        toast('No había proveedores nuevos para importar','er');
-        return;
-      }
-
-      PROV_DB = [...PROV_DB, ...staged];
-      if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px">Importados <strong>${added}</strong> proveedores. Sincronizando con Supabase…</div>`;
-      await saveProv();
-      if (SB_OK) await loadProv();
-      updNav(); updNavProv(); renderProvList();
-      if(resultBox) resultBox.innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados y sincronizados. ${skipped} ya existían${empty?`, ${empty} filas vacías`:''}.</div>`;
-      toast(`${added} contratistas de SAP importados${SB_OK?' y sincronizados':''}`,'ok');
-    }catch(err){
-      console.error(err);
-      const msg = err && err.message ? err.message : 'Error desconocido';
-      if(resultBox) resultBox.innerHTML=`<div class="info-box amber" style="margin-top:10px"><strong>Error al importar/sincronizar:</strong><br>${esc(msg)}</div>`;
-      toast('Error procesando o sincronizando el archivo','er');
-    }
+      await saveProv();updNavProv();renderProvList();
+      document.getElementById('sapProvResult').innerHTML=`<div class="info-box blue" style="margin-top:10px"><strong>${added}</strong> contratistas importados. ${skipped} ya existían.</div>`;
+      toast(`${added} contratistas de SAP importados`,'ok');
+    }catch(err){toast('Error procesando el archivo','er');console.error(err);}
   };
   reader.readAsArrayBuffer(file);
 }
