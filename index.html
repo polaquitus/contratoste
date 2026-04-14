@@ -4216,8 +4216,6 @@ async function delAveById(aveId) {
   if(typeof parsePriceListExcelFile==='function'){ var __origParse=parsePriceListExcelFile; parsePriceListExcelFile=async function(file,cc){ var buf=await file.arrayBuffer(); var wb=XLSX.read(new Uint8Array(buf),{type:'array'}); var sheetName=wb.SheetNames.find(function(n){return String(n||'').toLowerCase().includes('tarifario final');}); if(sheetName){ var ws=wb.Sheets[sheetName]; var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); var periodRow=rows.find(function(r){return Array.isArray(r)&&r.some(function(v){return v instanceof Date;});})||[]; var foundDate=periodRow.find(function(v){return v instanceof Date;}); var period=__toYm(foundDate)||(cc&&cc.btar)||(cc&&cc.fechaIni&&cc.fechaIni.substring(0,7))||null; var out=[__parseServicioBasico(rows,period,file.name),__parseEventuales(rows,period,file.name),__parseCalcareo(rows,period,file.name)].filter(Boolean); if(out.length) return out; } return __origParse(file,cc); }; }
   fN=function(n){ if(n==null||n==='') return '—'; if(typeof n==='string'){ var s=n.trim(); if(/^\d+[\.,]\d+$/.test(s)&&!s.includes('$')) return s.replace('.',','); } var num=Number(n); if(!Number.isFinite(num)) return String(n); return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   if(typeof isNumericCol==='function'){ var __origIsNumericCol=isNumericCol; isNumericCol=function(tar,ci){ var col=String((tar&&tar.cols&&tar.cols[ci])||'').toLowerCase(); if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item|n item)(\s|$)/.test(col)) return false; return __origIsNumericCol(tar,ci); }; }
-  if(typeof delTarTable==='function'){ delTarTable=function(i){ if(!confirm('Eliminar esta tabla del tarifario?')) return; var tars=(typeof getTar==='function'?(getTar()||[]):[]); tars.splice(i,1); if(!tars.length){ _tarTab=0; _tarPeriod=null; if(typeof setTar==='function') setTar([]); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok'); return; } if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1); if(typeof setTar==='function') setTar(tars); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Tabla eliminada','ok'); }; }
-  setTimeout(function(){ try{ ensureGlobalTarAiInput(); setVersionBadgeV14(); }catch(_e){} },0);
 })();
 
 
@@ -4235,7 +4233,7 @@ async function delAveById(aveId) {
     function boolActive(v){ return !(v===false || String(v)==='false'); }
     function ensureNav(){ var nav=document.querySelector('.sb-nav'); if(!nav) return; if(q('navUsersModule')){ refs.nav=q('navUsersModule'); return; } var sec=make('div','sb-sec','Administracion'); var a=make('a','nv'); a.id='navUsersModule'; a.href='#'; var s1=make('span','ni','U'); var s2=make('span','', 'Usuarios'); a.appendChild(s1); a.appendChild(s2); a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); }); nav.appendChild(sec); nav.appendChild(a); refs.nav=a; }
     function ensureView(){ var ct=document.querySelector('.ct'); if(!ct) return; if(q('vUsersModule')){ refs.root=q('vUsersModule'); refs.body=q('usersModuleBody'); refs.count=q('usersModuleCount'); return; } var wrap=make('div','vw'); wrap.id='vUsersModule'; var card=make('div','card'); var hdr=make('div','thdr'); hdr.appendChild(make('h2','', 'Administracion de Usuarios')); var cnt=make('span','tcnt','0'); cnt.id='usersModuleCount'; hdr.appendChild(cnt); var fl=make('div','tfl'); var note=make('div','info-box amber','Por seguridad, las contrasenas actuales no se muestran. Se permite alta, edicion, cambio de estado, eliminacion y reseteo de contrasena.'); note.style.margin='0'; note.style.width='100%'; fl.appendChild(note); var body=make('div',''); body.id='usersModuleBody'; card.appendChild(hdr); card.appendChild(fl); card.appendChild(body); wrap.appendChild(card); ct.appendChild(wrap); refs.root=wrap; refs.body=body; refs.count=cnt; buildModal(); body.addEventListener('click', onBodyClick); }
-    function buildModal(){ if(q('usersModuleModalBack')){ cacheModal(); return; } var back=make('div',''); back.id='usersModuleModalBack'; back.style.display='none'; back.style.position='fixed'; back.style.inset='0'; back.style.background='rgba(0,0,0,.45)'; back.style.zIndex='700'; back.style.alignItems='center'; back.style.justifyContent='center'; var box=make('div',''); box.style.background='var(--w)'; box.style.borderRadius='14px'; box.style.boxShadow='0 20px 60px rgba(0,0,0,.3)'; box.style.width='620px'; box.style.maxWidth='96vw'; box.style.maxHeight='92vh'; box.style.overflowY='auto'; var hdr=make('div','idx-modal-hdr'); var ttl=make('h3','', 'Nuevo usuario'); ttl.id='usersModuleModalTitle'; var x=make('button','btn btn-s btn-sm','X'); x.type='button'; x.addEventListener('click', closeModal); hdr.appendChild(ttl); hdr.appendChild(x); var body=make('div','idx-modal-body'); var grid=make('div','fg fg2'); var g1=make('div','fgrp'); g1.appendChild(make('label','', 'Usuario')); var inpUser=make('input',''); inpUser.type='text'; inpUser.id='usersModuleUser'; g1.appendChild(inpUser); var g2=make('div','fgrp'); g2.appendChild(make('label','', 'Rol')); var selRole=make('select',''); selRole.id='usersModuleRole'; ['OWNER','ING_CONTRATOS','RESP_TECNICO','SIN_ROL'].forEach(function(v){ var o=make('option','',v); o.value=v; selRole.appendChild(o); }); g2.appendChild(selRole); var g3=make('div','fgrp'); g3.appendChild(make('label','', 'Contrasena temporal')); var inpPass=make('input',''); inpPass.type='text'; inpPass.id='usersModulePass'; g3.appendChild(inpPass); var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(xo){ var o=make('option','',xo.t); o.value=xo.v; selActive.appendChild(o); }); g4.appendChild(selActive); grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
+    function buildModal(){ if(q('usersModuleModalBack')){ cacheModal(); return; } var back=make('div',''); back.id='usersModuleModalBack'; back.style.display='none'; back.style.position='fixed'; back.style.inset='0'; back.style.background='rgba(0,0,0,.45)'; back.style.zIndex='700'; back.style.alignItems='center'; back.style.justifyContent='center'; var box=make('div',''); box.style.background='var(--w)'; box.style.borderRadius='14px'; box.style.boxShadow='0 20px 60px rgba(0,0,0,.3)'; box.style.width='620px'; box.style.maxWidth='96vw'; box.style.maxHeight='92vh'; box.style.overflowY='auto'; var hdr=make('div','idx-modal-hdr'); var ttl=make('h3','', 'Nuevo usuario'); ttl.id='usersModuleModalTitle'; var x=make('button','btn btn-s btn-sm','X'); x.type='button'; x.addEventListener('click', closeModal); hdr.appendChild(ttl); hdr.appendChild(x); var body=make('div','idx-modal-body'); var grid=make('div','fg fg2'); var g1=make('div','fgrp'); g1.appendChild(make('label','', 'Usuario')); var inpUser=make('input',''); inpUser.type='text'; inpUser.id='usersModuleUser'; g1.appendChild(inpUser); var g2=make('div','fgrp'); g2.appendChild(make('label','', 'Rol')); var selRole=make('select',''); selRole.id='usersModuleRole'; ['OWNER','ING_CONTRATOS','RESP_TECNICO','SIN_ROL','ADMIN'].forEach(function(v){ var o=make('option','',v); o.value=v; selRole.appendChild(o); }); g2.appendChild(selRole); var g3=make('div','fgrp'); g3.appendChild(make('label','', 'Contrasena temporal')); var inpPass=make('input',''); inpPass.type='text'; inpPass.id='usersModulePass'; g3.appendChild(inpPass); var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(xo){ var o=make('option','',xo.t); o.value=xo.v; selActive.appendChild(o); }); g4.appendChild(selActive); grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
     function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
     function setHeader(){ var t=q('pgT'); var a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v15 · Users Module'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
     function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
@@ -4259,19 +4257,27 @@ async function delAveById(aveId) {
 })();
 
 
-/* ==== PATCH v16: permisos por rol (fase 2) ==== */
+/* ==== PATCH v17: corrige permisos y rol OWNER/ADMIN ==== */
 (function(){
+  function currentRole(){
+    try{
+      var r=(typeof _APP_ROLE!=='undefined' && _APP_ROLE) ? _APP_ROLE : (window._APP_ROLE || 'SIN_ROL');
+      r=String(r||'SIN_ROL').toUpperCase();
+      if(r==='ADMIN' || r==='ADMIN_USUARIOS') return 'OWNER';
+      return r;
+    }catch(_e){ return 'SIN_ROL'; }
+  }
   var ROLE_MODULES={
     OWNER:['list','form','detail','me2n','idx','licit','prov','users'],
     ING_CONTRATOS:['list','form','detail','me2n','licit','prov'],
     RESP_TECNICO:['list','detail','me2n'],
     SIN_ROL:['list','detail']
   };
-
-  function roleKey(){ return String(window._APP_ROLE||'SIN_ROL').toUpperCase(); }
-  function allowedFor(role){ return ROLE_MODULES[role] || ROLE_MODULES['SIN_ROL']; }
-  function canAccess(view){ return allowedFor(roleKey()).indexOf(view)>=0; }
-
+  function canAccess(mod){
+    var role=currentRole();
+    var arr=ROLE_MODULES[role] || ROLE_MODULES.SIN_ROL;
+    return arr.indexOf(mod)>=0;
+  }
   function attachModuleIds(){
     var navs=document.querySelectorAll('.sb-nav .nv');
     if(navs[0]) navs[0].setAttribute('data-mod','list');
@@ -4280,92 +4286,48 @@ async function delAveById(aveId) {
     if(navs[3]) navs[3].setAttribute('data-mod','idx');
     if(navs[4]) navs[4].setAttribute('data-mod','licit');
     if(navs[5]) navs[5].setAttribute('data-mod','prov');
-    var users=document.getElementById('navUsersModule');
-    if(users) users.setAttribute('data-mod','users');
+    var users=document.getElementById('navUsersModule'); if(users) users.setAttribute('data-mod','users');
   }
-
-  function hideOrShowNav(){
+  function applyPermissionsV17(){
     attachModuleIds();
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){
       var mod=el.getAttribute('data-mod');
       el.style.display = canAccess(mod) ? '' : 'none';
     });
-  }
-
-  function hidePageActions(){
     var tba=document.getElementById('pgA');
-    if(!tba) return;
-    if(!canAccess('form')){
+    if(tba){
       tba.querySelectorAll('button').forEach(function(btn){
         var txt=(btn.textContent||'').toLowerCase();
-        if(txt.indexOf('nuevo contrato')>=0) btn.style.display='none';
+        if(txt.indexOf('nuevo contrato')>=0) btn.style.display = canAccess('form') ? '' : 'none';
       });
     }
-  }
-
-  function applyRolePermissionsV16(){
-    hideOrShowNav();
-    hidePageActions();
     var sbBtn=document.getElementById('sbLogoutBtn');
-    if(sbBtn) sbBtn.style.display = window._APP_USER ? 'inline-flex' : 'none';
+    if(sbBtn) sbBtn.style.display = (typeof _APP_USER!=='undefined' && _APP_USER) ? 'inline-flex' : 'none';
+    try{ var b=document.getElementById('buildTag'); if(b) b.textContent='v17 · Permissions Fixed'; }catch(_e){}
   }
 
   if(typeof applyRolePermissions==='function'){
-    var __origApplyRolePermissions = applyRolePermissions;
-    applyRolePermissions = function(){
-      try{ __origApplyRolePermissions.apply(this, arguments); }catch(_e){}
-      try{ applyRolePermissionsV16(); }catch(err){ console.error('applyRolePermissionsV16', err); }
-    };
-  }else{
-    window.applyRolePermissions = applyRolePermissionsV16;
+    var __origApply=applyRolePermissions;
+    applyRolePermissions=function(){ var out=__origApply.apply(this,arguments); setTimeout(applyPermissionsV17,0); return out; };
   }
 
   if(typeof go==='function'){
-    var __origGoV16 = go;
-    go = function(v){
+    var __origGo17=go;
+    go=function(v){
       var map={list:'list',form:'form',detail:'detail',me2n:'me2n',idx:'idx',licit:'licit',prov:'prov',users:'users'};
       var mod=map[v] || 'list';
       if(!canAccess(mod)){
         if(typeof toast==='function') toast('Tu rol no tiene permiso para entrar a este modulo','er');
-        if(v!=='list' && typeof __origGoV16==='function') return __origGoV16.call(this,'list');
-        return;
+        return __origGo17.call(this,'list');
       }
-      var out=__origGoV16.apply(this, arguments);
-      setTimeout(applyRolePermissionsV16,0);
+      var out=__origGo17.apply(this,arguments);
+      setTimeout(applyPermissionsV17,0);
       return out;
     };
   }
 
-  function renderPermissionsLegend(){
-    var root=document.getElementById('usersModuleBody');
-    if(!root) return;
-    if(document.getElementById('rolePermLegend')) return;
-    var box=document.createElement('div');
-    box.id='rolePermLegend';
-    box.className='info-box blue';
-    box.style.margin='10px 0';
-    box.innerHTML='OWNER: todos los modulos. ING_CONTRATOS: Contratos, Nuevo Contrato, Purchase Orders, Licitaciones y Proveedores. RESP_TECNICO: Contratos (sin alta) y Purchase Orders. SIN_ROL: solo Lista y Detalle.';
-    root.parentNode.insertBefore(box, root);
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){
-      try{ attachModuleIds(); applyRolePermissionsV16(); }catch(err){ console.error('perm init', err); }
-    },0);
-  });
-
-  setTimeout(function(){
-    try{ attachModuleIds(); applyRolePermissionsV16(); }catch(err){ console.error('perm delayed', err); }
-  },0);
-
-  var __oldRenderUsersView = window.renderUsersView;
-  if(typeof __oldRenderUsersView==='function'){
-    window.renderUsersView = function(){
-      var out=__oldRenderUsersView.apply(this, arguments);
-      renderPermissionsLegend();
-      return out;
-    };
-  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(applyPermissionsV17,0); });
+  setTimeout(applyPermissionsV17,0);
 })();
 
 </script>
