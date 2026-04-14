@@ -251,6 +251,24 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 .avg-ctl input[type=number]{width:42px;padding:3px 5px;font-size:11px;text-align:center}
 /* Section h3 */
 .section-box h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* AVE v2 */
+.ave-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-radius:var(--rad);overflow:hidden;border:1.5px solid var(--p200);margin-bottom:14px}
+.ave-tot-cell{padding:10px 14px;text-align:center;background:var(--p50)}
+.ave-tot-cell:not(:last-child){border-right:1px solid var(--p200)}
+.ave-tot-cell .atl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--p600);margin-bottom:2px}
+.ave-tot-cell .atv{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:800;color:var(--p900)}
+.ave-tot-cell.warn .atv{color:var(--r500)}
+.ave-warn-banner{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--r100);border:1.5px solid var(--r500);border-radius:var(--rad);margin-bottom:12px;font-size:12px;font-weight:600;color:var(--r500)}
+/* AVE Owner panel */
+.ave-owner-panel{background:var(--b100);border:2px solid #93c5fd;border-radius:var(--radl);padding:20px;margin-top:14px;display:none}
+.ave-owner-panel.vis{display:block}
+.ave-owner-panel h4{font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+/* ENM concept badge claus */
+.ep.cl{background:#ede9fe;color:#5b21b6}
+/* AVE limit input */
+.ave-limit-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--g50);border-radius:var(--rad);border:1px solid var(--g200);margin-bottom:12px;font-size:12px}
+.ave-limit-row label{font-weight:600;color:var(--g700);white-space:nowrap}
+.ave-limit-row input{width:140px}
 
 
 /* ══════════ MASTER DE ÍNDICES ══════════════════════════════════ */
@@ -810,33 +828,68 @@ function loadMe2n() {}
 function loadIdx() { /* handled by initApp */ }
 function loadLicit() { /* handled by initApp */ }
 async function loadProv() {
-  try {
-    if (SB_OK) {
-      try {
-        PROV_DB = await sbLoadTable('contratistas');
-        if (PROV_DB.length) {
-          localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
-          localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
-          return;
-        }
-      } catch(e1) {
-        console.warn('No se pudo cargar contratistas, intentando proveedores...', e1);
+  // Try Supabase first
+  if (SB_OK) {
+    // Attempt 1: table 'contratistas' with native columns (id, vendor_num, nombre, email, telefono, rubro, payload, active)
+    try {
+      const rows = await sbFetch('contratistas', 'GET', null, '?select=id,vendor_num,nombre,email,telefono,rubro,payload,active&active=eq.true&order=nombre.asc&limit=5000');
+      if (Array.isArray(rows) && rows.length) {
+        PROV_DB = rows.map(r => {
+          let extra = {};
+          try { extra = (typeof r.payload === 'object' ? r.payload : JSON.parse(r.payload || '{}')) || {}; } catch(e) {}
+          return {
+            id: r.id || extra.id || String(r.vendor_num || ''),
+            name: r.nombre || extra.name || '',
+            vendorNum: r.vendor_num || extra.vendorNum || '',
+            email: r.email || extra.email || '',
+            telefono: r.telefono || extra.telefono || '',
+            rubro: r.rubro || extra.rubro || '',
+            __sbId: r.id,
+            __sbNative: true,
+            ...extra
+          };
+        });
+        localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+        localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+        updNav(); if(typeof updNavProv==='function') updNavProv();
+        return;
       }
-      try {
-        PROV_DB = await sbLoadTable('proveedores');
-        if (PROV_DB.length) {
-          localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
-          localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
-          try { await sbReplaceContratistas(); } catch(e2) { console.warn('No se pudo migrar proveedores→contratistas', e2); }
-          return;
-        }
-      } catch(e3) {
-        console.warn('No se pudo cargar proveedores', e3);
-      }
+    } catch(e1) {
+      console.warn('[loadProv] contratistas native columns failed, trying datos column...', e1.message);
     }
-  } catch(e) { console.warn('loadProv fallback', e); }
-  try { PROV_DB = JSON.parse(localStorage.getItem('contr_v1')) || JSON.parse(localStorage.getItem('prov_v1')) || []; }
-  catch(e){ PROV_DB = []; }
+    // Attempt 2: table 'contratistas' with datos column (legacy format)
+    try {
+      const rows2 = await sbFetch('contratistas', 'GET', null, '?select=id,datos&order=id.asc&limit=5000');
+      if (Array.isArray(rows2) && rows2.length && rows2[0].datos !== undefined) {
+        PROV_DB = rows2.map(r => { try { const o = JSON.parse(r.datos); o.__sbId = r.id; return o; } catch(e){ return null; } }).filter(Boolean);
+        if (PROV_DB.length) {
+          localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+          localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+          updNav(); if(typeof updNavProv==='function') updNavProv();
+          return;
+        }
+      }
+    } catch(e2) {
+      console.warn('[loadProv] contratistas datos column failed, trying proveedores...', e2.message);
+    }
+    // Attempt 3: legacy 'proveedores' table
+    try {
+      PROV_DB = await sbLoadTable('proveedores');
+      if (PROV_DB.length) {
+        localStorage.setItem('contr_v1', JSON.stringify(PROV_DB));
+        localStorage.setItem('prov_v1', JSON.stringify(PROV_DB));
+        updNav(); if(typeof updNavProv==='function') updNavProv();
+        return;
+      }
+    } catch(e3) {
+      console.warn('[loadProv] proveedores also failed:', e3.message);
+    }
+  }
+  // Fallback: localStorage
+  try {
+    PROV_DB = JSON.parse(localStorage.getItem('contr_v1')) || JSON.parse(localStorage.getItem('prov_v1')) || [];
+  } catch(e){ PROV_DB = []; }
+  updNav(); if(typeof updNavProv==='function') updNavProv();
 }
 
 async function save() {
@@ -904,7 +957,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';renderProv();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(()=>{renderProv();toast(PROV_DB.length+' proveedores','ok');}).catch(e=>toast('Error: '+e.message,'er'))">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(()=>renderProv()).catch(()=>renderProv());}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -1257,7 +1310,7 @@ function renderDet(){
     sAves.forEach(a=>{
       const prev=cumTV,newTV=cumTV+(a.monto||0);cumTV=newTV;
       const isPoly=a.tipo==='POLINOMICA';
-      const tipoLabel=isPoly?'🔄 Polinómica':(a.subtipo||a.tipo);
+      const subtipoLabel=isPoly?'🔄 Polinómica':(a.subtipo==='EXTENSION PLAZO'?'📅 Ext.Plazo':a.subtipo==='ACTUALIZACION TARIFAS'?'💰 Act.Tar':a.subtipo==='SCOPE MAYOR'?'🔧 +Scope':a.subtipo==='SCOPE MENOR'?'📉 -Scope':a.subtipo==='CLAUSULAS'?'📋 Cláusulas':a.subtipo||'💬 Owner');
       aveRows+=`<tr>
         <td><span class="bdg ${isPoly?'poly':'owner'}">${isPoly?'POLI':'OWNER'}</span>${a.autoGenerated?'<span class="bdg auto-b" style="margin-left:3px">AUTO</span>':''}</td>
         <td class="mono" style="font-size:11px">${a.enmRef?'Enm.'+a.enmRef:'—'}</td>
@@ -1265,14 +1318,14 @@ function renderDet(){
         <td class="mono">${fN(prev)}</td>
         <td class="mono" style="font-weight:700;color:${isPoly?'#92400e':'var(--b500)'}">+${fN(a.monto||0)}</td>
         <td class="mono" style="font-weight:700">${fN(newTV)}</td>
-        <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.concepto||tipoLabel)}</td>
+        <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.concepto||subtipoLabel)}</td>
         <td><button class="btn btn-d btn-sm" onclick="delAveById('${a.id}')">🗑️</button></td>
       </tr>`;
     });
     let enmRows='';
     if(!enms.length)enmRows='<tr><td colspan="6" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin enmiendas registradas</td></tr>';
     enms.forEach((e, idx)=>{
-      const tc=e.tipo==='ACTUALIZACION_TARIFAS'?'tar':e.tipo==='EXTENSION'?'ext':e.tipo==='SCOPE'?'sc':'ot';
+      const tc=e.tipo==='ACTUALIZACION_TARIFAS'?'tar':e.tipo==='EXTENSION'?'ext':e.tipo==='SCOPE'?'sc':e.tipo==='CLAUSULAS'?'cl':'ot';
       const tl=e.tipo==='ACTUALIZACION_TARIFAS'?'📐 Act.Tarifas':e.tipo==='EXTENSION'?'📅 Extensión':e.tipo==='SCOPE'?'🔧 Scope':e.tipo==='CLAUSULAS'?'📋 Cláusulas':'💬 Otro';
       const extra=e.tipo==='EXTENSION'&&e.fechaFinNueva?'→ '+fD(e.fechaFinNueva):e.tipo==='ACTUALIZACION_TARIFAS'&&e.pctPoli?' +'+((e.pctPoli||0)*100).toFixed(2)+'% · '+formatMonth(e.basePeriodo||'')+'→'+formatMonth(e.nuevoPeriodo||''):'';
       const corrBdg=e.correccionDeEnm?`<span class="bdg corr">CORR.ENM.${e.correccionDeEnm}</span> `:'';
@@ -1310,13 +1363,126 @@ function renderDet(){
         </div>
       </div>
       <div class="section-box">
-        <h3>📑 Historial de Enmiendas <span class="tcnt">${enms.length} registradas</span></h3>
-        <table class="enm-tbl"><thead><tr><th>#</th><th>Tipo</th><th>Detalle</th><th>Fecha</th><th>Descripción</th><th></th></tr></thead><tbody>${enmRows}</tbody></table>
-        <div style="margin-top:12px">
+        <h3>📑 Enmiendas <span class="tcnt">${enms.length} registradas</span></h3>
+        <table class="enm-tbl"><thead><tr><th>#</th><th>Tipo / Concepto</th><th>Detalle</th><th>Fecha</th><th>Descripción</th><th></th></tr></thead><tbody>${enmRows}</tbody></table>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-p btn-sm" onclick="openEnmPanel()">📑 + Nueva Enmienda</button>
-          <button class="btn btn-s btn-sm" onclick="openEnmImportPicker()" style="margin-left:8px">🤖 Importar PDF / DOC / DOCX con IA</button>
-          <button class="btn btn-d btn-sm" onclick="resetSection('enmiendas')" style="margin-left:8px">🗑 Reset Enmiendas</button>
+          <button class="btn btn-s btn-sm" onclick="openEnmImportPicker()">🤖 Importar PDF/DOC con IA</button>
+          <button class="btn btn-d btn-sm" onclick="resetSection('enmiendas')">🗑 Reset</button>
           <input type="file" id="enmPdfIn" accept=".pdf,.docx,.doc" multiple style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importEnmPdfs(this.files)">
+        </div>
+        <div class="enm-panel" id="enmPanel">
+          <div class="cond-tag">📑 Nueva Enmienda — N°${enms.length+1}</div>
+          <div class="fg2" style="gap:14px 18px">
+            <div class="fgrp">
+              <label>Concepto <span class="req">*</span></label>
+              <select id="ne_tipo" onchange="onEnmTipoChange()">
+                <option value="">— Seleccioná el concepto —</option>
+                <option value="EXTENSION">📅 Extensión de fecha (inicio/fin)</option>
+                <option value="ACTUALIZACION_TARIFAS">💰 Actualización de tarifas</option>
+                <option value="CLAUSULAS">📋 Actualización de cláusulas</option>
+                <option value="SCOPE">🔧 Actualización de alcance (scope)</option>
+                <option value="OTRO">💬 Otro</option>
+              </select>
+            </div>
+            <div class="fgrp">
+              <label>N° Enmienda</label>
+              <input type="number" id="ne_num" value="${enms.length+1}" min="1" disabled style="background:var(--g100)">
+            </div>
+          </div>
+
+          <div id="enm_ext" style="display:none" class="enm-sub">
+            <h4>📅 Extensión de Fecha</h4>
+            <div class="info-box blue" style="margin-bottom:10px;font-size:11px">
+              Fecha fin actual: <strong>${fD(c.fechaFin||'')}</strong>${c._fechaFinOriginal&&c._fechaFinOriginal!==c.fechaFin?` · Original: <strong>${fD(c._fechaFinOriginal)}</strong>`:''}. La nueva fecha se vinculará automáticamente al contrato.
+            </div>
+            <div class="fg2">
+              <div class="fgrp">
+                <label>Tipo de extensión</label>
+                <select id="ne_ext_tipo">
+                  <option value="FIN">Extensión de fecha fin</option>
+                  <option value="INICIO">Modificación de fecha inicio</option>
+                  <option value="AMBAS">Ambas fechas</option>
+                </select>
+              </div>
+              <div class="fgrp">
+                <label>Nueva Fecha Fin <span class="req">*</span></label>
+                <input type="date" id="ne_ffin" min="${c.fechaFin||''}">
+              </div>
+            </div>
+          </div>
+
+          <div id="enm_poly" style="display:none" class="enm-sub">
+            <h4>💰 Actualización de Tarifas</h4>
+            <div class="fg2" style="margin-bottom:12px">
+              <div class="fgrp">
+                <label>Subtipo</label>
+                <select id="ne_tar_subtipo">
+                  <option value="POLINOMICA">Fórmula Polinómica</option>
+                  <option value="EXTRAORDINARIO">Ajuste Extraordinario</option>
+                  <option value="DESCALCE">Descalce</option>
+                </select>
+              </div>
+              <div class="fgrp">
+                <label>¿Corrige enmienda anterior?</label>
+                <div class="tw"><label class="tg"><input type="checkbox" id="ne_isCorr" onchange="onCorrToggle()"><span class="sl"></span></label><span class="tl" id="ne_isCorr_l">No</span></div>
+              </div>
+            </div>
+            <div id="ne_corrGrp" style="display:none;margin-bottom:12px">
+              <div class="fgrp">
+                <label>Corrige Enmienda N°</label>
+                <select id="ne_corrEnm" onchange="prefillCorrEnm()">
+                  <option value="">—</option>
+                  ${enms.filter(e=>e.tipo==='ACTUALIZACION_TARIFAS').map(e=>`<option value="${e.num}">N°${e.num} — ${e.nuevoPeriodo||''}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="fg2">
+              <div class="fgrp"><label>Período base (tarifario origen)</label><input type="month" id="ne_basePer" value="${c.btar||''}" onchange="buildPolyForm()"></div>
+              <div class="fgrp"><label>Nuevo período <span class="req">*</span></label><input type="month" id="ne_newPer" onchange="calcAveSug()"></div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:var(--p700);margin:10px 0 6px">📐 Términos de la fórmula polinómica:</div>
+            <div id="ne_polyTerms"></div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px 14px;background:var(--p100);border-radius:6px">
+              <span style="font-size:12px;font-weight:600;color:var(--p800)">% Polinómico total:</span>
+              <span id="ne_pctRes" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--p700)">0%</span>
+              <button class="btn btn-s btn-sm" onclick="previewPolyTar()">👁 Preview tarifario</button>
+            </div>
+            <div id="ne_tarPrev"></div>
+            <div class="ave-sug" id="ne_aveSug" style="display:none">
+              <h4>🟢 AVE Polinómica — se generará automáticamente al guardar</h4>
+              <div style="margin-bottom:6px;font-size:11px;color:var(--g700)" id="ne_aveFormula"></div>
+              <div style="font-size:11px;font-weight:600;color:var(--g700)">Monto calculado: <span class="sv" id="ne_aveMonto">—</span></div>
+              <div id="ne_obraGrp" style="display:none;margin:8px 0">
+                <label style="font-size:11px;font-weight:600">% avance pendiente (OBRA):</label>
+                <input type="number" id="ne_obraAdv" step="1" min="0" max="100" placeholder="%" oninput="calcAveSug()" style="width:120px;margin-top:4px">
+              </div>
+              <div style="margin-top:8px">
+                <label style="font-size:11px;font-weight:600;color:var(--g700)">Monto AVE manual (opcional):</label>
+                <input type="number" id="ne_aveManual" step="0.01" placeholder="Deja vacío para usar el calculado" oninput="onAveManualChange()" style="margin-top:4px;width:220px">
+                <div id="ne_aveManualNote" style="font-size:11px;color:var(--g600c);margin-top:3px;display:none"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="enm_mot_grp" style="display:none" class="enm-sub">
+            <h4 id="enm_mot_lbl">Descripción *</h4>
+            <div id="enm_scope_sub" style="display:none;margin-bottom:10px">
+              <div class="fgrp">
+                <label>Tipo de cambio de alcance</label>
+                <select id="ne_scope_tipo">
+                  <option value="MAYOR">Mayor scope (incremento de alcance)</option>
+                  <option value="MENOR">Menor scope (reducción de alcance)</option>
+                </select>
+              </div>
+            </div>
+            <textarea id="ne_mot" placeholder="Descripción detallada de la enmienda..." style="min-height:80px;width:100%"></textarea>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:18px">
+            <button class="btn btn-p" onclick="guardarEnm()">💾 Guardar Enmienda</button>
+            <button class="btn btn-s" onclick="closeEnmPanel()">Cancelar</button>
+          </div>
         </div>
       </div>
       <div class="section-box">
@@ -1324,10 +1490,73 @@ function renderDet(){
         ${renderTarSection(c)}
       </div>
       <div class="section-box">
-        <h3>🧾 Historial de AVEs <span class="tcnt">${aves.length} registrados</span></h3>
-        <table><thead><tr><th>Tipo</th><th>Enm</th><th>Período</th><th>Valor previo</th><th>Ajuste</th><th>Nuevo valor</th><th>Concepto</th><th></th></tr></thead><tbody>${aveRows}</tbody></table>
-        <div style="margin-top:12px">
+        <h3>🧾 AVEs <span class="tcnt">${aves.length} registrados</span></h3>
+        ${(()=>{
+          const ownerSum=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+          const polySum=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+          const aveLimit=c._aveOwnerLimit||250000;
+          const warnOwner=ownerSum>aveLimit;
+          return `<div class="ave-limit-row">
+            <label>⚠️ Límite advertencia AVE Owner:</label>
+            <input type="number" value="${aveLimit}" step="10000" min="0" placeholder="250000"
+              onchange="setAveLimit('${c.id}',this.value)" style="width:140px">
+            <span style="font-size:11px;color:var(--g600c)">${c.mon||'ARS'}</span>
+          </div>
+          ${warnOwner?`<div class="ave-warn-banner">⛔ AVE Owner acumulado (${c.mon||'ARS'} ${fN(ownerSum)}) supera el límite de advertencia de ${c.mon||'ARS'} ${fN(aveLimit)}.</div>`:''}
+          <div class="ave-totals">
+            <div class="ave-tot-cell"><div class="atl">Σ AVE Polinómica</div><div class="atv">${c.mon||'ARS'} ${fN(polySum)}</div></div>
+            <div class="ave-tot-cell ${warnOwner?'warn':''}"><div class="atl">Σ AVE Owner</div><div class="atv">${c.mon||'ARS'} ${fN(ownerSum)}</div></div>
+            <div class="ave-tot-cell"><div class="atl">Σ Total AVEs</div><div class="atv">${c.mon||'ARS'} ${fN(polySum+ownerSum)}</div></div>
+          </div>`;
+        })()}
+        <table><thead><tr><th>Tipo</th><th>Enm. Ref.</th><th>Período</th><th>Valor previo</th><th>Ajuste</th><th>Nuevo valor</th><th>Concepto</th><th></th></tr></thead><tbody>${aveRows}</tbody></table>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-p btn-sm" onclick="openAveOwnerPanel()">🔵 + AVE Owner Manual</button>
           <button class="btn btn-d btn-sm" onclick="resetSection('aves')">🗑 Reset AVEs</button>
+        </div>
+        <div class="ave-owner-panel" id="aveOwnerPanel">
+          <h4>🔵 Registrar AVE Owner</h4>
+          <div class="fg2" style="gap:14px 18px">
+            <div class="fgrp">
+              <label>Concepto / Subtipo <span class="req">*</span></label>
+              <select id="avo_sub" onchange="onAvoSubChange()">
+                <option value="">— Seleccioná —</option>
+                <option value="EXTENSION PLAZO">📅 Extensión de Plazo</option>
+                <option value="ACTUALIZACION TARIFAS">💰 Actualización de Tarifas</option>
+                <option value="SCOPE MAYOR">🔧 Incremento de Scope</option>
+                <option value="SCOPE MENOR">📉 Reducción de Scope</option>
+                <option value="CLAUSULAS">📋 Modificación de Cláusulas</option>
+                <option value="OTRO">💬 Otro</option>
+              </select>
+            </div>
+            <div class="fgrp">
+              <label>Referencia Enmienda</label>
+              <select id="avo_enm">
+                <option value="">— Sin referencia —</option>
+                ${enms.map(e=>`<option value="${e.num}">Enm. N°${e.num} — ${e.tipo==='ACTUALIZACION_TARIFAS'?'Act.Tarifas':e.tipo==='EXTENSION'?'Extensión':e.tipo==='SCOPE'?'Scope':e.tipo==='CLAUSULAS'?'Cláusulas':'Otro'}</option>`).join('')}
+              </select>
+            </div>
+            <div class="fgrp">
+              <label>Monto AVE <span class="req">*</span></label>
+              <input type="number" id="avo_monto" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="fgrp">
+              <label>Período (YYYY-MM)</label>
+              <input type="month" id="avo_per">
+            </div>
+            <div class="fgrp" id="avo_ffin_grp" style="display:none">
+              <label>Nueva Fecha Fin <span class="req">*</span></label>
+              <input type="date" id="avo_ffin">
+            </div>
+            <div class="fgrp" id="avo_otro_grp" style="display:none">
+              <label>Descripción</label>
+              <input type="text" id="avo_otro" placeholder="Describí el concepto...">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-p" onclick="saveAveOwner()">💾 Guardar AVE Owner</button>
+            <button class="btn btn-s" onclick="closeAveOwnerPanel()">Cancelar</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -1431,6 +1660,10 @@ function openEnmPanel(){
   if(numEl) numEl.value = nextNum;
   const tipoEl = document.getElementById('ne_tipo');
   if(tipoEl && !tipoEl.value) tipoEl.value = '';
+  // Reset sub-selects
+  const tarSub=document.getElementById('ne_tar_subtipo');if(tarSub)tarSub.value='POLINOMICA';
+  const scopeSub=document.getElementById('ne_scope_tipo');if(scopeSub)scopeSub.value='MAYOR';
+  const extSub=document.getElementById('ne_ext_tipo');if(extSub)extSub.value='FIN';
   if(typeof onEnmTipoChange==='function') onEnmTipoChange();
   panel.scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -1446,8 +1679,10 @@ window.closeEnmModal = function closeEnmModal() {
 function closeEnmPanel(){
   const panel = document.getElementById('enmPanel');
   if(panel) panel.classList.remove('vis');
-  const ids = ['ne_tipo','ne_ffin','ne_mot','ne_newPer','ne_aveManual'];
+  const ids = ['ne_tipo','ne_ffin','ne_mot','ne_newPer','ne_aveManual','ne_ext_tipo','ne_tar_subtipo','ne_scope_tipo','ne_basePer'];
   ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const aveSug=document.getElementById('ne_aveSug');if(aveSug)aveSug.style.display='none';
+  const tarPrev=document.getElementById('ne_tarPrev');if(tarPrev)tarPrev.innerHTML='';
   if(typeof onEnmTipoChange==='function') onEnmTipoChange();
 }
 
@@ -1458,20 +1693,9 @@ function openEnmImportPicker(){
 }
 
 
-function onAveTipoChange(){
-  const v=document.getElementById('av_tipo').value;
-  document.getElementById('av_sub_grp').style.display=v==='OWNER'?'':'none';
-  document.getElementById('av_poly_calc').style.display=v==='POLINOMICA'?'':'none';
-  // Enmienda required for POLINOMICA
-  document.getElementById('av_enm_req').innerHTML=v==='POLINOMICA'?'<span class="req">*</span>':'';
-  if(v!=='OWNER'){document.getElementById('av_sub').value='';document.getElementById('av_otro').value='';document.getElementById('av_ffin_grp').style.display='none';document.getElementById('av_otro_grp').style.display='none';}
-}
-
-function onAveSubChange(){
-  const v=document.getElementById('av_sub').value;
-  document.getElementById('av_ffin_grp').style.display=v==='EXTENSION PLAZO'?'':'none';
-  document.getElementById('av_otro_grp').style.display=v==='OTRO'?'':'none';
-}
+// onAveTipoChange / onAveSubChange — removidas, reemplazadas por onAvoSubChange
+function onAveTipoChange(){}
+function onAveSubChange(){}
 
 // POLY AVE CALC
 function calcPolyAve(){
@@ -1709,7 +1933,13 @@ function onEnmTipoChange(){
   document.getElementById('enm_ext').style.display=t==='EXTENSION'?'':'none';
   document.getElementById('enm_mot_grp').style.display=['SCOPE','CLAUSULAS','OTRO'].includes(t)?'':'none';
   document.getElementById('enm_poly').style.display=t==='ACTUALIZACION_TARIFAS'?'':'none';
-  if(['SCOPE','CLAUSULAS','OTRO'].includes(t)){const lbl={'SCOPE':'🔧 Alcance','CLAUSULAS':'📋 Cláusulas','OTRO':'💬 Descripción'};document.getElementById('enm_mot_lbl').textContent=(lbl[t]||'Descripción')+' *';}
+  const scopeSub=document.getElementById('enm_scope_sub');
+  if(scopeSub) scopeSub.style.display=t==='SCOPE'?'':'none';
+  if(['SCOPE','CLAUSULAS','OTRO'].includes(t)){
+    const lbl={'SCOPE':'🔧 Descripción del cambio de alcance *','CLAUSULAS':'📋 Descripción de las cláusulas modificadas *','OTRO':'💬 Descripción *'};
+    const lblEl=document.getElementById('enm_mot_lbl');
+    if(lblEl) lblEl.textContent=(lbl[t]||'Descripción *');
+  }
   if(t==='ACTUALIZACION_TARIFAS')buildPolyForm();
 }
 function onCorrToggle(){
@@ -1867,6 +2097,7 @@ async function guardarEnm(){
     }
     if(!cc._fechaFinOriginal) cc._fechaFinOriginal = cc.fechaFin;
     enm.fechaFinNueva = ff;
+    enm.extTipo = document.getElementById('ne_ext_tipo')?.value || 'FIN';
     cc.fechaFin = ff;
     cc.plazo = Math.max(((new Date(ff).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ff).getMonth()-new Date(cc.fechaIni).getMonth())),0);
   } else if(tipo==='ACTUALIZACION_TARIFAS'){
@@ -1878,6 +2109,7 @@ async function guardarEnm(){
     enm.basePeriodo = basePer;
     enm.nuevoPeriodo = newPer;
     enm.pctPoli = pct;
+    enm.tarSubtipo = document.getElementById('ne_tar_subtipo')?.value || 'POLINOMICA';
     const isCorr = document.getElementById('ne_isCorr')?.checked;
     const corrNum = isCorr ? (parseInt(document.getElementById('ne_corrEnm')?.value)||null) : null;
     enm.correccionDeEnm = corrNum || null;
@@ -1922,6 +2154,7 @@ async function guardarEnm(){
     if(!mot){ toast('Ingresá la descripción', 'er'); return; }
     enm.motivo=mot;
     enm.descripcion=mot;
+    if(tipo==='SCOPE') enm.scopeTipo=document.getElementById('ne_scope_tipo')?.value||'MAYOR';
   }
 
   cc.enmiendas.push(enm);
@@ -1936,16 +2169,69 @@ async function guardarEnm(){
   toast('Enmienda N°'+num+' guardada correctamente', 'ok');
 }
 
-// ═══════════ AVE OWNER ONLY ══════════════════════════════
-function addAveOwner(){
+// ═══════════ AVE OWNER — Panel separado ══════════════════════
+function openAveOwnerPanel(){
+  const p=document.getElementById('aveOwnerPanel');
+  if(p){p.classList.add('vis');p.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+function closeAveOwnerPanel(){
+  const p=document.getElementById('aveOwnerPanel');
+  if(p){p.classList.remove('vis');}
+  ['avo_sub','avo_enm','avo_monto','avo_per','avo_ffin','avo_otro'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  const fg=document.getElementById('avo_ffin_grp');if(fg)fg.style.display='none';
+  const og=document.getElementById('avo_otro_grp');if(og)og.style.display='none';
+}
+function onAvoSubChange(){
+  const v=document.getElementById('avo_sub')?.value||'';
+  const fg=document.getElementById('avo_ffin_grp');if(fg)fg.style.display=v==='EXTENSION PLAZO'?'':'none';
+  const og=document.getElementById('avo_otro_grp');if(og)og.style.display=v==='OTRO'?'':'none';
+}
+async function saveAveOwner(){
   const cc=DB.find(x=>x.id===detId);if(!cc)return;
-  const monto=parseFloat(document.getElementById('av_monto').value)||0;if(!monto){toast('Ingresá el monto','er');return;}
-  const sub=document.getElementById('av_sub').value;if(!sub){toast('Seleccioná el subtipo','er');return;}
+  const monto=parseFloat(document.getElementById('avo_monto')?.value)||0;
+  if(!monto){toast('Ingresá el monto','er');return;}
+  const sub=document.getElementById('avo_sub')?.value||'';
+  if(!sub){toast('Seleccioná el concepto','er');return;}
   let ffin=null;
-  if(sub==='EXTENSION PLAZO'){ffin=document.getElementById('av_ffin').value;if(!ffin){toast('Ingresá nueva fecha fin','er');return;}cc.fechaFin=ffin;cc.plazo=Math.max(((new Date(ffin).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ffin).getMonth()-new Date(cc.fechaIni).getMonth())),0);}
+  if(sub==='EXTENSION PLAZO'){
+    ffin=document.getElementById('avo_ffin')?.value||'';
+    if(!ffin){toast('Ingresá nueva fecha fin','er');return;}
+    cc.fechaFin=ffin;
+    cc.plazo=Math.max(((new Date(ffin).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ffin).getMonth()-new Date(cc.fechaIni).getMonth())),0);
+  }
   if(!cc.aves)cc.aves=[];
-  cc.aves.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4),tipo:'OWNER',subtipo:sub,concepto:sub==='OTRO'?document.getElementById('av_otro').value.trim():null,monto,enmRef:document.getElementById('av_enm')?.value?parseInt(document.getElementById('av_enm').value):null,periodo:document.getElementById('av_per').value||null,fechaFinNueva:ffin,fecha:new Date().toISOString()});
-  cc.updatedAt=new Date().toISOString();save();renderDet();renderList();updNav();toast('AVE Owner registrado — '+cc.mon+' '+fN(monto),'ok');
+  const enmRefRaw=document.getElementById('avo_enm')?.value||'';
+  cc.aves.push({
+    id:Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+    tipo:'OWNER',
+    subtipo:sub,
+    concepto:sub==='OTRO'?(document.getElementById('avo_otro')?.value.trim()||null):null,
+    monto,
+    enmRef:enmRefRaw?parseInt(enmRefRaw):null,
+    periodo:document.getElementById('avo_per')?.value||null,
+    fechaFinNueva:ffin,
+    fecha:new Date().toISOString()
+  });
+  // Warning check
+  const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const limit=cc._aveOwnerLimit||250000;
+  cc.updatedAt=new Date().toISOString();
+  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
+  else await sbUpsertItem('contratos',cc);
+  closeAveOwnerPanel();
+  renderDet();renderList();updNav();
+  if(ownerSum>limit) toast(`⛔ AVE Owner acumulado (${fN(ownerSum)}) supera límite ${fN(limit)}`,'er');
+  else toast('AVE Owner registrado — '+cc.mon+' '+fN(monto),'ok');
+}
+async function setAveLimit(id,val){
+  const cc=DB.find(x=>x.id===id);if(!cc)return;
+  cc._aveOwnerLimit=parseFloat(val)||250000;
+  cc.updatedAt=new Date().toISOString();
+  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
+  else await sbUpsertItem('contratos',cc);
+  renderDet();
 }
 
 // ═══════════ RENDERLIST WITH REMANENTE ══════════════════
@@ -2898,9 +3184,8 @@ function parseExcelDate(v){
 //  PROVEEDORES MODULE
 // ═══════════════════════════════════════════════════════════════════════
 let PROV_DB=[];
-function loadProv(){try{PROV_DB=JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e){PROV_DB=[];}}
-function saveProv(){localStorage.setItem('prov_v1',JSON.stringify(PROV_DB));}
-(function(){loadProv();})();
+function saveProv(){localStorage.setItem('prov_v1',JSON.stringify(PROV_DB));localStorage.setItem('contr_v1',JSON.stringify(PROV_DB));}
+// loadProv is defined above as async (loads from Supabase contratistas table)
 
 function updNavProv(){
   const el=document.getElementById('provCnt');
@@ -2911,7 +3196,7 @@ function updNavProv(){
 let _provDet=null,_provSrch='';
 
 function renderProv(){
-  loadProv();
+  // loadProv is async - we call it and re-render when done, but also render current state
   if(_provDet){
     document.getElementById('provList').style.display='none';
     document.getElementById('provDet').style.display='';
@@ -3633,22 +3918,6 @@ async function resetHistorial(cid) {
   await sbUpsertItem('contratos', c);
   renderDet();
   toast('Historial reseteado ✅', 'ok');
-}
-
-// ═══════════════════════════════════════
-// DELETE ENMIENDA
-// ═══════════════════════════════════════
-async function delEnm(num) {
-  if (!confirm(`¿Eliminar Enmienda N°${num}?`)) return;
-  const c = DB.find(x => x.id === detId);
-  if (!c) return;
-  c.enmiendas = (c.enmiendas || []).filter(e => e.num !== num);
-  // Renumber
-  c.enmiendas.forEach((e, i) => e.num = i + 1);
-  c.updatedAt = new Date().toISOString();
-  await sbUpsertItem('contratos', c);
-  renderDet();
-  toast(`Enmienda N°${num} eliminada`, 'ok');
 }
 
 // ═══════════════════════════════════════
