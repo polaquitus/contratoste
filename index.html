@@ -4221,51 +4221,37 @@ async function delAveById(aveId) {
 
 /* ==== PATCH v19: role matrix con safeguard OWNER/ADMIN ==== */
 (function(){
-  window.APP_VERSION='v19';
+  window.APP_VERSION='v21';
   var ROLE_DEFAULTS={
     OWNER:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
     ADMIN:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
-    ING_CONTRATOS:{list:true,form:true,detail:true,me2n:true,idx:false,licit:true,prov:true,users:false},
-    RESP_TECNICO:{list:true,form:false,detail:true,me2n:true,idx:false,licit:false,prov:false,users:false},
-    SIN_ROL:{list:true,form:false,detail:true,me2n:false,idx:false,licit:false,prov:false,users:false}
+    ING_CONTRATOS:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
+    RESP_TECNICO:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
+    SIN_ROL:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true}
   };
+  var OPEN_ACCESS_ALL_USERS=true;
   var ROLE_LABELS={list:'Contratos',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
-  var SUPER_USER_ROLES=['OWNER','ADMIN'];
   var ROLE_STORAGE_KEY='role_permissions_v19';
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
   function forcePrivileged(matrix){
-    SUPER_USER_ROLES.forEach(function(role){
-      if(ROLE_DEFAULTS[role]) matrix[role]=clone(ROLE_DEFAULTS[role]);
-    });
+    Object.keys(ROLE_DEFAULTS).forEach(function(role){ matrix[role]=clone(ROLE_DEFAULTS[role]); });
     return matrix;
   }
   function getRoleMatrix(){
-    try{
-      var raw=localStorage.getItem(ROLE_STORAGE_KEY);
-      if(!raw) return forcePrivileged(clone(ROLE_DEFAULTS));
-      var parsed=JSON.parse(raw);
-      var out=clone(ROLE_DEFAULTS);
-      Object.keys(out).forEach(function(role){
-        Object.keys(out[role]).forEach(function(mod){
-          if(parsed && parsed[role] && typeof parsed[role][mod] !== 'undefined') out[role][mod]=!!parsed[role][mod];
-        });
-      });
-      return forcePrivileged(out);
-    }catch(_e){ return forcePrivileged(clone(ROLE_DEFAULTS)); }
+    try{ return forcePrivileged(clone(ROLE_DEFAULTS)); }catch(_e){ return forcePrivileged(clone(ROLE_DEFAULTS)); }
   }
   function saveRoleMatrix(matrix){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(forcePrivileged(matrix))); }
   function resetRoleMatrix(){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(forcePrivileged(clone(ROLE_DEFAULTS)))); }
   function roleName(){
     try{
       var r=(typeof _APP_ROLE!=='undefined' && _APP_ROLE) ? _APP_ROLE : 'SIN_ROL';
-      r=String(r||'SIN_ROL').trim().toUpperCase();
+      r=String(r||'SIN_ROL').toUpperCase();
       if(r==='ADMIN_USUARIOS') r='ADMIN';
-      if(r==='SUPER_USER_OWNER') r='OWNER';
-      if(r==='SUPER_USER_ADMIN') r='ADMIN';
       return r;
     }catch(_e){ return 'SIN_ROL'; }
   }
   function canAccess(mod){
+    if(OPEN_ACCESS_ALL_USERS) return true;
     var m=getRoleMatrix();
     var r=roleName();
     if(!m[r]) r='SIN_ROL';
@@ -4283,7 +4269,7 @@ async function delAveById(aveId) {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v20 · Users Super User';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v21 · Open Access';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -4332,19 +4318,19 @@ async function delAveById(aveId) {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v20 · Users Super User'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v21 · Open Access'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); applyPermissions(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
-      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'Super user: OWNER y ADMIN. Siempre conservan acceso total al modulo de usuarios y al resto de los modulos. Los cambios se guardan en este navegador.'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); var isSuper=SUPER_USER_ROLES.indexOf(role)>=0; tr.appendChild(make('td','', isSuper ? ('🔒 '+role+' · SUPER USER') : role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(isSuper){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
-      function collectPanelMatrix(){ var matrix=getRoleMatrix(); refs.panel.querySelectorAll('input[type="checkbox"][data-role][data-mod]').forEach(function(chk){ var role=chk.getAttribute('data-role'); var mod=chk.getAttribute('data-mod'); if(role==='OWNER' || role==='ADMIN') return; if(matrix[role] && typeof matrix[role][mod] !== 'undefined') matrix[role][mod]=chk.checked; }); return matrix; }
+      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'Acceso abierto temporal: todos los roles ven todos los módulos. OWNER y ADMIN siguen figurando como roles administrativos dentro del módulo de usuarios.'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); tr.appendChild(make('td','', role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(false){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
+      function collectPanelMatrix(){ var matrix=getRoleMatrix(); refs.panel.querySelectorAll('input[type="checkbox"][data-role][data-mod]').forEach(function(chk){ var role=chk.getAttribute('data-role'); var mod=chk.getAttribute('data-mod'); if(false) return; if(matrix[role] && typeof matrix[role][mod] !== 'undefined') matrix[role][mod]=chk.checked; }); return matrix; }
       function onPanelClick(ev){ var id=(ev.target&&ev.target.id)||''; if(id==='rolesSaveBtn'){ var matrix=collectPanelMatrix(); saveRoleMatrix(matrix); applyPermissions(); toast('Permisos guardados','ok'); } if(id==='rolesResetBtn'){ resetRoleMatrix(); renderPermissionPanel(); applyPermissions(); toast('Permisos reseteados','ok'); } if(id==='rolesRestorePrivBtn'){ var m=getRoleMatrix(); saveRoleMatrix(forcePrivileged(m)); renderPermissionPanel(); applyPermissions(); toast('OWNER y ADMIN restaurados','ok'); } }
       function renderUsers(){ ensureView(); clear(refs.body); text(refs.count,String((state.list||[]).length)); if(!state.list.length){ var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return; } var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); state.list.forEach(function(u){ var tr=make('tr',''); var td1=make('td','',u.username||''); td1.style.fontWeight='700'; var td2=make('td','',u.role||'SIN_ROL'); var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge); var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small); var td5=make('td',''); td5.style.width='320px'; var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap'; actions.appendChild(actionButton('Editar','edit',u.id)); actions.appendChild(actionButton('Reset pass','reset',u.id)); actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id)); actions.appendChild(actionButton('Eliminar','delete',u.id,true)); td5.appendChild(actions); [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); refs.body.appendChild(tbl); }
       function actionButton(label,action,id,danger){ var cls=danger?'btn btn-d btn-sm':'btn btn-s btn-sm'; var b=make('button',cls,label); b.type='button'; b.setAttribute('data-action',action); b.setAttribute('data-id',String(id)); return b; }
       function onBodyClick(ev){ var btn=ev.target.closest('button[data-action]'); if(!btn) return; var action=btn.getAttribute('data-action'); var id=btn.getAttribute('data-id'); if(action==='edit') openModal(id); else if(action==='toggle') toggleActive(id); else if(action==='reset') resetPassword(id); else if(action==='delete') deleteUser(id); }
-      function openModal(id){ buildModal(); state.currentId=id?String(id):null; var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }) || null; text(refs.title,row?'Editar usuario':'Nuevo usuario'); refs.inpUser.value=row?(row.username||''):''; refs.inpUser.disabled=!!row; refs.selRole.value=row?(String(row.role||'SIN_ROL').trim().toUpperCase()):'SIN_ROL'; refs.selActive.value=String(row?boolActive(row.active):true); refs.inpPass.value=''; refs.modal.style.display='flex'; }
+      function openModal(id){ buildModal(); state.currentId=id?String(id):null; var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }) || null; text(refs.title,row?'Editar usuario':'Nuevo usuario'); refs.inpUser.value=row?(row.username||''):''; refs.inpUser.disabled=!!row; refs.selRole.value=row?(row.role||'SIN_ROL'):'SIN_ROL'; refs.selActive.value=String(row?boolActive(row.active):true); refs.inpPass.value=''; refs.modal.style.display='flex'; }
       function closeModal(){ if(refs.modal) refs.modal.style.display='none'; state.currentId=null; }
-      async function saveUser(){ var username=(refs.inpUser.value||'').trim(); var role=String(refs.selRole.value||'SIN_ROL').trim().toUpperCase(); var active=(refs.selActive.value==='true'); var password=(refs.inpPass.value||'').trim(); if(!state.currentId && (!username || !password)){ toast('Usuario y contrasena temporal son obligatorios','er'); return; } showLoader(state.currentId?'Guardando usuario...':'Creando usuario...'); try{ if(state.currentId){ var body={role:role,active:active}; if(password){ body.password_hash=await sha256Hex(password); } await sbFetch('app_users','PATCH',body,'?id=eq.'+encodeURIComponent(state.currentId)); } else { var exists=(state.list||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); }); if(exists) throw new Error('Ese usuario ya existe'); await sbFetch('app_users','POST',{username:username,password_hash:await sha256Hex(password),role:role,active:active}); } closeModal(); await reload(); toast(state.currentId?'Usuario actualizado':'Usuario creado','ok'); }catch(err){ console.error('users save',err); toast(err.message||'No se pudo guardar el usuario','er'); } finally{ hideLoader(); } }
+      async function saveUser(){ var username=(refs.inpUser.value||'').trim(); var role=(refs.selRole.value||'SIN_ROL').trim(); var active=(refs.selActive.value==='true'); var password=(refs.inpPass.value||'').trim(); if(!state.currentId && (!username || !password)){ toast('Usuario y contrasena temporal son obligatorios','er'); return; } showLoader(state.currentId?'Guardando usuario...':'Creando usuario...'); try{ if(state.currentId){ var body={role:role,active:active}; if(password){ body.password_hash=await sha256Hex(password); } await sbFetch('app_users','PATCH',body,'?id=eq.'+encodeURIComponent(state.currentId)); } else { var exists=(state.list||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); }); if(exists) throw new Error('Ese usuario ya existe'); await sbFetch('app_users','POST',{username:username,password_hash:await sha256Hex(password),role:role,active:active}); } closeModal(); await reload(); toast(state.currentId?'Usuario actualizado':'Usuario creado','ok'); }catch(err){ console.error('users save',err); toast(err.message||'No se pudo guardar el usuario','er'); } finally{ hideLoader(); } }
       async function toggleActive(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; showLoader('Actualizando estado...'); try{ await sbFetch('app_users','PATCH',{active:!boolActive(row.active)},'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Estado actualizado','ok'); }catch(err){ console.error('users toggle',err); toast(err.message||'No se pudo actualizar','er'); }finally{ hideLoader(); } }
       async function resetPassword(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; var pwd=prompt('Nueva contrasena temporal para '+(row.username||id)+':',''); if(!pwd) return; showLoader('Reseteando contrasena...'); try{ await sbFetch('app_users','PATCH',{password_hash:await sha256Hex(pwd)},'?id=eq.'+encodeURIComponent(id)); toast('Contrasena reseteada','ok'); }catch(err){ console.error('users reset',err); toast(err.message||'No se pudo resetear la contrasena','er'); }finally{ hideLoader(); } }
       async function deleteUser(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!confirm('Eliminar el usuario '+((row&&row.username)||id)+'?')) return; showLoader('Eliminando usuario...'); try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Usuario eliminado','ok'); }catch(err){ console.error('users delete',err); toast(err.message||'No se pudo eliminar el usuario','er'); }finally{ hideLoader(); } }
@@ -4352,8 +4338,8 @@ async function delAveById(aveId) {
       function boot(){ ensureNav(); ensureView(); installGoHook(); }
       return {boot:boot,show:showPage,reload:reload};
   })();
-  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
-  setTimeout(function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
+  document.addEventListener('DOMContentLoaded', function(){ try{ resetRoleMatrix(); UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
+  setTimeout(function(){ try{ resetRoleMatrix(); UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
 })();
 
 </script>
