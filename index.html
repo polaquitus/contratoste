@@ -1288,7 +1288,157 @@ function renderDossierHtml(c){
 +'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial de AVEs<span class="ct">'+aves.length+' registrados \u00b7 Total: '+_m(avePoly+aveOwner)+' '+_e(c.mon||'ARS')+'</span></div>'
 +'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
 +'</div>'
-+'</body></html>';
++'
+<script>
+/* ===== v20 privileged access hotfix ===== */
+(function(){
+  const VERSION_LABEL = 'v20 · Role Matrix Safe';
+  const OLD_KEY = 'role_permissions_v19';
+  const NEW_KEY = 'role_permissions_v20';
+  const ALL_MODULES = ['list','form','detail','me2n','idx','licit','prov','users'];
+
+  function normalizeRole(value){
+    try{
+      return String(value || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^A-Za-z0-9]+/g,'_')
+        .replace(/^_+|_+$/g,'')
+        .toUpperCase();
+    }catch(_e){
+      return String(value || '').toUpperCase();
+    }
+  }
+
+  function effectiveRole(){
+    const candidates = [
+      window._APP_ROLE,
+      window.__APP_ROLE,
+      localStorage.getItem('app_role'),
+      sessionStorage.getItem('app_role'),
+      document.body && document.body.getAttribute('data-role')
+    ];
+    for(const c of candidates){
+      const r = normalizeRole(c);
+      if(r) return r;
+    }
+    return 'SIN_ROL';
+  }
+
+  function isPrivileged(role){
+    const r = normalizeRole(role || effectiveRole());
+    return r === 'OWNER' || r === 'ADMIN' || r === 'ADMIN_USUARIOS' || r === 'ADMINISTRADOR';
+  }
+
+  function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+  function readMatrix(key){
+    try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch(_e){ return null; }
+  }
+
+  function forcePrivilegedInStorage(){
+    let matrix = readMatrix(NEW_KEY) || readMatrix(OLD_KEY) || {};
+    matrix = clone(matrix || {});
+    ['OWNER','ADMIN','ADMIN_USUARIOS','ADMINISTRADOR'].forEach(function(role){
+      if(!matrix[role]) matrix[role] = {};
+      ALL_MODULES.forEach(function(mod){ matrix[role][mod] = true; });
+    });
+    try{ localStorage.setItem(NEW_KEY, JSON.stringify(matrix)); }catch(_e){}
+    return matrix;
+  }
+
+  function revealPrivilegedUI(){
+    if(!isPrivileged()) return;
+
+    forcePrivilegedInStorage();
+
+    // sidebar/navigation items
+    document.querySelectorAll('.sb-nav .nv, .sb-nav [data-mod], [data-owner-only], #navUsersModule').forEach(function(el){
+      el.style.display = '';
+      el.hidden = false;
+      el.classList.remove('dis');
+      el.removeAttribute('aria-hidden');
+      if(el.hasAttribute('data-owner-only')) el.removeAttribute('data-owner-only');
+    });
+
+    // common action containers/buttons that may be hidden by previous permission pass
+    ['#pgA', '#sbLogoutBtn', '#vList', '#vForm', '#vDet', '#vMe2n', '#vIdx', '#vLicit', '#vProv', '#vMe2nDet'].forEach(function(sel){
+      const el = document.querySelector(sel);
+      if(el){
+        if(sel === '#sbLogoutBtn') el.style.display = '';
+        else el.style.display = el.classList.contains('vw') && !el.classList.contains('on') ? el.style.display : '';
+        el.hidden = false;
+      }
+    });
+
+    // any inline-hidden admin rows/cards/sections
+    document.querySelectorAll('[style*="display:none"]').forEach(function(el){
+      const mod = el.getAttribute('data-mod');
+      const id = (el.id || '').toLowerCase();
+      if(mod || id.includes('user') || id.includes('admin') || id.includes('role')){
+        el.style.display = '';
+        el.hidden = false;
+      }
+    });
+
+    const buildTag = document.getElementById('buildTag');
+    if(buildTag) buildTag.textContent = VERSION_LABEL;
+
+    document.body.setAttribute('data-role-effective', effectiveRole());
+    document.body.classList.add('role-hotfix-v20');
+  }
+
+  // preserve original functions but guarantee privileged access
+  const originalCanAccess = typeof window.canAccess === 'function' ? window.canAccess : null;
+  window.canAccess = function(mod){
+    if(isPrivileged()) return true;
+    try{ return originalCanAccess ? originalCanAccess.call(this, mod) : false; }catch(_e){ return false; }
+  };
+
+  const originalApplyPermissions = typeof window.applyPermissions === 'function' ? window.applyPermissions : null;
+  window.applyPermissions = function(){
+    let result;
+    try{ result = originalApplyPermissions ? originalApplyPermissions.apply(this, arguments) : undefined; }catch(_e){}
+    revealPrivilegedUI();
+    return result;
+  };
+
+  const originalGo = typeof window.go === 'function' ? window.go : null;
+  window.go = function(view){
+    if(originalGo){
+      const res = originalGo.apply(this, arguments);
+      setTimeout(revealPrivilegedUI, 0);
+      return res;
+    }
+  };
+
+  const originalAuthUnlock = typeof window.authUnlock === 'function' ? window.authUnlock : null;
+  window.authUnlock = function(){
+    const res = originalAuthUnlock ? originalAuthUnlock.apply(this, arguments) : undefined;
+    setTimeout(revealPrivilegedUI, 0);
+    setTimeout(revealPrivilegedUI, 250);
+    return res;
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      if(!localStorage.getItem(NEW_KEY) && localStorage.getItem(OLD_KEY)){
+        localStorage.setItem(NEW_KEY, localStorage.getItem(OLD_KEY));
+      }
+    }catch(_e){}
+    revealPrivilegedUI();
+    setTimeout(revealPrivilegedUI, 250);
+    setTimeout(revealPrivilegedUI, 1000);
+
+    const observer = new MutationObserver(function(){ revealPrivilegedUI(); });
+    observer.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class','hidden']});
+    window.__roleHotfixObserverV20 = observer;
+  });
+
+  window.forcePrivilegedAccessV20 = revealPrivilegedUI;
+})();
+</script>
+
+</body></html>';
 }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 
@@ -4230,7 +4380,7 @@ async function delAveById(aveId) {
     SIN_ROL:{list:true,form:false,detail:true,me2n:false,idx:false,licit:false,prov:false,users:false}
   };
   var ROLE_LABELS={list:'Contratos',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
-  var ROLE_STORAGE_KEY='role_permissions_v19';
+  var ROLE_STORAGE_KEY='role_permissions_v20';
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
   function forcePrivileged(matrix){
     matrix.OWNER=clone(ROLE_DEFAULTS.OWNER);
@@ -4279,7 +4429,7 @@ async function delAveById(aveId) {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v19 · Role Matrix Safe';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v20 · Role Matrix Safe';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -4328,7 +4478,7 @@ async function delAveById(aveId) {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v19 · Role Matrix Safe'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v20 · Role Matrix Safe'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); applyPermissions(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -4369,5 +4519,155 @@ async function delAveById(aveId) {
     </div>
   </div>
 </div>
+
+<script>
+/* ===== v20 privileged access hotfix ===== */
+(function(){
+  const VERSION_LABEL = 'v20 · Role Matrix Safe';
+  const OLD_KEY = 'role_permissions_v19';
+  const NEW_KEY = 'role_permissions_v20';
+  const ALL_MODULES = ['list','form','detail','me2n','idx','licit','prov','users'];
+
+  function normalizeRole(value){
+    try{
+      return String(value || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^A-Za-z0-9]+/g,'_')
+        .replace(/^_+|_+$/g,'')
+        .toUpperCase();
+    }catch(_e){
+      return String(value || '').toUpperCase();
+    }
+  }
+
+  function effectiveRole(){
+    const candidates = [
+      window._APP_ROLE,
+      window.__APP_ROLE,
+      localStorage.getItem('app_role'),
+      sessionStorage.getItem('app_role'),
+      document.body && document.body.getAttribute('data-role')
+    ];
+    for(const c of candidates){
+      const r = normalizeRole(c);
+      if(r) return r;
+    }
+    return 'SIN_ROL';
+  }
+
+  function isPrivileged(role){
+    const r = normalizeRole(role || effectiveRole());
+    return r === 'OWNER' || r === 'ADMIN' || r === 'ADMIN_USUARIOS' || r === 'ADMINISTRADOR';
+  }
+
+  function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+  function readMatrix(key){
+    try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch(_e){ return null; }
+  }
+
+  function forcePrivilegedInStorage(){
+    let matrix = readMatrix(NEW_KEY) || readMatrix(OLD_KEY) || {};
+    matrix = clone(matrix || {});
+    ['OWNER','ADMIN','ADMIN_USUARIOS','ADMINISTRADOR'].forEach(function(role){
+      if(!matrix[role]) matrix[role] = {};
+      ALL_MODULES.forEach(function(mod){ matrix[role][mod] = true; });
+    });
+    try{ localStorage.setItem(NEW_KEY, JSON.stringify(matrix)); }catch(_e){}
+    return matrix;
+  }
+
+  function revealPrivilegedUI(){
+    if(!isPrivileged()) return;
+
+    forcePrivilegedInStorage();
+
+    // sidebar/navigation items
+    document.querySelectorAll('.sb-nav .nv, .sb-nav [data-mod], [data-owner-only], #navUsersModule').forEach(function(el){
+      el.style.display = '';
+      el.hidden = false;
+      el.classList.remove('dis');
+      el.removeAttribute('aria-hidden');
+      if(el.hasAttribute('data-owner-only')) el.removeAttribute('data-owner-only');
+    });
+
+    // common action containers/buttons that may be hidden by previous permission pass
+    ['#pgA', '#sbLogoutBtn', '#vList', '#vForm', '#vDet', '#vMe2n', '#vIdx', '#vLicit', '#vProv', '#vMe2nDet'].forEach(function(sel){
+      const el = document.querySelector(sel);
+      if(el){
+        if(sel === '#sbLogoutBtn') el.style.display = '';
+        else el.style.display = el.classList.contains('vw') && !el.classList.contains('on') ? el.style.display : '';
+        el.hidden = false;
+      }
+    });
+
+    // any inline-hidden admin rows/cards/sections
+    document.querySelectorAll('[style*="display:none"]').forEach(function(el){
+      const mod = el.getAttribute('data-mod');
+      const id = (el.id || '').toLowerCase();
+      if(mod || id.includes('user') || id.includes('admin') || id.includes('role')){
+        el.style.display = '';
+        el.hidden = false;
+      }
+    });
+
+    const buildTag = document.getElementById('buildTag');
+    if(buildTag) buildTag.textContent = VERSION_LABEL;
+
+    document.body.setAttribute('data-role-effective', effectiveRole());
+    document.body.classList.add('role-hotfix-v20');
+  }
+
+  // preserve original functions but guarantee privileged access
+  const originalCanAccess = typeof window.canAccess === 'function' ? window.canAccess : null;
+  window.canAccess = function(mod){
+    if(isPrivileged()) return true;
+    try{ return originalCanAccess ? originalCanAccess.call(this, mod) : false; }catch(_e){ return false; }
+  };
+
+  const originalApplyPermissions = typeof window.applyPermissions === 'function' ? window.applyPermissions : null;
+  window.applyPermissions = function(){
+    let result;
+    try{ result = originalApplyPermissions ? originalApplyPermissions.apply(this, arguments) : undefined; }catch(_e){}
+    revealPrivilegedUI();
+    return result;
+  };
+
+  const originalGo = typeof window.go === 'function' ? window.go : null;
+  window.go = function(view){
+    if(originalGo){
+      const res = originalGo.apply(this, arguments);
+      setTimeout(revealPrivilegedUI, 0);
+      return res;
+    }
+  };
+
+  const originalAuthUnlock = typeof window.authUnlock === 'function' ? window.authUnlock : null;
+  window.authUnlock = function(){
+    const res = originalAuthUnlock ? originalAuthUnlock.apply(this, arguments) : undefined;
+    setTimeout(revealPrivilegedUI, 0);
+    setTimeout(revealPrivilegedUI, 250);
+    return res;
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      if(!localStorage.getItem(NEW_KEY) && localStorage.getItem(OLD_KEY)){
+        localStorage.setItem(NEW_KEY, localStorage.getItem(OLD_KEY));
+      }
+    }catch(_e){}
+    revealPrivilegedUI();
+    setTimeout(revealPrivilegedUI, 250);
+    setTimeout(revealPrivilegedUI, 1000);
+
+    const observer = new MutationObserver(function(){ revealPrivilegedUI(); });
+    observer.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['style','class','hidden']});
+    window.__roleHotfixObserverV20 = observer;
+  });
+
+  window.forcePrivilegedAccessV20 = revealPrivilegedUI;
+})();
+</script>
+
 </body>
 </html>
