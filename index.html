@@ -4197,223 +4197,267 @@ async function delAveById(aveId) {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){
-    try{
-      var el=document.getElementById('buildTag');
-      if(el) el.textContent='v14-base · Stable';
-    }catch(_e){}
-  }
-
-  function ensureGlobalTarAiInput(){
-    var inp = document.getElementById('tarAiIn');
-    if(!inp){
-      inp = document.createElement('input');
-      inp.type = 'file';
-      inp.id = 'tarAiIn';
-      inp.accept = '.doc,.docx,.xls,.xlsx';
-      inp.style.display = 'none';
-      inp.onchange = function(){
-        try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); }
-        finally{ this.value=''; }
-      };
-      document.body.appendChild(inp);
-    }
-    return inp;
-  }
-
-  openPriceListImportPicker = function(){
-    var inp = ensureGlobalTarAiInput();
-    try{ inp.click(); }
-    catch(e){ console.error('openPriceListImportPicker v14', e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); }
-  };
-
-  function restoreTarSectionV14(){
-    try{
-      var card=document.getElementById('detCard');
-      if(!card) return;
-      var boxes=Array.from(card.querySelectorAll('.section-box'));
-      var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); });
-      if(!sec) return;
-      if(!sec.querySelector('#tarContainer')){
-        var cc=(typeof DB!=='undefined' && Array.isArray(DB)) ? DB.find(function(x){ return x.id===detId; }) : null;
-        var count=((cc&&cc.tarifarios)||[]).length;
-        sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>';
-      }
-      ensureGlobalTarAiInput();
-      if(typeof renderTarifario==='function') renderTarifario();
-    }catch(e){ console.error('restoreTarSectionV14', e); }
-  }
-
-  if(typeof renderDet==='function'){
-    var __origRenderDet = renderDet;
-    renderDet = function(){
-      var out = __origRenderDet.apply(this, arguments);
-      setTimeout(restoreTarSectionV14, 0);
-      setTimeout(setVersionBadgeV14, 0);
-      return out;
-    };
-  }
-
-  if(typeof go==='function'){
-    var __origGo = go;
-    go = function(v){
-      var out = __origGo.apply(this, arguments);
-      if(v==='detail') setTimeout(restoreTarSectionV14, 0);
-      setTimeout(setVersionBadgeV14, 0);
-      return out;
-    };
-  }
-
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v14-base · Stable'; }catch(_e){} }
+  function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
+  openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
+  function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof DB!=='undefined'&&Array.isArray(DB))?DB.find(function(x){return x.id===detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
+  if(typeof renderDet==='function'){ var __origRenderDet=renderDet; renderDet=function(){ var out=__origRenderDet.apply(this,arguments); setTimeout(restoreTarSectionV14,0); setTimeout(setVersionBadgeV14,0); return out; }; }
+  if(typeof go==='function'){ var __origGo=go; go=function(v){ var out=__origGo.apply(this,arguments); if(v==='detail') setTimeout(restoreTarSectionV14,0); setTimeout(setVersionBadgeV14,0); return out; }; }
   function __pad2(n){ return String(n).padStart(2,'0'); }
-  function __toYm(v){
-    try{
-      if(v instanceof Date && !isNaN(v)) return String(v.getFullYear())+'-'+__pad2(v.getMonth()+1);
-      var d=new Date(v);
-      if(!isNaN(d)) return String(d.getFullYear())+'-'+__pad2(d.getMonth()+1);
-    }catch(_e){}
-    if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||''));
-    return null;
-  }
-  function __num(v){
-    if(v==null||v==='') return null;
-    if(typeof v==='number') return Number.isFinite(v)?v:null;
-    var s=String(v).trim();
-    if(!s) return null;
-    s=s.replace(/\s+/g,'').replace(/\$/g,'');
-    if(s.includes(',') && s.includes('.')){
-      if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
-      else s=s.replace(/,/g,'');
-    }else if(s.includes(',')){
-      s=s.replace(/\./g,'').replace(',','.');
-    }
-    var n=Number(s);
-    return Number.isFinite(n)?n:null;
-  }
-  function __itemCode(v){
-    var n=__num(v);
-    if(n==null) return String(v||'').trim();
-    return n.toFixed(2).replace('.',',');
-  }
+  function __toYm(v){ try{ if(v instanceof Date && !isNaN(v)) return String(v.getFullYear())+'-'+__pad2(v.getMonth()+1); var d=new Date(v); if(!isNaN(d)) return String(d.getFullYear())+'-'+__pad2(d.getMonth()+1);}catch(_e){} if(typeof detectPeriodFromText==='function') return detectPeriodFromText(String(v||'')); return null; }
+  function __num(v){ if(v==null||v==='') return null; if(typeof v==='number') return Number.isFinite(v)?v:null; var s=String(v).trim(); if(!s) return null; s=s.replace(/\s+/g,'').replace(/\$/g,''); if(s.includes(',')&&s.includes('.')){ if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); } else if(s.includes(',')){ s=s.replace(/\./g,'').replace(',','.'); } var n=Number(s); return Number.isFinite(n)?n:null; }
+  function __itemCode(v){ var n=__num(v); if(n==null) return String(v||'').trim(); return n.toFixed(2).replace('.',','); }
   function __cleanText(v){ return String(v==null?'':v).trim(); }
-  function __isSectionTitle(row, txt){ return row.some(function(c){ return String(c||'').toLowerCase().includes(String(txt||'').toLowerCase()); }); }
-  function __skipDesc(desc){
-    var d=String(desc||'').trim().toLowerCase();
-    return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d);
-  }
-
-  function __parseServicioBasico(rows, period, fileName){
-    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'SERVICIO BÁSICO MENSUAL'); });
-    if(start<0) return null;
-    var ends=[
-      rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR'); }),
-      rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); })
-    ].filter(function(i){ return i>=0; });
-    var end=ends.length?Math.min.apply(null, ends):rows.length;
-    var data=[];
-    for(var i=start;i<end;i++){
-      var r=rows[i]||[];
-      var item=r[0], desc=__cleanText(r[1]), price=__num(r[2]);
-      if(__num(item)==null || __skipDesc(desc) || price==null || price<=0) continue;
-      data.push([__itemCode(item), desc, 'MES', price]);
-    }
-    if(!data.length) return null;
-    return {name:'Servicio Basico Mensual', cols:['N Item','Descripcion','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
-  }
-
-  function __parseEventuales(rows, period, fileName){
-    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR'); });
-    if(start<0) return null;
-    var end=rows.findIndex(function(r,i){ return i>start && __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); });
-    var stop=end>=0?end:rows.length;
-    var data=[];
-    for(var i=start;i<stop;i++){
-      var r=rows[i]||[];
-      var item=__num(r[0]), desc=__cleanText(r[1]);
-      var vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])];
-      if(item==null || __skipDesc(desc) || vals.every(function(v){ return v==null; })) continue;
-      data.push([__itemCode(item), desc, vals[0], vals[1], vals[2], vals[3]]);
-    }
-    if(!data.length) return null;
-    return {name:'Equipos Eventuales con Operador', cols:['N Item','Descripcion','0-15 Dias Diurno','0-15 Dias Nocturno','Mayor 15 Dias Diurno','Mayor 15 Dias Nocturno'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
-  }
-
-  function __parseCalcareo(rows, period, fileName){
-    var start=rows.findIndex(function(r){ return __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO'); });
-    if(start<0) return null;
-    var data=[];
-    for(var i=start;i<rows.length;i++){
-      var r=rows[i]||[];
-      var item=__num(r[0]), desc=__cleanText(r[1]);
-      var p3=__num(r[3]), p2=__num(r[2]);
-      if(item==null || __skipDesc(desc)) continue;
-      var price=(p3!=null)?p3:p2;
-      if(price==null || price<=0) continue;
-      var unit=(p3!=null)?__cleanText(r[2]):'';
-      data.push([__itemCode(item), desc, unit, price]);
-    }
-    if(!data.length) return null;
-    return {name:'Servicio de Provision de Calcareo', cols:['N Item','Descripcion','Unidad','Precio'], rows:data, period:period, source:'EXCEL_TARIFARIO_FINAL', sourceSheet:'TARIFARIO FINAL', sourceFileName:fileName, importedAt:new Date().toISOString(), editable:true};
-  }
-
-  if(typeof parsePriceListExcelFile==='function'){
-    var __origParse = parsePriceListExcelFile;
-    parsePriceListExcelFile = async function(file, cc){
-      var buf=await file.arrayBuffer();
-      var wb=XLSX.read(new Uint8Array(buf),{type:'array'});
-      var sheetName=wb.SheetNames.find(function(n){ return String(n||'').toLowerCase().includes('tarifario final'); });
-      if(sheetName){
-        var ws=wb.Sheets[sheetName];
-        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        var periodRow=rows.find(function(r){ return Array.isArray(r) && r.some(function(v){ return v instanceof Date; }); }) || [];
-        var foundDate=periodRow.find(function(v){ return v instanceof Date; });
-        var period=__toYm(foundDate) || (cc&&cc.btar) || (cc&&cc.fechaIni&&cc.fechaIni.substring(0,7)) || null;
-        var out=[__parseServicioBasico(rows, period, file.name), __parseEventuales(rows, period, file.name), __parseCalcareo(rows, period, file.name)].filter(Boolean);
-        if(out.length) return out;
-      }
-      return __origParse(file, cc);
-    };
-  }
-
-  fN = function(n){
-    if(n==null||n==='') return '—';
-    if(typeof n==='string'){
-      var s=n.trim();
-      if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')) return s.replace('.',',');
-    }
-    var num=Number(n);
-    if(!Number.isFinite(num)) return String(n);
-    return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  };
-
-  if(typeof isNumericCol==='function'){
-    var __origIsNumericCol = isNumericCol;
-    isNumericCol = function(tar, ci){
-      var col=String((tar&&tar.cols&&tar.cols[ci])||'').toLowerCase();
-      if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item|n item)(\s|$)/.test(col)) return false;
-      return __origIsNumericCol(tar, ci);
-    };
-  }
-
-  if(typeof delTarTable==='function'){
-    delTarTable = function(i){
-      if(!confirm('Eliminar esta tabla del tarifario?')) return;
-      var tars=(typeof getTar==='function'?(getTar()||[]):[]);
-      tars.splice(i,1);
-      if(!tars.length){
-        _tarTab=0; _tarPeriod=null;
-        if(typeof setTar==='function') setTar([]);
-        if(typeof renderTarifario==='function') renderTarifario();
-        if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok');
-        return;
-      }
-      if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1);
-      if(typeof setTar==='function') setTar(tars);
-      if(typeof renderTarifario==='function') renderTarifario();
-      if(typeof toast==='function') toast('Tabla eliminada','ok');
-    };
-  }
-
+  function __isSectionTitle(row,txt){ return row.some(function(c){ return String(c||'').toLowerCase().includes(String(txt||'').toLowerCase()); }); }
+  function __skipDesc(desc){ var d=String(desc||'').trim().toLowerCase(); return !d || /^(mano de obra|equipos|item|tarifa mensual|descripcion|descripción|diurno|nocturno|unidad|precio|precio final|subtotal|total|canon de cantera|transporte en camion batea por metro cubico:?)$/.test(d); }
+  function __parseServicioBasico(rows,period,fileName){ var start=rows.findIndex(function(r){return __isSectionTitle(r,'SERVICIO BÁSICO MENSUAL');}); if(start<0) return null; var ends=[rows.findIndex(function(r,i){return i>start&&__isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR');}),rows.findIndex(function(r,i){return i>start&&__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO');})].filter(function(i){return i>=0;}); var end=ends.length?Math.min.apply(null,ends):rows.length; var data=[]; for(var i=start;i<end;i++){ var r=rows[i]||[]; var item=r[0],desc=__cleanText(r[1]),price=__num(r[2]); if(__num(item)==null||__skipDesc(desc)||price==null||price<=0) continue; data.push([__itemCode(item),desc,'MES',price]); } if(!data.length) return null; return {name:'Servicio Basico Mensual',cols:['N Item','Descripcion','Unidad','Precio'],rows:data,period:period,source:'EXCEL_TARIFARIO_FINAL',sourceSheet:'TARIFARIO FINAL',sourceFileName:fileName,importedAt:new Date().toISOString(),editable:true}; }
+  function __parseEventuales(rows,period,fileName){ var start=rows.findIndex(function(r){return __isSectionTitle(r,'EQUIPOS EVENTUALES CON OPERADOR');}); if(start<0) return null; var end=rows.findIndex(function(r,i){return i>start&&__isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO');}); var stop=end>=0?end:rows.length; var data=[]; for(var i=start;i<stop;i++){ var r=rows[i]||[]; var item=__num(r[0]),desc=__cleanText(r[1]); var vals=[__num(r[2]),__num(r[3]),__num(r[4]),__num(r[5])]; if(item==null||__skipDesc(desc)||vals.every(function(v){return v==null;})) continue; data.push([__itemCode(item),desc,vals[0],vals[1],vals[2],vals[3]]); } if(!data.length) return null; return {name:'Equipos Eventuales con Operador',cols:['N Item','Descripcion','0-15 Dias Diurno','0-15 Dias Nocturno','Mayor 15 Dias Diurno','Mayor 15 Dias Nocturno'],rows:data,period:period,source:'EXCEL_TARIFARIO_FINAL',sourceSheet:'TARIFARIO FINAL',sourceFileName:fileName,importedAt:new Date().toISOString(),editable:true}; }
+  function __parseCalcareo(rows,period,fileName){ var start=rows.findIndex(function(r){return __isSectionTitle(r,'SERVICIO DE PROVISIÓN DE CALCÁREO');}); if(start<0) return null; var data=[]; for(var i=start;i<rows.length;i++){ var r=rows[i]||[]; var item=__num(r[0]),desc=__cleanText(r[1]); var p3=__num(r[3]),p2=__num(r[2]); if(item==null||__skipDesc(desc)) continue; var price=(p3!=null)?p3:p2; if(price==null||price<=0) continue; var unit=(p3!=null)?__cleanText(r[2]):''; data.push([__itemCode(item),desc,unit,price]); } if(!data.length) return null; return {name:'Servicio de Provision de Calcareo',cols:['N Item','Descripcion','Unidad','Precio'],rows:data,period:period,source:'EXCEL_TARIFARIO_FINAL',sourceSheet:'TARIFARIO FINAL',sourceFileName:fileName,importedAt:new Date().toISOString(),editable:true}; }
+  if(typeof parsePriceListExcelFile==='function'){ var __origParse=parsePriceListExcelFile; parsePriceListExcelFile=async function(file,cc){ var buf=await file.arrayBuffer(); var wb=XLSX.read(new Uint8Array(buf),{type:'array'}); var sheetName=wb.SheetNames.find(function(n){return String(n||'').toLowerCase().includes('tarifario final');}); if(sheetName){ var ws=wb.Sheets[sheetName]; var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); var periodRow=rows.find(function(r){return Array.isArray(r)&&r.some(function(v){return v instanceof Date;});})||[]; var foundDate=periodRow.find(function(v){return v instanceof Date;}); var period=__toYm(foundDate)||(cc&&cc.btar)||(cc&&cc.fechaIni&&cc.fechaIni.substring(0,7))||null; var out=[__parseServicioBasico(rows,period,file.name),__parseEventuales(rows,period,file.name),__parseCalcareo(rows,period,file.name)].filter(Boolean); if(out.length) return out; } return __origParse(file,cc); }; }
+  fN=function(n){ if(n==null||n==='') return '—'; if(typeof n==='string'){ var s=n.trim(); if(/^\d+[\.,]\d+$/.test(s)&&!s.includes('$')) return s.replace('.',','); } var num=Number(n); if(!Number.isFinite(num)) return String(n); return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  if(typeof isNumericCol==='function'){ var __origIsNumericCol=isNumericCol; isNumericCol=function(tar,ci){ var col=String((tar&&tar.cols&&tar.cols[ci])||'').toLowerCase(); if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item|n item)(\s|$)/.test(col)) return false; return __origIsNumericCol(tar,ci); }; }
+  if(typeof delTarTable==='function'){ delTarTable=function(i){ if(!confirm('Eliminar esta tabla del tarifario?')) return; var tars=(typeof getTar==='function'?(getTar()||[]):[]); tars.splice(i,1); if(!tars.length){ _tarTab=0; _tarPeriod=null; if(typeof setTar==='function') setTar([]); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Todas las listas fueron eliminadas','ok'); return; } if(_tarTab>=tars.length) _tarTab=Math.max(0,tars.length-1); if(typeof setTar==='function') setTar(tars); if(typeof renderTarifario==='function') renderTarifario(); if(typeof toast==='function') toast('Tabla eliminada','ok'); }; }
   setTimeout(function(){ try{ ensureGlobalTarAiInput(); setVersionBadgeV14(); }catch(_e){} },0);
+})();
+
+
+/* ==== PATCH v15: usuarios aislado y seguro ==== */
+(function(){
+  window.APP_VERSION='v15';
+  var UsersAdmin=(function(){
+    var state={list:[],loaded:false,currentId:null};
+    var refs={root:null,body:null,count:null,nav:null,modal:null,title:null,inpUser:null,selRole:null,selActive:null,inpPass:null};
+
+    function setBuildTag(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v15 · Users Module'; }catch(_e){} }
+    function q(id){ return document.getElementById(id); }
+    function text(el, value){ if(el) el.textContent=value; }
+    function clear(el){ while(el && el.firstChild) el.removeChild(el.firstChild); }
+    function make(tag, cls, txt){ var el=document.createElement(tag); if(cls) el.className=cls; if(txt!=null) el.textContent=txt; return el; }
+    function boolActive(v){ return !(v===false || String(v)==='false'); }
+
+    function ensureNav(){
+      var nav=document.querySelector('.sb-nav');
+      if(!nav) return;
+      if(q('navUsersModule')){ refs.nav=q('navUsersModule'); return; }
+      var sec=make('div','sb-sec','Administracion');
+      var a=make('a','nv');
+      a.id='navUsersModule';
+      a.href='#';
+      var s1=make('span','ni','U');
+      var s2=make('span','', 'Usuarios');
+      a.appendChild(s1); a.appendChild(s2);
+      a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); });
+      nav.appendChild(sec); nav.appendChild(a);
+      refs.nav=a;
+    }
+
+    function ensureView(){
+      var ct=document.querySelector('.ct');
+      if(!ct) return;
+      if(q('vUsersModule')){ refs.root=q('vUsersModule'); refs.body=q('usersModuleBody'); refs.count=q('usersModuleCount'); return; }
+      var wrap=make('div','vw'); wrap.id='vUsersModule';
+      var card=make('div','card');
+      var hdr=make('div','thdr');
+      hdr.appendChild(make('h2','', 'Administracion de Usuarios'));
+      var cnt=make('span','tcnt','0'); cnt.id='usersModuleCount'; hdr.appendChild(cnt);
+      var fl=make('div','tfl');
+      var note=make('div','info-box amber','Por seguridad, las contrasenas actuales no se muestran. Se permite alta, edicion, cambio de estado, eliminacion y reseteo de contrasena.');
+      note.style.margin='0'; note.style.width='100%';
+      fl.appendChild(note);
+      var body=make('div',''); body.id='usersModuleBody';
+      card.appendChild(hdr); card.appendChild(fl); card.appendChild(body); wrap.appendChild(card); ct.appendChild(wrap);
+      refs.root=wrap; refs.body=body; refs.count=cnt;
+      buildModal();
+      body.addEventListener('click', onBodyClick);
+    }
+
+    function buildModal(){
+      if(q('usersModuleModalBack')){ cacheModal(); return; }
+      var back=make('div',''); back.id='usersModuleModalBack';
+      back.style.display='none'; back.style.position='fixed'; back.style.inset='0'; back.style.background='rgba(0,0,0,.45)'; back.style.zIndex='700'; back.style.alignItems='center'; back.style.justifyContent='center';
+      var box=make('div','');
+      box.style.background='var(--w)'; box.style.borderRadius='14px'; box.style.boxShadow='0 20px 60px rgba(0,0,0,.3)'; box.style.width='620px'; box.style.maxWidth='96vw'; box.style.maxHeight='92vh'; box.style.overflowY='auto';
+      var hdr=make('div','idx-modal-hdr');
+      var ttl=make('h3','', 'Nuevo usuario'); ttl.id='usersModuleModalTitle';
+      var x=make('button','btn btn-s btn-sm','X'); x.type='button'; x.addEventListener('click', closeModal);
+      hdr.appendChild(ttl); hdr.appendChild(x);
+      var body=make('div','idx-modal-body');
+      var grid=make('div','fg fg2');
+      var g1=make('div','fgrp'); g1.appendChild(make('label','', 'Usuario')); var inpUser=make('input',''); inpUser.type='text'; inpUser.id='usersModuleUser'; g1.appendChild(inpUser);
+      var g2=make('div','fgrp'); g2.appendChild(make('label','', 'Rol')); var selRole=make('select',''); selRole.id='usersModuleRole'; ['OWNER','ING_CONTRATOS','RESP_TECNICO','SIN_ROL'].forEach(function(v){ var o=make('option','',v); o.value=v; selRole.appendChild(o); }); g2.appendChild(selRole);
+      var g3=make('div','fgrp'); g3.appendChild(make('label','', 'Contrasena temporal')); var inpPass=make('input',''); inpPass.type='text'; inpPass.id='usersModulePass'; g3.appendChild(inpPass);
+      var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(xo){ var o=make('option','',xo.t); o.value=xo.v; selActive.appendChild(o); }); g4.appendChild(selActive);
+      grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4);
+      var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.');
+      body.appendChild(grid); body.appendChild(info);
+      var foot=make('div','idx-modal-foot');
+      var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal);
+      var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser);
+      foot.appendChild(cancel); foot.appendChild(save);
+      box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back);
+      cacheModal();
+    }
+
+    function cacheModal(){
+      refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass');
+    }
+
+    function setHeader(){
+      var t=q('pgT'); var a=q('pgA'); if(!t||!a) return;
+      clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v15 · Users Module'); bc.id='buildTag'; t.appendChild(bc);
+      clear(a);
+      var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px';
+      var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload);
+      var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); });
+      wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap);
+    }
+
+    function hideAllViews(){
+      ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); });
+      document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); });
+    }
+
+    function showPage(){
+      ensureNav(); ensureView(); setHeader(); setBuildTag();
+      hideAllViews();
+      refs.root.classList.add('on');
+      if(refs.nav) refs.nav.classList.add('act');
+      window.scrollTo({top:0,behavior:'smooth'});
+      if(!state.loaded) reload(); else render();
+    }
+
+    async function reload(){
+      if(typeof sbFetch!=='function') { toast('Conexion a usuarios no disponible','er'); return; }
+      showLoader('Cargando usuarios...');
+      try{
+        state.list = await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || [];
+        state.loaded = true;
+        render();
+      }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); }
+      finally{ hideLoader(); }
+    }
+
+    function render(){
+      ensureView();
+      clear(refs.body);
+      text(refs.count, String((state.list||[]).length));
+      if(!state.list.length){
+        var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return;
+      }
+      var tbl=make('table','');
+      var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead);
+      var tb=make('tbody','');
+      state.list.forEach(function(u){
+        var tr=make('tr','');
+        var td1=make('td','',u.username||''); td1.style.fontWeight='700';
+        var td2=make('td','',u.role||'SIN_ROL');
+        var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge);
+        var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small);
+        var td5=make('td',''); td5.style.width='300px';
+        var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap';
+        actions.appendChild(actionButton('Editar','edit',u.id));
+        actions.appendChild(actionButton('Reset pass','reset',u.id));
+        actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id));
+        actions.appendChild(actionButton('Eliminar','delete',u.id,true));
+        td5.appendChild(actions);
+        [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); });
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); refs.body.appendChild(tbl);
+    }
+
+    function actionButton(label, action, id, danger){
+      var cls=danger?'btn btn-d btn-sm':'btn btn-s btn-sm';
+      var b=make('button',cls,label); b.type='button'; b.setAttribute('data-action',action); b.setAttribute('data-id',String(id)); return b;
+    }
+
+    function onBodyClick(ev){
+      var btn=ev.target.closest('button[data-action]'); if(!btn) return;
+      var action=btn.getAttribute('data-action'); var id=btn.getAttribute('data-id');
+      if(action==='edit') openModal(id);
+      else if(action==='toggle') toggleActive(id);
+      else if(action==='reset') resetPassword(id);
+      else if(action==='delete') deleteUser(id);
+    }
+
+    function openModal(id){
+      buildModal();
+      state.currentId=id?String(id):null;
+      var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }) || null;
+      text(refs.title, row ? 'Editar usuario' : 'Nuevo usuario');
+      refs.inpUser.value = row ? (row.username||'') : '';
+      refs.inpUser.disabled = !!row;
+      refs.selRole.value = row ? (row.role||'SIN_ROL') : 'SIN_ROL';
+      refs.selActive.value = String(row ? boolActive(row.active) : true);
+      refs.inpPass.value = '';
+      refs.modal.style.display='flex';
+    }
+
+    function closeModal(){ if(refs.modal) refs.modal.style.display='none'; state.currentId=null; }
+
+    async function saveUser(){
+      var username=(refs.inpUser.value||'').trim();
+      var role=(refs.selRole.value||'SIN_ROL').trim();
+      var active=(refs.selActive.value==='true');
+      var password=(refs.inpPass.value||'').trim();
+      if(!state.currentId && (!username || !password)){ toast('Usuario y contrasena temporal son obligatorios','er'); return; }
+      showLoader(state.currentId?'Guardando usuario...':'Creando usuario...');
+      try{
+        if(state.currentId){
+          var body={role:role,active:active};
+          if(password){ body.password_hash = await sha256Hex(password); }
+          await sbFetch('app_users','PATCH',body,'?id=eq.'+encodeURIComponent(state.currentId));
+        }else{
+          var exists=(state.list||[]).some(function(u){ return String(u.username||'').toLowerCase()===username.toLowerCase(); });
+          if(exists) throw new Error('Ese usuario ya existe');
+          await sbFetch('app_users','POST',{username:username,password_hash:await sha256Hex(password),role:role,active:active});
+        }
+        closeModal();
+        await reload();
+        toast(state.currentId?'Usuario actualizado':'Usuario creado','ok');
+      }catch(err){ console.error('users save',err); toast(err.message||'No se pudo guardar el usuario','er'); }
+      finally{ hideLoader(); }
+    }
+
+    async function toggleActive(id){
+      var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return;
+      showLoader('Actualizando estado...');
+      try{ await sbFetch('app_users','PATCH',{active:!boolActive(row.active)},'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Estado actualizado','ok'); }
+      catch(err){ console.error('users toggle',err); toast(err.message||'No se pudo actualizar','er'); }
+      finally{ hideLoader(); }
+    }
+
+    async function resetPassword(id){
+      var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return;
+      var pwd=prompt('Nueva contrasena temporal para '+(row.username||id)+':','');
+      if(!pwd) return;
+      showLoader('Reseteando contrasena...');
+      try{ await sbFetch('app_users','PATCH',{password_hash:await sha256Hex(pwd)},'?id=eq.'+encodeURIComponent(id)); toast('Contrasena reseteada','ok'); }
+      catch(err){ console.error('users reset',err); toast(err.message||'No se pudo resetear la contrasena','er'); }
+      finally{ hideLoader(); }
+    }
+
+    async function deleteUser(id){
+      var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); });
+      if(!confirm('Eliminar el usuario '+((row&&row.username)||id)+'?')) return;
+      showLoader('Eliminando usuario...');
+      try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Usuario eliminado','ok'); }
+      catch(err){ console.error('users delete',err); toast(err.message||'No se pudo eliminar el usuario','er'); }
+      finally{ hideLoader(); }
+    }
+
+    function installGoHook(){
+      if(typeof go!=='function') return;
+      var originalGo=go;
+      go=function(v){ if(v==='users'){ showPage(); return; } return originalGo.apply(this,arguments); };
+    }
+
+    function boot(){ ensureNav(); ensureView(); installGoHook(); setBuildTag(); }
+    return {boot:boot,show:showPage,reload:reload};
+  })();
+
+  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot',err); } });
+  setTimeout(function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
 })();
 
 </script>
