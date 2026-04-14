@@ -4213,7 +4213,6 @@ async function delAveById(aveId) {
     return inp;
   }
 
-  const __origOpenPriceListImportPicker = (typeof openPriceListImportPicker==='function') ? openPriceListImportPicker : null;
   openPriceListImportPicker = function(){
     const inp = ensureGlobalTarAiInput();
     try{ inp.click(); }
@@ -4377,6 +4376,51 @@ async function delAveById(aveId) {
   }
 
   setTimeout(function(){ try{ ensureGlobalTarAiInput(); }catch(_e){} }, 0);
+})();
+
+
+/* ==== PATCH v11: item visible + versión visible ==== */
+(function(){
+  window.APP_VERSION = 'v11';
+  function setVersionBadge(){
+    try{
+      const el = document.getElementById('buildTag');
+      if(el) el.textContent = 'v11 · Excel Target';
+    }catch(_e){}
+  }
+  setVersionBadge();
+  setTimeout(setVersionBadge, 0);
+
+  const __origFN = (typeof fN==='function') ? fN : null;
+  fN = function(n){
+    if(n==null||n==='') return '—';
+    if(typeof n === 'string'){
+      const s = n.trim();
+      if(/^\d+[\.,]\d+$/.test(s) && !s.includes('$')){
+        return s.replace('.',',');
+      }
+    }
+    const num = Number(n);
+    if(!Number.isFinite(num)) return String(n);
+    return num.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  };
+
+  if(typeof isNumericCol==='function'){
+    const __origIsNumericCol = isNumericCol;
+    isNumericCol = function(tar, ci){
+      const col = String((tar?.cols?.[ci]) || '').toLowerCase();
+      if(/(^|\s)(n°\s*item|nº\s*item|numero item|n° item|item|nro item)(\s|$)/.test(col)) return false;
+      return __origIsNumericCol(tar, ci);
+    };
+  }
+
+  if(typeof renderTarifario==='function'){
+    const __origRenderTarifario = renderTarifario;
+    renderTarifario = function(){
+      setVersionBadge();
+      return __origRenderTarifario.apply(this, arguments);
+    };
+  }
 })();
 
 </script>
