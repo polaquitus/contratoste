@@ -1691,10 +1691,55 @@ function getMimeTypeFromPriceFile(file){
   return file.type||'application/octet-stream';
 }
 async function analyzePriceListsWithGemini(filePayload, cc, fileName=''){
-  const prompt=`Sos un asistente experto en contratos de petróleo y gas argentinos. Extraé únicamente las LISTAS DE PRECIOS o tarifarios base presentes en el documento.\n\nContexto del contrato:\n- Número: ${cc.num}\n- Contratista: ${cc.cont}\n- Archivo: ${fileName}\n\nDevolvé SOLO JSON válido con este esquema exacto:\n{\n  "listasDePrecios": [\n    {\n      "periodo": "YYYY-MM" o null,\n      "nombre": "nombre corto de la lista" o null,\n      "items": [\n        {"item": "código o número", "descripcion": "descripción del ítem", "unidad": "unidad", "precio": número o texto numérico}\n      ]\n    }\n  ]\n}\n\nReglas:\n- Si hay varias tablas, extraelas todas.\n- Si el período no está explícito, devolvé null.\n- No inventes filas ni precios.\n- No devuelvas explicaciones ni markdown.`;
+  const prompt=`Sos un asistente experto en contratos y cotizaciones de petróleo y gas en Argentina. Tu tarea es EXTRAER SOLO los ítems efectivamente COTIZADOS por el proveedor para este contrato.
+
+Contexto del contrato:
+- Número de contrato: ${cc.num}
+- Contratista / proveedor esperado: ${cc.cont}
+- Archivo: ${fileName}
+
+Objetivo:
+- Identificar únicamente las tablas o listas que correspondan a la oferta económica / cotización aplicable al contrato.
+- Cada fila debe representar un ítem cotizado con ITEM, DESCRIPCIÓN, UNIDAD y PRECIO.
+
+Descartar expresamente:
+- anexos generales
+- condiciones comerciales o contractuales
+- observaciones, notas o texto libre
+- subtotales, totales, IVA, descuentos, recargos, penalties, fórmulas y ejemplos
+- listas históricas, comparativas, alternativas, opcionales o de referencia
+- tablas que no pertenezcan claramente a la cotización del proveedor
+- filas sin precio identificable
+
+Criterios de inclusión estrictos:
+- Incluir SOLO ítems asociados a la cotización del proveedor del documento.
+- Si una tabla mezcla ítems cotizados con filas auxiliares, devolver solo los ítems cotizados.
+- Si hay dudas sobre una tabla, es mejor EXCLUIRLA.
+- No inventes item, unidad ni precio.
+- Precio debe ser el valor unitario del ítem, no totales generales.
+
+Devolvé SOLO JSON válido con este esquema exacto:
+{
+  "listasDePrecios": [
+    {
+      "periodo": "YYYY-MM" o null,
+      "nombre": "nombre corto de la lista" o null,
+      "items": [
+        {"item": "código o número" o "", "descripcion": "descripción del ítem", "unidad": "unidad" o "", "precio": número o texto numérico}
+      ]
+    }
+  ]
+}
+
+Reglas adicionales:
+- Si no encontrás una lista de precios aplicable, devolvé {"listasDePrecios": []}.
+- No devuelvas explicaciones, markdown ni comentarios.
+- No incluyas filas de totales ni filas sin descripción de ítem.`;
   let response = await callGeminiForEnm([{text: prompt}, {inline_data: {mime_type: filePayload.mimeType, data: filePayload.data}}]);
   if((!response || !response.ok) && filePayload.fallbackText){
-    response = await callGeminiForEnm([{text: prompt}, {text: `Contenido del documento:\n\n${filePayload.fallbackText.slice(0,120000)}`}]);
+    response = await callGeminiForEnm([{text: prompt}, {text: `Contenido del documento:
+
+${filePayload.fallbackText.slice(0,120000)}`}]);
   }
   if (!response || !response.ok) {
     const errText = response ? await response.text().catch(()=>'') : '';
@@ -1707,21 +1752,57 @@ async function analyzePriceListsWithGemini(filePayload, cc, fileName=''){
   const txt=parts.map(p=>p.text||'').join('\n').trim();
   return extractJsonFromGeminiText(txt);
 }
+
+function isTarAuxText(txt){
+  const s=String(txt||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  if(!s) return false;
+  return /^(total|subtotal|sub-total|iva|impuestos?|observaciones?|obs\.?|nota|notas|aclaracion|aclaraciones|condiciones|condicion comercial|forma de pago|plazo de entrega|validez de oferta|vigencia|bonificacion|descuento|recargo|movilizacion|movilización|viaticos|viáticos|mano de obra|materiales|opcional|alternativa|anexo|anexos|resumen|detalle de facturacion|facturacion|firma|sello)$/.test(s) || /(total general|importe total|monto total|no cotiza|no ofertado|sin cargo)/.test(s);
+}
+function isUsefulPriceValue(v){
+  if(v==null||v==='') return false;
+  if(typeof v==='number') return Number.isFinite(v) && v>0;
+  const n=normalizeImportedPriceValue(v);
+  return typeof n==='number' && Number.isFinite(n) && n>0;
+}
+function isRelevantPriceRow(item, desc, unit, price){
+  const a=String(item||'').trim();
+  const d=String(desc||'').trim();
+  if(!isUsefulPriceValue(price)) return false;
+  if(isTarAuxText(a) || isTarAuxText(d)) return false;
+  if(!a && !d) return false;
+  if(d && d.length<3 && !a) return false;
+  if(/^[-–—]+$/.test(a) || /^[-–—]+$/.test(d)) return false;
+  if(/^(si|no|ok)$/i.test(d)) return false;
+  return true;
+}
+function dedupeTarRows(rows){
+  const seen=new Set();
+  return rows.filter(r=>{
+    const key=r.map(v=>String(v??'').trim().toLowerCase()).join('¦');
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function normalizeAiPriceLists(result, fileName, cc){
   const lists=Array.isArray(result?.listasDePrecios)?result.listasDePrecios:[];
   const fallbackPeriod=cc?.btar||cc?.fechaIni?.substring(0,7)||null;
   const clean=[];
   lists.forEach((lst,idx)=>{
     const period=detectPeriodFromText(lst?.periodo||lst?.nombre||fileName)||fallbackPeriod;
-    const rows=(Array.isArray(lst?.items)?lst.items:[]).map(it=>[
+    let rows=(Array.isArray(lst?.items)?lst.items:[]).map(it=>[
       String(it?.item??'').trim(),
       String(it?.descripcion??'').trim(),
       String(it?.unidad??'').trim(),
       normalizeImportedPriceValue(it?.precio)
-    ]).filter(r=>r.some(v=>String(v??'').trim()!==''));
+    ]).filter(r=>isRelevantPriceRow(r[0],r[1],r[2],r[3]));
+    rows=dedupeTarRows(rows);
     if(!rows.length) return;
+    const guessedName=String(lst?.nombre||(`Lista IA ${idx+1}`)).trim()||(`Lista IA ${idx+1}`);
+    if(isTarAuxText(guessedName) && rows.length<2) return;
     clean.push({
-      name:String(lst?.nombre||(`Lista IA ${idx+1}`)).trim()||(`Lista IA ${idx+1}`),
+      name:guessedName,
       cols:['Item','Descripción','Unidad','Precio'],
       rows,
       period,
