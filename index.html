@@ -957,7 +957,7 @@ function go(v){
   else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
   else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
   else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(()=>{renderProv();toast(PROV_DB.length+' proveedores','ok');}).catch(e=>toast('Error: '+e.message,'er'))">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(()=>renderProv()).catch(()=>renderProv());}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(function(){renderProv();toast(PROV_DB.length+\' proveedores\',\'ok\');}).catch(function(e){toast(\'Error: \'+e.message,\'er\');})">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(function(){renderProv();}).catch(function(){renderProv();});}
   else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
@@ -1394,7 +1394,7 @@ function renderDet(){
           <div id="enm_ext" style="display:none" class="enm-sub">
             <h4>📅 Extensión de Fecha</h4>
             <div class="info-box blue" style="margin-bottom:10px;font-size:11px">
-              Fecha fin actual: <strong>${fD(c.fechaFin||'')}</strong>${c._fechaFinOriginal&&c._fechaFinOriginal!==c.fechaFin?` · Original: <strong>${fD(c._fechaFinOriginal)}</strong>`:''}. La nueva fecha se vinculará automáticamente al contrato.
+              Fecha fin actual: <strong>${fD(c.fechaFin||'')}</strong>${c._fechaFinOriginal&&c._fechaFinOriginal!==c.fechaFin?' · Original: <strong>'+fD(c._fechaFinOriginal)+'</strong>':''}. La nueva fecha se vinculará automáticamente al contrato.
             </div>
             <div class="fg2">
               <div class="fgrp">
@@ -1433,7 +1433,7 @@ function renderDet(){
                 <label>Corrige Enmienda N°</label>
                 <select id="ne_corrEnm" onchange="prefillCorrEnm()">
                   <option value="">—</option>
-                  ${enms.filter(e=>e.tipo==='ACTUALIZACION_TARIFAS').map(e=>`<option value="${e.num}">N°${e.num} — ${e.nuevoPeriodo||''}</option>`).join('')}
+                  ${enms.filter(e=>e.tipo==='ACTUALIZACION_TARIFAS').map(e=>'<option value="'+e.num+'">N°'+e.num+' — '+(e.nuevoPeriodo||'')+'</option>').join('')}
                 </select>
               </div>
             </div>
@@ -1491,23 +1491,21 @@ function renderDet(){
       </div>
       <div class="section-box">
         <h3>🧾 AVEs <span class="tcnt">${aves.length} registrados</span></h3>
-        ${(()=>{
-          const ownerSum=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
-          const polySum=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
-          const aveLimit=c._aveOwnerLimit||250000;
-          const warnOwner=ownerSum>aveLimit;
-          return `<div class="ave-limit-row">
-            <label>⚠️ Límite advertencia AVE Owner:</label>
-            <input type="number" value="${aveLimit}" step="10000" min="0" placeholder="250000"
-              onchange="setAveLimit('${c.id}',this.value)" style="width:140px">
-            <span style="font-size:11px;color:var(--g600c)">${c.mon||'ARS'}</span>
-          </div>
-          ${warnOwner?`<div class="ave-warn-banner">⛔ AVE Owner acumulado (${c.mon||'ARS'} ${fN(ownerSum)}) supera el límite de advertencia de ${c.mon||'ARS'} ${fN(aveLimit)}.</div>`:''}
-          <div class="ave-totals">
-            <div class="ave-tot-cell"><div class="atl">Σ AVE Polinómica</div><div class="atv">${c.mon||'ARS'} ${fN(polySum)}</div></div>
-            <div class="ave-tot-cell ${warnOwner?'warn':''}"><div class="atl">Σ AVE Owner</div><div class="atv">${c.mon||'ARS'} ${fN(ownerSum)}</div></div>
-            <div class="ave-tot-cell"><div class="atl">Σ Total AVEs</div><div class="atv">${c.mon||'ARS'} ${fN(polySum+ownerSum)}</div></div>
-          </div>`;
+        ${(function(){
+          var ownerSum=aves.filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
+          var polySum=aves.filter(function(a){return a.tipo==='POLINOMICA';}).reduce(function(s,a){return s+(a.monto||0);},0);
+          var aveLimit=c._aveOwnerLimit||250000;
+          var warnOwner=ownerSum>aveLimit;
+          var html='<div class="ave-limit-row"><label>⚠️ Límite advertencia AVE Owner:</label>'
+            +'<input type="number" value="'+aveLimit+'" step="10000" min="0" placeholder="250000" onchange="setAveLimit(\''+c.id+'\',this.value)" style="width:140px">'
+            +'<span style="font-size:11px;color:var(--g600c)">'+(c.mon||'ARS')+'</span></div>';
+          if(warnOwner) html+='<div class="ave-warn-banner">⛔ AVE Owner acumulado ('+(c.mon||'ARS')+' '+fN(ownerSum)+') supera el límite de '+(c.mon||'ARS')+' '+fN(aveLimit)+'.</div>';
+          html+='<div class="ave-totals">'
+            +'<div class="ave-tot-cell"><div class="atl">Σ AVE Polinómica</div><div class="atv">'+(c.mon||'ARS')+' '+fN(polySum)+'</div></div>'
+            +'<div class="ave-tot-cell'+(warnOwner?' warn':'')+'"><div class="atl">Σ AVE Owner</div><div class="atv">'+(c.mon||'ARS')+' '+fN(ownerSum)+'</div></div>'
+            +'<div class="ave-tot-cell"><div class="atl">Σ Total AVEs</div><div class="atv">'+(c.mon||'ARS')+' '+fN(polySum+ownerSum)+'</div></div>'
+            +'</div>';
+          return html;
         })()}
         <table><thead><tr><th>Tipo</th><th>Enm. Ref.</th><th>Período</th><th>Valor previo</th><th>Ajuste</th><th>Nuevo valor</th><th>Concepto</th><th></th></tr></thead><tbody>${aveRows}</tbody></table>
         <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
@@ -1533,7 +1531,7 @@ function renderDet(){
               <label>Referencia Enmienda</label>
               <select id="avo_enm">
                 <option value="">— Sin referencia —</option>
-                ${enms.map(e=>`<option value="${e.num}">Enm. N°${e.num} — ${e.tipo==='ACTUALIZACION_TARIFAS'?'Act.Tarifas':e.tipo==='EXTENSION'?'Extensión':e.tipo==='SCOPE'?'Scope':e.tipo==='CLAUSULAS'?'Cláusulas':'Otro'}</option>`).join('')}
+                ${enms.map(function(e){var tl=e.tipo==='ACTUALIZACION_TARIFAS'?'Act.Tarifas':e.tipo==='EXTENSION'?'Extensión':e.tipo==='SCOPE'?'Scope':e.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return '<option value="'+e.num+'">Enm. N°'+e.num+' — '+tl+'</option>';}).join('')}
               </select>
             </div>
             <div class="fgrp">
