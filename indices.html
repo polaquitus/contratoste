@@ -143,21 +143,6 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 .cell-inp.api-found{border-color:var(--b500);background:var(--b100)}
 .ai-log-row.api{color:#1d4ed8;background:var(--b100)}
 .ai-log-note{display:block;font-size:10px;color:var(--g600c);margin-top:2px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* SELECCIÓN DE ÍNDICES */
-.selector-bar{background:var(--w);border-bottom:2px solid var(--g200);padding:12px 24px;display:flex;flex-direction:column;gap:10px}
-.selector-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.selector-top .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.selector-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.selector-stats{font-size:11.5px;font-weight:700;color:var(--p700);background:var(--p50);border:1px solid var(--p100);padding:4px 10px;border-radius:99px}
-.selector-list{display:flex;flex-wrap:wrap;gap:8px}
-.sel-chip{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:999px;background:var(--g50);font-size:12px;line-height:1;cursor:pointer;user-select:none}
-.sel-chip:hover{background:var(--p50);border-color:var(--p300)}
-.sel-chip input{accent-color:var(--p600);cursor:pointer}
-.sel-chip.active{background:var(--p50);border-color:var(--p400)}
-.sel-chip small{font-size:10px;color:var(--g600c);font-weight:700;background:var(--w);padding:2px 6px;border-radius:999px;border:1px solid var(--g200)}
-.cell-inp.api-found{border-color:var(--b500);background:var(--b100)}
-.ai-log-row.api{color:#1d4ed8;background:var(--b100)}
-.ai-log-note{display:block;font-size:10px;color:var(--g600c);margin-top:2px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -169,11 +154,11 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <div class="topbar">
   <div class="tb-left">
     <div class="tb-logo">📊</div>
-    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + fuentes oficiales + IA fallback</span></div></div>
+    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + Gemini AI</span></div></div>
   </div>
   <div class="tb-right">
     <span class="sb-badge warn" id="sbBadge">⬤ Conectando...</span>
-    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🔎 Actualizar selección</button>
+    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🤖 Buscar con IA</button>
     <button class="btn btn-s btn-sm" onclick="loadFromSupabase()">🔄 Recargar</button>
     <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar en BD</button>
     <button class="btn btn-s btn-sm" onclick="exportJSON()">⬇ JSON</button>
@@ -221,23 +206,6 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
   <div class="selector-list" id="selectorList"></div>
 </div>
 
-<!-- SELECTOR -->
-<div class="selector-bar" id="selectorBar">
-  <div class="selector-top">
-    <div class="left">
-      <span class="ctrl-lbl">Índices a actualizar</span>
-      <span class="selector-stats" id="selStats">0 seleccionados</span>
-    </div>
-    <div class="selector-actions">
-      <button class="btn btn-s btn-sm" onclick="selectAllAuto()">☑️ Todos automáticos</button>
-      <button class="btn btn-s btn-sm" onclick="selectVisibleAuto()">👁️ Seleccionar visibles</button>
-      <button class="btn btn-s btn-sm" onclick="selectCurrentCategory()">🧩 Categoría actual</button>
-      <button class="btn btn-s btn-sm" onclick="clearSelectedAuto()">🧹 Limpiar</button>
-    </div>
-  </div>
-  <div class="selector-list" id="selectorList"></div>
-</div>
-
 <!-- STATUS -->
 <div class="status-bar info" id="statusBar">
   <div class="status-dot"></div>
@@ -247,7 +215,7 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <!-- AI PANEL -->
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-hdr">
-    <h3>🔎 Actualización automática <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
+    <h3>🤖 Búsqueda masiva con Gemini <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
     <div class="ai-stats" id="aiStats"></div>
     <div style="display:flex;gap:7px;flex-shrink:0">
       <button class="btn btn-d btn-sm" id="btnStop" onclick="stopAI()" style="display:none">⏹ Detener</button>
@@ -889,7 +857,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
   window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
-  function renderSelectionPanel(){ const wrap=document.getElementById('selectorList'); const stats=document.getElementById('selStats'); if(!wrap||!stats)return; const cf=document.getElementById('catFilter')?.value||''; const visible=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)); const allAuto=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'); const selCount=allAuto.filter(d=>window._selectedIdx.has(d.id)).length; const missingSelected=allAuto.filter(d=>window._selectedIdx.has(d.id)).reduce((a,d)=>a+countMissingForIdx(d.id),0); stats.textContent=selCount+'/'+allAuto.length+' seleccionados · '+missingSelected+' celdas faltantes'; wrap.innerHTML=visible.map(def=>{ const active=window._selectedIdx.has(def.id); const missing=countMissingForIdx(def.id); return '<label class="sel-chip '+(active?'active':'')+'" title="'+escAttr(def.name)+' · '+missing+' períodos faltantes"><input type="checkbox" '+(active?'checked':'')+' onchange="toggleIdxSelection(''+def.id+'',this.checked)"><span>'+window.esc(def.name)+'</span><small>'+missing+'</small></label>'; }).join('') || '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>'; }
+  function renderSelectionPanel(){ const wrap=document.getElementById('selectorList'); const stats=document.getElementById('selStats'); if(!wrap||!stats)return; const cf=document.getElementById('catFilter')?.value||''; const visible=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)); const allAuto=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'); const selCount=allAuto.filter(d=>window._selectedIdx.has(d.id)).length; const missingSelected=allAuto.filter(d=>window._selectedIdx.has(d.id)).reduce((a,d)=>a+countMissingForIdx(d.id),0); stats.textContent=selCount+'/'+allAuto.length+' seleccionados · '+missingSelected+' celdas faltantes'; wrap.innerHTML=visible.map(def=>{ const active=window._selectedIdx.has(def.id); const missing=countMissingForIdx(def.id); return '<label class="sel-chip '+(active?'active':'')+'" title="'+escAttr(def.name)+' · '+missing+' períodos faltantes"><input type="checkbox" '+(active?'checked':'')+' onchange="toggleIdxSelection('\''+def.id+'\'',this.checked)"><span>'+window.esc(def.name)+'</span><small>'+missing+'</small></label>'; }).join('') || '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>'; }
   function seriesCfg(def){ if(!INDEC_SERIES_PATCH[def.id]) INDEC_SERIES_PATCH[def.id]={}; return INDEC_SERIES_PATCH[def.id]; }
   function extractSeriesId(item){ return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null; }
   function gatherItemText(item){ return [item?.title,item?.description,item?.description_short,item?.field?.description,item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,item?.dataset_source,item?.dataset_publisher_name,item?.notes,item?.units,item?.field?.units].filter(Boolean).join(' ').toLowerCase(); }
@@ -909,94 +877,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const origApplyRange=window.applyRange; window.applyRange=function(){ if(origApplyRange) origApplyRange(); renderSelectionPanel(); };
   const origRenderAll=window.renderAll; window.renderAll=function(){ if(origRenderAll) origRenderAll(); renderSelectionPanel(); };
   window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderSelectionPanel,150); });
-})();
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
-(function(){
-  const SERIES_API = 'https://apis.datos.gob.ar/series/api/series';
-  const SERIES_SEARCH_API = 'https://apis.datos.gob.ar/series/api/search';
-  const IPC_XLS_BASE = 'https://www.indec.gob.ar/ftp/cuadros/economia/';
-
-  const INDEC_SERIES_PATCH = {
-    ipc_nac:{id:'148.3_INIVELNAL_DICI_M_26'},
-    ipc_gba:{id:'148.3_INIVELGBA_DICI_M_21'},
-    ipc_pat:{
-      candidates:['148.3_INIVELNIA_DICI_M_27','148.3_INIVELPAT_DICI_M_27'],
-      queries:['IPC Nivel General Patagonia Base diciembre 2016 mensual INDEC','IPC Patagonia nivel general mensual índice INDEC']
-    },
-    ipim_gral:{id:'448.1_NIVEL_GENERAL_0_0_13_46'},
-    ipim_r29:{
-      candidates:['448.1_REFINADOS_PETROLEO_0_0_13_46','178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13','106.3_I1PRPMEE_1993_M_51'],
-      queries:['IPIM productos refinados del petróleo mensual INDEC','IPIM refinados del petróleo mensual índice INDEC']
-    }
-  };
-
-  window._selectedIdx = window._selectedIdx || new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id));
-  window._seriesCache = window._seriesCache || {};
-  window._xlsCache = window._xlsCache || {};
-
-  function previousYm(ym){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-  function selectedDefsForAI(){ return (window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
-  function countMissingForIdx(id){ return (window._months||[]).filter(ym=>{ const ex=window.idxGet(id,ym); return !ex||(ex.pct==null&&ex.value==null); }).length; }
-  function escAttr(s){ return window.esc(String(s||'')).replace(/'/g,'&#39;'); }
-  function norm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
-  function parseNum(v){
-    if(v==null || v==='') return null;
-    if(typeof v==='number') return Number.isFinite(v)?v:null;
-    let s = String(v).trim();
-    if(!s) return null;
-    s = s.replace(/\./g,'').replace(',', '.');
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  window.selectAllAuto=function(){ window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
-  window.clearSelectedAuto=function(){ window._selectedIdx=new Set(); renderSelectionPanel(); };
-  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
-  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
-  window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
-
-  function renderSelectionPanel(){
-    const wrap=document.getElementById('selectorList'); const stats=document.getElementById('selStats');
-    if(!wrap||!stats)return;
-    const cf=document.getElementById('catFilter')?.value||'';
-    const visible=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf));
-    const allAuto=(window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo');
-    const selCount=allAuto.filter(d=>window._selectedIdx.has(d.id)).length;
-    const missingSelected=allAuto.filter(d=>window._selectedIdx.has(d.id)).reduce((a,d)=>a+countMissingForIdx(d.id),0);
-    stats.textContent=selCount+'/'+allAuto.length+' seleccionados · '+missingSelected+' celdas faltantes';
-    wrap.innerHTML=visible.map(def=>{ const active=window._selectedIdx.has(def.id); const missing=countMissingForIdx(def.id); return '<label class="sel-chip '+(active?'active':'')+'" title="'+escAttr(def.name)+' · '+missing+' períodos faltantes"><input type="checkbox" '+(active?'checked':'')+' onchange="toggleIdxSelection(\''+def.id+'\',this.checked)"><span>'+window.esc(def.name)+'</span><small>'+missing+'</small></label>'; }).join('') || '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
-  }
-
-  function seriesCfg(def){ if(!INDEC_SERIES_PATCH[def.id]) INDEC_SERIES_PATCH[def.id]={}; return INDEC_SERIES_PATCH[def.id]; }
-  function extractSeriesId(item){ return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null; }
-  function gatherItemText(item){ return [item?.title,item?.description,item?.description_short,item?.field?.description,item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,item?.dataset_source,item?.dataset_publisher_name,item?.notes,item?.units,item?.field?.units].filter(Boolean).join(' ').toLowerCase(); }
-  function scoreSeriesCandidate(def,cand){ const txt=cand.txt||''; let s=0; if(/indec/.test(txt))s+=20; if(/mensual/.test(txt))s+=20; if(/indice|índice/.test(txt))s+=15; if(/nivel general/.test(txt))s+=25; if(def.id==='ipc_pat'){ if(/patagonia/.test(txt))s+=40; if(/ipc/.test(txt))s+=20; } if(def.id==='ipim_r29'){ if(/refinad/.test(txt))s+=40; if(/petr[oó]leo/.test(txt))s+=30; if(/ipim/.test(txt))s+=20; } if(def.id==='ipc_nac'&&/nacional/.test(txt))s+=40; if(def.id==='ipc_gba'&&/gba/.test(txt))s+=40; if(def.id==='ipim_gral'&&/nivel general/.test(txt)&&/ipim/.test(txt))s+=40; return s; }
-  async function apiSeriesExists(seriesId){ try{ const r=await fetch(SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&limit=1&format=json'); if(!r.ok)return false; const d=await r.json(); return Array.isArray(d?.data)&&d.data.length>0; }catch{return false;} }
-  async function searchOfficialSeriesId(def){ const cfg=seriesCfg(def); const queries=(cfg.queries&&cfg.queries.length)?cfg.queries:[def.name+' mensual INDEC']; let best=null; for(const q of queries){ try{ const url=SERIES_SEARCH_API+'?q='+encodeURIComponent(q)+'&catalog_id=sspm&limit=50&sort_by=relevance&sort=desc'; const r=await fetch(url); if(!r.ok)continue; const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const candidates=rows.map(item=>({id:extractSeriesId(item),txt:gatherItemText(item)})).filter(x=>x.id); for(const cand of candidates){ cand.score=scoreSeriesCandidate(def,cand); if(!best||cand.score>best.score)best=cand; } }catch(e){ console.warn('searchOfficialSeriesId',def.id,q,e); } } return best?.id||null; }
-  async function resolveIndecSeriesId(def){ const cfg=seriesCfg(def); if(cfg.id)return cfg.id; if(Array.isArray(cfg.candidates)){ for(const cand of cfg.candidates){ if(await apiSeriesExists(cand)){ cfg.id=cand; return cand; } } } const dyn=await searchOfficialSeriesId(def); if(dyn){ cfg.id=dyn; return dyn; } return null; }
-  async function fetchSeriesBundleById(seriesId){ if(window._seriesCache[seriesId]) return window._seriesCache[seriesId]; const url=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full'; const r=await fetch(url); if(!r.ok) throw new Error('series api '+r.status); const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const meta=Array.isArray(d?.meta)?d.meta:[]; window._seriesCache[seriesId]={rows,meta,url}; return window._seriesCache[seriesId]; }
-  function findSeriesPoint(rows,ym){ return rows.find(x=>String(x?.[0]||'').slice(0,7)===ym)||null; }
-  function metaText(bundle){ return (bundle?.meta||[]).map(x=>JSON.stringify(x)).join(' ').toLowerCase(); }
-  function interpretSeriesValue(def,seriesId,bundle,ym){ const point=findSeriesPoint(bundle.rows,ym); if(!point||point[1]==null)return null; const prev=findSeriesPoint(bundle.rows,previousYm(ym)); const metaTxt=metaText(bundle); const v=Number(point[1]); if(!Number.isFinite(v)) return null; const looksIndex=/indice|índice|2004=100|1993=100|2015=100|2016/.test(metaTxt)||v>20; if(looksIndex&&prev&&prev[1]!=null){ const pv=Number(prev[1]); if(Number.isFinite(pv)&&pv>0&&v>0){ const pct=((v/pv)-1)*100; if(Number.isFinite(pct)&&Math.abs(pct)<1000){ return {ym,pct:Number(pct.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:Number(pv.toFixed(4)),seriesId,calcMethod:'series_ratio',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie oficial INDEC ('+seriesId+')',source:def.src,rawValue:v}; } } } if(Math.abs(v)<=1.5){ return {ym,pct:Number((v*100).toFixed(2)),value:null,seriesValue:Number(v.toFixed(6)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(6)):null,seriesId,calcMethod:'series_fraction',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % fraccional ('+seriesId+')',source:def.src,rawValue:v}; } if(Math.abs(v)<=1000){ return {ym,pct:Number(v.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(4)):null,seriesId,calcMethod:'series_percent_direct',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % directo ('+seriesId+')',source:def.src,rawValue:v}; } return null; }
-
-  async function fetchWorkbook(url){ if(window._xlsCache[url]) return window._xlsCache[url]; const r=await fetch(url); if(!r.ok) throw new Error('xls '+r.status+' '+url); const ab=await r.arrayBuffer(); const wb=XLSX.read(ab,{type:'array'}); window._xlsCache[url]=wb; return wb; }
-  function findLastNumberInMatchingRow(wb, patterns){ const pats=patterns.map(p=>norm(p)); for(const sheetName of wb.SheetNames){ const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,raw:false,defval:''}); for(const row of rows){ const rowText=norm(row.join(' | ')); if(pats.some(p=>rowText.includes(p))){ const nums=row.map(parseNum).filter(v=>v!=null); if(nums.length) return nums[nums.length-1]; } } } return null; }
-  function ipcMonthlyXlsUrl(ym){ const [y,m]=ym.split('-'); return IPC_XLS_BASE+'sh_ipc_'+m+'_'+String(y).slice(2)+'.xls'; }
-  async function fetchIpcFromOfficialXls(def, ym){ if(typeof XLSX==='undefined') return null; const url=ipcMonthlyXlsUrl(ym); let patterns=[]; if(def.id==='ipc_nac') patterns=['variacion mensual ipc nacional','var mensual ipc nacional']; else if(def.id==='ipc_gba') patterns=['variacion mensual ipc gba','var mensual ipc gba']; else return null; try{ const wb=await fetchWorkbook(url); const pct=findLastNumberInMatchingRow(wb, patterns); if(pct==null) return null; return {ym,pct:Number(pct.toFixed(2)),value:null,seriesValue:null,seriesPrevValue:null,seriesId:null,calcMethod:'indec_xls_variation',publishedAt:ym+'-01',sourceUrl:url,note:'INDEC XLS mensual',source:def.src,rawValue:pct}; }catch(e){ console.warn('fetchIpcFromOfficialXls',def.id,ym,e); return null; } }
-  async function fetchIndecYm(def,ym){ const seriesId=await resolveIndecSeriesId(def); if(seriesId){ try{ const bundle=await fetchSeriesBundleById(seriesId); const res=interpretSeriesValue(def,seriesId,bundle,ym); if(res) return res; }catch(e){ console.warn('series primary failed',def.id,ym,e); } } if(def.cat==='ipc'){ const x=await fetchIpcFromOfficialXls(def, ym); if(x) return x; } return null; }
-
-  window.renderLog=function(){ const log=document.getElementById('aiLog'); if(!log)return; const show=(window._tasks||[]).slice(-50); log.innerHTML=show.map(t=>{ const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳'; const cls=(t.status==='found'&&t.via==='api')?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending'); let val=''; let note=''; if(t.found){ if(t.found.pct!=null) val=window.pF(t.found.pct); else if(t.found.value!=null) val='$'+Number(t.found.value).toFixed(2); if(t.found.seriesId) note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+' · serie '+(t.found.rawValue!=null?Number(t.found.rawValue).toFixed(2):'')+'</span>'; else if(t.found.calcMethod) note='<span class="ai-log-note">'+window.esc(t.found.calcMethod)+' · '+window.esc(t.found.note||'')+'</span>'; } return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span><span class="ai-log-name">'+window.esc(t.def.name)+note+'</span><span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'+(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>'; }).join(''); log.scrollTop=log.scrollHeight; };
-  window.updateAIStats=function(found,manual,done,total,official=0,ai=0){ const el=document.getElementById('aiStats'); if(!el)return; el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span><span class="ai-stat ok">🏛️ '+official+'</span><span class="ai-stat info">🤖 '+ai+'</span><span class="ai-stat ok">✅ '+found+'</span><span class="ai-stat warn">⚠️ '+manual+' manuales</span>'; };
-  window.liveCellOk=function(def,ym,result,metaType='ai'){ const field=window.isUsd(def)?'value':'pct'; const inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field); if(inp){ const val=field==='value'?result.value:result.pct; if(val!=null){ inp.value=Number(val).toFixed(2); inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found'); } } if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id); };
-  const origRefreshNeedCount=window.refreshNeedCount; window.refreshNeedCount=function(){ if(origRefreshNeedCount) origRefreshNeedCount(); renderSelectionPanel(); };
-  const origApplyRange=window.applyRange; window.applyRange=function(){ if(origApplyRange) origApplyRange(); renderSelectionPanel(); };
-  const origRenderAll=window.renderAll; window.renderAll=function(){ if(origRenderAll) origRenderAll(); renderSelectionPanel(); };
-
-  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); })); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null, via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
-
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderSelectionPanel,150); });
 })();
 </script>
