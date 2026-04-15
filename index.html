@@ -428,13 +428,13 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-logo"><div class="ico">C</div><div class="txt">Contratos TA<span>Gestión Contractual</span></div></div>
   <nav class="sb-nav">
     <div class="sb-sec">Módulos</div>
-    <a class="nv act" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
-    <a class="nv" onclick="go('form')" href="#"><span class="ni">➕</span><span>Nuevo Contrato</span></a>
-    <a class="nv" onclick="go('me2n')" href="#"><span class="ni">🛒</span><span>Purchase Orders</span><span class="badge" id="poCnt">0</span></a>
+    <a class="nv act" data-mod="list" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
+    <a class="nv" data-mod="form" onclick="go('form')" href="#"><span class="ni">➕</span><span>Nuevo Contrato</span></a>
+    <a class="nv" data-mod="me2n" onclick="go('me2n')" href="#"><span class="ni">🛒</span><span>Purchase Orders</span><span class="badge" id="poCnt">0</span></a>
     <div class="sb-sec" style="margin-top:18px">Módulos adicionales</div>
-    <a class="nv" onclick="go('idx')" href="#"><span class="ni">📊</span><span>Índices</span></a>
-    <a class="nv" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
-    <a class="nv" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
+    <a class="nv" data-mod="idx" onclick="go('idx')" href="#"><span class="ni">📊</span><span>Índices</span></a>
+    <a class="nv" data-mod="licit" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
+    <a class="nv" data-mod="prov" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
   </nav>
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
@@ -747,10 +747,11 @@ async function loginApp(){
     const hash = await sha256Hex(p);
     if(String(hash).toLowerCase() !== String(row.password_hash||'').toLowerCase()) throw new Error('Contraseña inválida');
     _APP_USER = {id:row.id || row.username, username:row.username};
-    _APP_ROLE = row.role || 'SIN_ROL';
+    _APP_ROLE = (row.role || 'SIN_ROL').trim();
     authUnlock();
     setRoleBadge();
     applyRolePermissions();
+    if(typeof applyPermissions==='function') applyPermissions();
     if(typeof toast==='function') toast('Sesión iniciada: '+row.username,'ok');
     if(typeof initApp==='function') await initApp(true);
   }catch(err){
@@ -820,6 +821,7 @@ async function initApp(__fromLogin) {
 
   hideLoader();
   buildPoly(); renderList(); updNav();
+  if(typeof applyPermissions==='function') applyPermissions();
 }
 
 // ─── PUBLIC API (called throughout app) ──────
@@ -947,18 +949,22 @@ function monthsRemainingInclusive(fromYm,toDateStr){if(!toDateStr)return 0;const
 function ymToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function calcPlazo(){const a=document.getElementById('f_ini').value,b=document.getElementById('f_fin').value;if(a&&b)document.getElementById('f_plazo').value=monthDiffInclusive(a,b);}
 
+function _navAct(mod){
+  document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
+  var el=document.querySelector('.sb-nav .nv[data-mod="'+mod+'"]');
+  if(el) el.classList.add('act');
+}
 function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv'].forEach(id=>document.getElementById(id).classList.remove('on'));
-  document.querySelectorAll('.sb-nav .nv').forEach(n=>n.classList.remove('act'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){document.getElementById('vList').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go(\'form\')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
-  else if(v==='form'){document.getElementById('vForm').classList.add('on');document.querySelectorAll('.sb-nav .nv')[1].classList.add('act');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='detail'){document.getElementById('vDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[0].classList.add('act');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
-  else if(v==='idx'){document.getElementById('vIdx').classList.add('on');document.querySelectorAll('.sb-nav .nv')[3].classList.add('act');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
-  else if(v==='licit'){document.getElementById('vLicit').classList.add('on');document.querySelectorAll('.sb-nav .nv')[4].classList.add('act');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');document.querySelectorAll('.sb-nav .nv')[5].classList.add('act');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(function(){renderProv();toast(PROV_DB.length+\' proveedores\',\'ok\');}).catch(function(e){toast(\'Error: \'+e.message,\'er\');})">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(function(){renderProv();}).catch(function(){renderProv();});}
-  else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');document.querySelectorAll('.sb-nav .nv')[2].classList.add('act');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
+  if(v==='list'){document.getElementById('vList').classList.add('on');_navAct('list');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go(\'form\')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
+  else if(v==='form'){document.getElementById('vForm').classList.add('on');_navAct('form');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'list\')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
+  else if(v==='detail'){document.getElementById('vDet').classList.add('on');_navAct('list');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go(\'list\')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
+  else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');_navAct('me2n');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
+  else if(v==='idx'){document.getElementById('vIdx').classList.add('on');_navAct('idx');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
+  else if(v==='licit'){document.getElementById('vLicit').classList.add('on');_navAct('licit');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
+  else if(v==='prov'){document.getElementById('vProv').classList.add('on');_navAct('prov');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(function(){renderProv();toast(PROV_DB.length+\' proveedores\',\'ok\');}).catch(function(e){toast(\'Error: \'+e.message,\'er\');})">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(function(){renderProv();}).catch(function(){renderProv();});}
+  else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');_navAct('me2n');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go(\'me2n\')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
 }
 
 // POLY
@@ -4290,9 +4296,7 @@ async function delAveById(aveId) {
         if(typeof toast==='function') toast('Tu rol no tiene permiso para entrar a este modulo','er');
         return __origGoRole.call(this,'list');
       }
-      var out=__origGoRole.apply(this, arguments);
-      setTimeout(applyPermissions,0);
-      return out;
+      return __origGoRole.apply(this, arguments);
     };
   }
 
@@ -4348,8 +4352,7 @@ async function delAveById(aveId) {
       function boot(){ ensureNav(); ensureView(); installGoHook(); }
       return {boot:boot,show:showPage,reload:reload};
   })();
-  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot',err); } });
-  setTimeout(function(){ try{ UsersAdmin.boot(); applyPermissions(); }catch(err){ console.error('UsersAdmin boot delayed',err); } },0);
+  document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot',err); } });
 })();
 
 </script>
