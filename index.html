@@ -801,7 +801,9 @@ async function initApp(__fromLogin) {
     if (me2nObj) ME2N = me2nObj;
     showLoader('Cargando índices...');
     const idxObj = await sbLoadSingle('indices');
-    if (idxObj) IDX_STORE = idxObj;
+    if (idxObj) { delete idxObj.__sbId; IDX_STORE = idxObj; }
+    idxMergeOfficialSeeds();
+    localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
     showLoader('Cargando licitaciones...');
     LICIT_DB = await sbLoadTable('licitaciones');
     SB_OK = true;
@@ -811,6 +813,7 @@ async function initApp(__fromLogin) {
     try{DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!DB.length)DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){DB=[];}
     try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
     try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
+    idxMergeOfficialSeeds();
     try{LICIT_DB=JSON.parse(localStorage.getItem('licit_v1'))||[];}catch(ex){LICIT_DB=[];}
     SB_OK = false;
     setSBStatus(false);
@@ -905,10 +908,7 @@ async function saveMe2n() {
   await sbUpsertSingle('me2n', ME2N);
 }
 
-async function saveIdx() {
-  if (!SB_OK) { localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE)); return; }
-  await sbUpsertSingle('indices', IDX_STORE);
-}
+// saveIdx defined in IDX module below — always mirrors localStorage + Supabase when available
 
 async function saveLicit() {
   if (!SB_OK) { localStorage.setItem('licit_v1', JSON.stringify(LICIT_DB)); return; }
@@ -2577,17 +2577,35 @@ const IDX_OFFICIAL_SEED = {
 function ymCompare(a,b){return String(a||'').localeCompare(String(b||''));}
 function idxResolveOfficial(def,targetYm){const rows=(IDX_OFFICIAL_SEED[def.id]||[]).slice().sort((a,b)=>ymCompare(a.ym,b.ym));if(!rows.length)return null;let chosen=null;for(const row of rows){if(ymCompare(row.ym,targetYm)<=0)chosen=row;}if(!chosen)chosen=rows[rows.length-1];return {ym:chosen.ym,pct:chosen.pct!=null?Number(chosen.pct):null,value:chosen.value!=null?Number(chosen.value):null,publishedAt:chosen.publishedAt||null,sourceUrl:chosen.sourceUrl||null,status:chosen.ym===targetYm?'updated':'waiting_release',note:(chosen.note||def.name)+(chosen.ym===targetYm?'':' · último oficial disponible'),source:chosen.source||def.src};}
 function idxMergeOfficialSeeds(){Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{(rows||[]).forEach(row=>{const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});}});});}
-function loadIdx(){try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(e){IDX_STORE={};} idxMergeOfficialSeeds();}
-function saveIdx(){localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));}
-function resetIdxAll(){if(!confirm('Se van a borrar todos los indicadores cargados manualmente y se reconstruirá la base oficial inicial. ¿Continuar?'))return;try{localStorage.removeItem('idx_v2');}catch(_e){} IDX_STORE={}; loadIdx(); _idxSel=null; renderIdxView(); toast('Indicadores reiniciados','ok');}
-(function(){loadIdx();})();
+function loadIdx(){
+  // No-op: IDX_STORE is loaded by initApp() from Supabase.
+  // Called only as fallback from within initApp catch block (already handled there).
+  idxMergeOfficialSeeds();
+}
+async function saveIdx(){
+  // Always persist to Supabase when available; mirror to localStorage as backup.
+  localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
+  if(SB_OK){
+    try{ await sbUpsertSingle('indices', IDX_STORE); }
+    catch(e){ console.warn('saveIdx SB error', e); }
+  }
+}
+async function resetIdxAll(){
+  if(!confirm('Se van a borrar todos los indicadores cargados manualmente y se reconstruirá la base oficial inicial. ¿Continuar?'))return;
+  try{localStorage.removeItem('idx_v2');}catch(_e){}
+  IDX_STORE={};
+  idxMergeOfficialSeeds();
+  await saveIdx();
+  _idxSel=null; renderIdxView(); toast('Indicadores reiniciados','ok');
+}
+// NOTE: intentional no IIFE here — initApp() loads IDX_STORE from Supabase async.
 
 function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
 function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
 function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
-function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));saveIdx();return merged;}
+async function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));await saveIdx();return merged;}
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
 function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
@@ -2740,7 +2758,7 @@ function renderIdxDet(id){
   const selOpts=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const selOptTo=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===yms.length-1?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const tblRows=[...rows].reverse().map(r=>`<tr><td>${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.note||r.status||'')}">${esc(r.note||r.status||'—')}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
-  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx();renderIdxView();toast('Índice limpiado','ok');}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${bars||'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
+  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${bars||'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function calcIdxAcum(id){
@@ -2842,7 +2860,7 @@ function refreshEntryFileList(){
 }
 function removeEntryFile(i){_entryFiles.splice(i,1);refreshEntryFileList();}
 
-function saveEntryModal(idxId, editYm){
+async function saveEntryModal(idxId, editYm){
   const ym=editYm||document.getElementById('em_ym')?.value;
   if(!ym){toast('Seleccioná el período','er');return;}
   const pctRaw=document.getElementById('em_pct')?.value;
@@ -2859,7 +2877,8 @@ function saveEntryModal(idxId, editYm){
   const row={ym,pct,note,files:allFiles,confirmed:existing?.confirmed||false};
   if(existing){Object.assign(existing,row);}
   else{IDX_STORE[idxId].rows.push(row);IDX_STORE[idxId].rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
-  saveIdx();closeIdxModal();
+  await saveIdx();
+  closeIdxModal();
   toast(formatMonth(ym)+': '+pctStr(pct)+' guardado','ok');
   renderIdxView();
 }
@@ -2870,18 +2889,18 @@ function closeIdxModal(){
 }
 
 // ── Actions ────────────────────────────────────────────────────────────
-function toggleIdxConfirm(idxId,ym,val){
+async function toggleIdxConfirm(idxId,ym,val){
   const r=(IDX_STORE[idxId]?.rows||[]).find(r=>r.ym===ym);
-  if(r){r.confirmed=val;saveIdx();renderIdxView();}
+  if(r){r.confirmed=val;await saveIdx();renderIdxView();}
 }
-function confirmAllIdx(idxId){
+async function confirmAllIdx(idxId){
   (IDX_STORE[idxId]?.rows||[]).forEach(r=>r.confirmed=true);
-  saveIdx();toast('Todos confirmados','ok');renderIdxView();
+  await saveIdx();toast('Todos confirmados','ok');renderIdxView();
 }
-function deleteIdxRow(idxId,ym){
+async function deleteIdxRow(idxId,ym){
   if(!confirm('¿Eliminar el período '+formatMonth(ym)+'?'))return;
   IDX_STORE[idxId].rows=(IDX_STORE[idxId].rows||[]).filter(r=>r.ym!==ym);
-  saveIdx();renderIdxView();toast('Período eliminado','ok');
+  await saveIdx();renderIdxView();toast('Período eliminado','ok');
 }
 function downloadIdxFile(idxId,ym,fi){
   const row=(IDX_STORE[idxId]?.rows||[]).find(r=>r.ym===ym);
