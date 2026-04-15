@@ -846,46 +846,19 @@ document.addEventListener('DOMContentLoaded',async()=>{
     ipim_gral:{id:'448.1_NIVEL_GENERAL_0_0_13_46',use:'index'},
     ipim_r29:{candidates:['448.1_REFINADOS_PETROLEO_0_0_13_46','178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13','106.3_I1PRPMEE_1993_M_51'],queries:['IPIM productos refinados del petróleo mensual INDEC','IPIM refinados del petróleo mensual índice INDEC']}
   };
-  window._selectedIdx = window._selectedIdx || new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id));
+  function catalog(){ return (typeof IDX_CATALOG!=='undefined') ? IDX_CATALOG : (window.IDX_CATALOG||[]); }
+  window._selectedIdx = window._selectedIdx || new Set(catalog().filter(d=>d.cat!=='mo').map(d=>d.id));
   window._seriesCache = window._seriesCache || {};
   function previousYm(ym){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-  function selectedDefsForAI(){ return (window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
+  function selectedDefsForAI(){ return catalog().filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
   function countMissingForIdx(id){ return (window._months||[]).filter(ym=>{ const ex=window.idxGet(id,ym); return !ex||(ex.pct==null&&ex.value==null); }).length; }
   function escAttr(s){ return window.esc(String(s||'')).replace(/'/g,'&#39;'); }
-  window.selectAllAuto=function(){ window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
+  window.selectAllAuto=function(){ window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
   window.clearSelectedAuto=function(){ window._selectedIdx=new Set(); renderSelectionPanel(); };
-  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
-  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
+  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
+  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
-  function renderSelectionPanel(){
-    const wrap = document.getElementById('selectorList');
-    const stats = document.getElementById('selStats');
-    if(!wrap || !stats) return;
-
-    const cf = document.getElementById('catFilter')?.value || '';
-    const visible = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo' && (!cf || d.cat === cf));
-    const allAuto = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo');
-    const selCount = allAuto.filter(d => window._selectedIdx.has(d.id)).length;
-    const missingSelected = allAuto.filter(d => window._selectedIdx.has(d.id)).reduce((a,d) => a + countMissingForIdx(d.id), 0);
-
-    stats.textContent = `${selCount}/${allAuto.length} seleccionados · ${missingSelected} celdas faltantes`;
-
-    if(!visible.length){
-      wrap.innerHTML = '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
-      return;
-    }
-
-    wrap.innerHTML = visible.map(def => {
-      const active = window._selectedIdx.has(def.id);
-      const missing = countMissingForIdx(def.id);
-      return `
-        <label class="sel-chip ${active ? 'active' : ''}" title="${escAttr(def.name)} · ${missing} períodos faltantes">
-          <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleIdxSelection('${def.id}', this.checked)">
-          <span>${window.esc(def.name)}</span>
-          <small>${missing}</small>
-        </label>`;
-    }).join('');
-  }
+  function renderSelectionPanel(){ const wrap=document.getElementById('selectorList'); const stats=document.getElementById('selStats'); if(!wrap||!stats)return; const cf=document.getElementById('catFilter')?.value||''; const visible=catalog().filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)); const allAuto=catalog().filter(d=>d.cat!=='mo'); const selCount=allAuto.filter(d=>window._selectedIdx.has(d.id)).length; const missingSelected=allAuto.filter(d=>window._selectedIdx.has(d.id)).reduce((a,d)=>a+countMissingForIdx(d.id),0); stats.textContent=selCount+'/'+allAuto.length+' seleccionados · '+missingSelected+' celdas faltantes'; wrap.innerHTML=visible.map(def=>{ const active=window._selectedIdx.has(def.id); const missing=countMissingForIdx(def.id); return '<label class="sel-chip '+(active?'active':'')+'" title="'+escAttr(def.name)+' · '+missing+' períodos faltantes"><input type="checkbox" '+(active?'checked':'')+' onchange="toggleIdxSelection('\''+def.id+'\'',this.checked)"><span>'+window.esc(def.name)+'</span><small>'+missing+'</small></label>'; }).join('') || '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>'; }
   function seriesCfg(def){ if(!INDEC_SERIES_PATCH[def.id]) INDEC_SERIES_PATCH[def.id]={}; return INDEC_SERIES_PATCH[def.id]; }
   function extractSeriesId(item){ return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null; }
   function gatherItemText(item){ return [item?.title,item?.description,item?.description_short,item?.field?.description,item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,item?.dataset_source,item?.dataset_publisher_name,item?.notes,item?.units,item?.field?.units].filter(Boolean).join(' ').toLowerCase(); }
