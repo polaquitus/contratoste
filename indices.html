@@ -154,11 +154,11 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <div class="topbar">
   <div class="tb-left">
     <div class="tb-logo">📊</div>
-    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + fuentes oficiales + IA fallback</span></div></div>
+    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + Gemini AI</span></div></div>
   </div>
   <div class="tb-right">
     <span class="sb-badge warn" id="sbBadge">⬤ Conectando...</span>
-    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🔎 Actualizar selección</button>
+    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🤖 Buscar con IA</button>
     <button class="btn btn-s btn-sm" onclick="loadFromSupabase()">🔄 Recargar</button>
     <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar en BD</button>
     <button class="btn btn-s btn-sm" onclick="exportJSON()">⬇ JSON</button>
@@ -215,7 +215,7 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <!-- AI PANEL -->
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-hdr">
-    <h3>🔎 Actualización automática <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
+    <h3>🤖 Búsqueda masiva con Gemini <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
     <div class="ai-stats" id="aiStats"></div>
     <div style="display:flex;gap:7px;flex-shrink:0">
       <button class="btn btn-d btn-sm" id="btnStop" onclick="stopAI()" style="display:none">⏹ Detener</button>
@@ -837,88 +837,338 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </script>
 <script>
 (function(){
+  // ═══ SERIES API ═══
   const SERIES_API = 'https://apis.datos.gob.ar/series/api/series';
-  const SERIES_SEARCH_API = 'https://apis.datos.gob.ar/series/api/search';
-  const INDEC_SERIES_PATCH = {
-    ipc_nac:{id:'148.3_INIVELNAL_DICI_M_26',use:'index'},
-    ipc_gba:{id:'148.3_INIVELGBA_DICI_M_21',use:'index'},
-    ipc_pat:{candidates:['148.3_INIVELNIA_DICI_M_27','148.3_INIVELPAT_DICI_M_27'],queries:['IPC Nivel General Patagonia Base diciembre 2016 mensual INDEC','IPC Patagonia nivel general mensual índice INDEC']},
-    ipim_gral:{id:'448.1_NIVEL_GENERAL_0_0_13_46',use:'index'},
-    ipim_r29:{candidates:['448.1_REFINADOS_PETROLEO_0_0_13_46','178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13','106.3_I1PRPMEE_1993_M_51'],queries:['IPIM productos refinados del petróleo mensual INDEC','IPIM refinados del petróleo mensual índice INDEC']}
+
+  // Usamos :percent_change — devuelve la var % mensual directo, sin necesidad
+  // de calcular ratio entre índices. Tiene menor lag que la serie base.
+  const SERIES_IDS = {
+    ipc_nac:   '148.3_INIVELNAL_DICI_M_26',
+    ipc_gba:   '148.3_INIVELGBA_DICI_M_21',
+    ipc_pat:   '148.3_INIVELNIA_DICI_M_27',
+    ipim_gral: '448.1_NIVEL_GENERAL_0_0_13_46',
+    ipim_r29:  '448.1_REFINADOS_PETROLEO_0_0_13_46',
   };
-  function catalog(){ return (typeof IDX_CATALOG!=='undefined') ? IDX_CATALOG : (window.IDX_CATALOG||[]); }
-  window._selectedIdx = window._selectedIdx || new Set(catalog().filter(d=>d.cat!=='mo').map(d=>d.id));
+  const SERIES_FALLBACK = {
+    ipc_pat:  ['148.3_INIVELPAT_DICI_M_27'],
+    ipim_r29: ['178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13'],
+  };
+
   window._seriesCache = window._seriesCache || {};
-  function previousYm(ym){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-  function selectedDefsForAI(){ return catalog().filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
-  function countMissingForIdx(id){ return (window._months||[]).filter(ym=>{ const ex=window.idxGet(id,ym); return !ex||(ex.pct==null&&ex.value==null); }).length; }
-  function escAttr(s){ return window.esc(String(s||'')).replace(/'/g,'&#39;'); }
-  window.selectAllAuto=function(){ window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
-  window.clearSelectedAuto=function(){ window._selectedIdx=new Set(); renderSelectionPanel(); };
-  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
-  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set(catalog().filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
-  window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
-  function renderSelectionPanel(){
-    const wrap = document.getElementById('selectorList');
-    const stats = document.getElementById('selStats');
-    if(!wrap || !stats) return;
 
-    const cf = document.getElementById('catFilter')?.value || '';
-    const visible = catalog().filter(d => d.cat !== 'mo' && (!cf || d.cat === cf));
-    const allAuto = catalog().filter(d => d.cat !== 'mo');
-    const selCount = allAuto.filter(d => window._selectedIdx.has(d.id)).length;
-    const missingSelected = allAuto.filter(d => window._selectedIdx.has(d.id)).reduce((a,d) => a + countMissingForIdx(d.id), 0);
+  // ═══ SELECTOR ═══
+  // _selectedIdx se inicializa SIEMPRE como el set completo de no-MO
+  // Se garantiza que IDX_CATALOG ya existe porque está en el primer script sincrónico
+  window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo';}).map(function(d){return d.id;}));
 
-    stats.textContent = `${selCount}/${allAuto.length} seleccionados · ${missingSelected} celdas faltantes`;
+  function countMissing(id){
+    return (window._months||[]).filter(function(ym){
+      var ex = window.idxGet(id,ym);
+      return !ex||(ex.pct==null&&ex.value==null);
+    }).length;
+  }
 
+  function renderSel(){
+    var wrap  = document.getElementById('selectorList');
+    var stats = document.getElementById('selStats');
+    if(!wrap||!stats) return;
+    var cf      = (document.getElementById('catFilter')||{}).value||'';
+    var allAuto = (window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo';});
+    var visible = allAuto.filter(function(d){return !cf||d.cat===cf;});
+    var selN    = allAuto.filter(function(d){return window._selectedIdx.has(d.id);}).length;
+    var missN   = allAuto.filter(function(d){return window._selectedIdx.has(d.id);})
+                         .reduce(function(a,d){return a+countMissing(d.id);},0);
+    stats.textContent = selN+'/'+allAuto.length+' seleccionados · '+missN+' celdas faltantes';
     if(!visible.length){
-      wrap.innerHTML = '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
+      wrap.innerHTML='<span style="font-size:12px;color:var(--g500)">Sin índices automáticos en esta categoría.</span>';
       return;
     }
-
-    wrap.innerHTML = visible.map(def => {
-      const active = window._selectedIdx.has(def.id);
-      const missing = countMissingForIdx(def.id);
-      return `
-        <label class="sel-chip ${active ? 'active' : ''}" title="${escAttr(def.name)} · ${missing} períodos faltantes">
-          <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleIdxSelection('${def.id}', this.checked)">
-          <span>${window.esc(def.name)}</span>
-          <small>${missing}</small>
-        </label>`;
+    wrap.innerHTML = visible.map(function(def){
+      var active  = window._selectedIdx.has(def.id);
+      var missing = countMissing(def.id);
+      return '<label class="sel-chip'+(active?' active':'')+'">'
+        +'<input type="checkbox" data-idx="'+def.id+'" '+(active?'checked':'')+' />'
+        +'<span>'+window.esc(def.name)+'</span>'
+        +'<small>'+missing+'</small>'
+        +'</label>';
     }).join('');
+    // Bind events (no inline onchange to avoid quoting issues)
+    wrap.querySelectorAll('input[data-idx]').forEach(function(chk){
+      chk.onchange = function(){
+        var id = this.getAttribute('data-idx');
+        if(this.checked) window._selectedIdx.add(id);
+        else             window._selectedIdx.delete(id);
+        renderSel();
+      };
+    });
   }
-  function seriesCfg(def){ if(!INDEC_SERIES_PATCH[def.id]) INDEC_SERIES_PATCH[def.id]={}; return INDEC_SERIES_PATCH[def.id]; }
-  function extractSeriesId(item){ return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null; }
-  function gatherItemText(item){ return [item?.title,item?.description,item?.description_short,item?.field?.description,item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,item?.dataset_source,item?.dataset_publisher_name,item?.notes,item?.units,item?.field?.units].filter(Boolean).join(' ').toLowerCase(); }
-  function scoreSeriesCandidate(def,cand){ const txt=cand.txt||''; let s=0; if(/indec/.test(txt))s+=20; if(/mensual/.test(txt))s+=20; if(/índice|indice/.test(txt))s+=15; if(/nivel general/.test(txt))s+=25; if(def.id==='ipc_pat'){ if(/patagonia/.test(txt))s+=40; if(/ipc/.test(txt))s+=20; } if(def.id==='ipim_r29'){ if(/refinad/.test(txt))s+=40; if(/petr[oó]leo/.test(txt))s+=30; if(/ipim/.test(txt))s+=20; } if(def.id==='ipc_nac'&&/nacional/.test(txt))s+=40; if(def.id==='ipc_gba'&&/gba/.test(txt))s+=40; if(def.id==='ipim_gral'&&/nivel general/.test(txt)&&/ipim/.test(txt))s+=40; return s; }
-  async function apiSeriesExists(seriesId){ try{ const r=await fetch(SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&limit=1&format=json'); if(!r.ok)return false; const d=await r.json(); return Array.isArray(d?.data)&&d.data.length>0; }catch{return false;} }
-  async function searchOfficialSeriesId(def){ const cfg=seriesCfg(def); const queries=(cfg.queries&&cfg.queries.length)?cfg.queries:[def.name+' mensual INDEC']; let best=null; for(const q of queries){ try{ const url=SERIES_SEARCH_API+'?q='+encodeURIComponent(q)+'&catalog_id=sspm&limit=50&sort_by=relevance&sort=desc'; const r=await fetch(url); if(!r.ok)continue; const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const candidates=rows.map(item=>({id:extractSeriesId(item),txt:gatherItemText(item)})).filter(x=>x.id); for(const cand of candidates){ cand.score=scoreSeriesCandidate(def,cand); if(!best||cand.score>best.score)best=cand; } }catch(e){ console.warn('searchOfficialSeriesId',def.id,q,e); } } return best?.id||null; }
-  async function resolveIndecSeriesId(def){ const cfg=seriesCfg(def); if(cfg.id) return cfg.id; if(Array.isArray(cfg.candidates)){ for(const cand of cfg.candidates){ if(await apiSeriesExists(cand)){ cfg.id=cand; return cand; } } } const dyn=await searchOfficialSeriesId(def); if(dyn){ cfg.id=dyn; return dyn; } return null; }
-  async function fetchSeriesBundleById(seriesId){ if(window._seriesCache[seriesId]) return window._seriesCache[seriesId]; const url=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full'; const r=await fetch(url); if(!r.ok) throw new Error('series api '+r.status); const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const meta=Array.isArray(d?.meta)?d.meta:[]; window._seriesCache[seriesId]={rows,meta,url}; return window._seriesCache[seriesId]; }
-  function findSeriesPoint(rows,ym){ return rows.find(x=>String(x?.[0]||'').slice(0,7)===ym)||null; }
-  function metaText(bundle){ return (bundle?.meta||[]).map(x=>JSON.stringify(x)).join(' ').toLowerCase(); }
-  function interpretSeriesValue(def,seriesId,bundle,ym){ const point=findSeriesPoint(bundle.rows,ym); if(!point||point[1]==null)return null; const prev=findSeriesPoint(bundle.rows,previousYm(ym)); const metaTxt=metaText(bundle); const v=Number(point[1]); if(!Number.isFinite(v)) return null; const looksIndex=/índice|indice|2004=100|1993=100|2015=100|2016/.test(metaTxt)||v>20; if(looksIndex&&prev&&prev[1]!=null){ const pv=Number(prev[1]); if(Number.isFinite(pv)&&pv>0&&v>0){ const pct=((v/pv)-1)*100; if(Number.isFinite(pct)&&Math.abs(pct)<1000){ return {ym,pct:Number(pct.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:Number(pv.toFixed(4)),seriesId,calcMethod:'series_ratio',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie oficial INDEC ('+seriesId+')',source:def.src,rawValue:v}; } } } if(Math.abs(v)<=1.5){ return {ym,pct:Number((v*100).toFixed(2)),value:null,seriesValue:Number(v.toFixed(6)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(6)):null,seriesId,calcMethod:'series_fraction',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % fraccional ('+seriesId+')',source:def.src,rawValue:v}; } if(Math.abs(v)<=1000){ return {ym,pct:Number(v.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(4)):null,seriesId,calcMethod:'series_percent_direct',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % directo ('+seriesId+')',source:def.src,rawValue:v}; } return null; }
-  async function fetchIndecYm(def,ym){ const seriesId=await resolveIndecSeriesId(def); if(!seriesId)return null; const bundle=await fetchSeriesBundleById(seriesId); return interpretSeriesValue(def,seriesId,bundle,ym); }
-  window.renderLog=function(){ const log=document.getElementById('aiLog'); if(!log)return; const show=(window._tasks||[]).slice(-50); log.innerHTML=show.map(t=>{ const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳'; const cls=(t.status==='found'&&t.via==='api')?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending'); let val=''; let note=''; if(t.found){ if(t.found.pct!=null) val=window.pF(t.found.pct); else if(t.found.value!=null) val='$'+Number(t.found.value).toFixed(2); if(t.found.seriesId) note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+' · serie '+(t.found.rawValue!=null?Number(t.found.rawValue).toFixed(2):'')+'</span>'; } return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span><span class="ai-log-name">'+window.esc(t.def.name)+note+'</span><span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'+(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>'; }).join(''); log.scrollTop=log.scrollHeight; };
-  window.updateAIStats=function(found,manual,done,total,official=0,ai=0){ const el=document.getElementById('aiStats'); if(!el)return; el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span><span class="ai-stat ok">🏛️ '+official+'</span><span class="ai-stat info">🤖 '+ai+'</span><span class="ai-stat ok">✅ '+found+'</span><span class="ai-stat warn">⚠️ '+manual+' manuales</span>'; };
-  window.liveCellOk=function(def,ym,result,metaType='ai'){ const field=window.isUsd(def)?'value':'pct'; const inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field); if(inp){ const val=field==='value'?result.value:result.pct; if(val!=null){ inp.value=Number(val).toFixed(2); inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found'); } } if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id); };
-  const origRefreshNeedCount=window.refreshNeedCount; window.refreshNeedCount=function(){ if(origRefreshNeedCount) origRefreshNeedCount(); renderSelectionPanel(); };
-  const origApplyRange=window.applyRange; window.applyRange=function(){ if(origApplyRange) origApplyRange(); renderSelectionPanel(); };
-  const origRenderAll=window.renderAll; window.renderAll=function(){ if(origRenderAll) origRenderAll(); renderSelectionPanel(); };
-  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderSelectionPanel,150); });
-})();
-</script>
+  window.renderSelectionPanel = renderSel;
 
-<script>
-(function(){
-  document.addEventListener('DOMContentLoaded', function(){
-    try{
-      if(typeof renderSelectionPanel === 'function') setTimeout(renderSelectionPanel, 80);
-    }catch(e){ console.warn('selector runtime patch', e); }
+  // Selector action buttons
+  window.selectAllAuto = function(){
+    window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo';}).map(function(d){return d.id;}));
+    renderSel();
+  };
+  window.clearSelectedAuto = function(){
+    window._selectedIdx = new Set();
+    renderSel();
+  };
+  window.selectVisibleAuto = function(){
+    var cf = (document.getElementById('catFilter')||{}).value||'';
+    window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo'&&(!cf||d.cat===cf);}).map(function(d){return d.id;}));
+    renderSel();
+  };
+  window.selectCurrentCategory = function(){
+    var cf = (document.getElementById('catFilter')||{}).value||'';
+    if(!cf){ window.selectAllAuto(); return; }
+    window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo'&&d.cat===cf;}).map(function(d){return d.id;}));
+    renderSel();
+  };
+  window.toggleIdxSelection = function(id,checked){
+    if(checked) window._selectedIdx.add(id);
+    else        window._selectedIdx.delete(id);
+    renderSel();
+  };
+
+  // Patch renderAll / applyRange / refreshNeedCount to also refresh selector
+  // Safe because this IIFE runs AFTER the first script defines these functions
+  (function patchHooks(){
+    ['renderAll','applyRange','refreshNeedCount'].forEach(function(fn){
+      var orig = window[fn];
+      if(typeof orig==='function'){
+        window[fn]=function(){
+          var r=orig.apply(this,arguments);
+          renderSel();
+          return r;
+        };
+      }
+    });
+  })();
+
+  // ═══ SERIES FETCH ═══
+  function prevYm(ym){
+    var p=ym.split('-').map(Number);
+    var d=new Date(p[0],p[1]-2,1);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  async function fetchBundle(seriesId, pct, force){
+    var key = seriesId+(pct?'_pct':'_idx');
+    if(!force && window._seriesCache[key]) return window._seriesCache[key];
+    var sid = pct ? seriesId+':percent_change' : seriesId;
+    // sort=asc + limit=600 desde 2016 cubre todos los meses disponibles
+    var url = SERIES_API+'?ids='+encodeURIComponent(sid)
+      +'&format=json&limit=600&sort=asc&start_date=2016-01-01';
+    var r = await fetch(url);
+    if(!r.ok) throw new Error('series '+r.status+' '+sid);
+    var d = await r.json();
+    var bundle = {rows:Array.isArray(d.data)?d.data:[],meta:Array.isArray(d.meta)?d.meta:[],url:url,pct:pct};
+    window._seriesCache[key] = bundle;
+    return bundle;
+  }
+
+  function findPt(rows,ym){
+    return rows.find(function(x){return String(x&&x[0]||'').slice(0,7)===ym;})||null;
+  }
+  function metaTxt(bundle){
+    return (bundle.meta||[]).map(function(x){return JSON.stringify(x);}).join(' ').toLowerCase();
+  }
+
+  function interpret(def,sid,bundle,ym){
+    var pt = findPt(bundle.rows,ym);
+    if(!pt||pt[1]==null) return null;
+    var v = Number(pt[1]);
+    if(!isFinite(v)) return null;
+
+    // percent_change mode: value is already the monthly % (as fraction 0.046 or direct 4.6)
+    if(bundle.pct){
+      var pct = Math.abs(v)<=1.5 ? +(v*100).toFixed(2) : +v.toFixed(2);
+      return {ym,pct,value:null,seriesId:sid,calcMethod:'pct_direct',
+        publishedAt:String(pt[0]).slice(0,10),sourceUrl:bundle.url,
+        note:'INDEC serie pct mensual ('+sid+')',source:def.src,rawValue:v};
+    }
+
+    // index mode: compute ratio with previous month
+    var prev = findPt(bundle.rows, prevYm(ym));
+    var meta = metaTxt(bundle);
+    var isIdx = /índice|indice|2016|2004=100|1993=100/.test(meta)||v>20;
+    if(isIdx && prev && prev[1]!=null){
+      var pv = Number(prev[1]);
+      if(isFinite(pv)&&pv>0&&v>0){
+        var pct2 = ((v/pv)-1)*100;
+        if(isFinite(pct2)&&Math.abs(pct2)<200)
+          return {ym,pct:+pct2.toFixed(2),value:null,
+            seriesValue:+v.toFixed(4),seriesPrevValue:+pv.toFixed(4),
+            seriesId:sid,calcMethod:'idx_ratio',
+            publishedAt:String(pt[0]).slice(0,10),sourceUrl:bundle.url,
+            note:'INDEC serie índice ('+sid+')',source:def.src,rawValue:v};
+      }
+    }
+    if(Math.abs(v)<=1.5)
+      return {ym,pct:+(v*100).toFixed(2),value:null,seriesId:sid,calcMethod:'frac',
+        publishedAt:String(pt[0]).slice(0,10),sourceUrl:bundle.url,note:'INDEC frac',source:def.src,rawValue:v};
+    if(Math.abs(v)<=200)
+      return {ym,pct:+v.toFixed(2),value:null,seriesId:sid,calcMethod:'direct',
+        publishedAt:String(pt[0]).slice(0,10),sourceUrl:bundle.url,note:'INDEC directo',source:def.src,rawValue:v};
+    return null;
+  }
+
+  async function fetchIndecYm(def,ym){
+    var sid = SERIES_IDS[def.id];
+    if(sid){
+      // Try :percent_change first (less lag, direct value)
+      for(var force=0;force<=1;force++){
+        try{
+          var b = await fetchBundle(sid,true,!!force);
+          var r = interpret(def,sid,b,ym);
+          if(r) return r;
+        }catch(e){ console.warn('indec pct',sid,ym,e); }
+      }
+      // Fallback: index-based ratio
+      for(var force2=0;force2<=1;force2++){
+        try{
+          var b2 = await fetchBundle(sid,false,!!force2);
+          var r2 = interpret(def,sid,b2,ym);
+          if(r2) return r2;
+        }catch(e){ console.warn('indec idx',sid,ym,e); }
+      }
+    }
+    // Try fallback series ids
+    var fbs = SERIES_FALLBACK[def.id]||[];
+    for(var fi=0;fi<fbs.length;fi++){
+      try{
+        var fb = await fetchBundle(fbs[fi],false,false);
+        var rf = interpret(def,fbs[fi],fb,ym);
+        if(rf) return rf;
+      }catch(e){ console.warn('indec fallback',fbs[fi],ym,e); }
+    }
+    return null;
+  }
+
+  // ═══ OVERRIDE log/stats/cell helpers ═══
+  window.renderLog=function(){
+    var log=document.getElementById('aiLog'); if(!log) return;
+    var show=(window._tasks||[]).slice(-50);
+    log.innerHTML=show.map(function(t){
+      var ico={pending:'⏳',running:'🔄',found:t.via==='api'?'🏛️':'✅',manual:'⚠️',failed:'❌'}[t.status]||'⏳';
+      var cls=t.status==='found'&&t.via==='api'?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending');
+      var val='',note='';
+      if(t.found){
+        if(t.found.pct!=null) val=window.pF(t.found.pct);
+        else if(t.found.value!=null) val='$'+Number(t.found.value).toFixed(2);
+        if(t.found.seriesId) note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+'</span>';
+      }
+      return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span>'
+        +'<span class="ai-log-name">'+window.esc(t.def.name)+note+'</span>'
+        +'<span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'
+        +(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>';
+    }).join('');
+    log.scrollTop=log.scrollHeight;
+  };
+  window.updateAIStats=function(found,manual,done,total,official,ai){
+    official=official||0;ai=ai||0;
+    var el=document.getElementById('aiStats'); if(!el) return;
+    el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span>'
+      +'<span class="ai-stat ok">🏛️ '+official+'</span>'
+      +'<span class="ai-stat info">🤖 '+ai+'</span>'
+      +'<span class="ai-stat ok">✅ '+found+'</span>'
+      +'<span class="ai-stat warn">⚠️ '+manual+' manuales</span>';
+  };
+  window.liveCellOk=function(def,ym,result,metaType){
+    metaType=metaType||'ai';
+    var field=window.isUsd(def)?'value':'pct';
+    var inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field);
+    if(inp){
+      var val=field==='value'?result.value:result.pct;
+      if(val!=null){
+        inp.value=Number(val).toFixed(2);
+        inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()
+          +' has-val '+(metaType==='api'?'api-found':'ai-found');
+      }
+    }
+    if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id);
+  };
+
+  // ═══ MAIN AI SEARCH ═══
+  window.startAISearch=async function(){
+    var from=document.getElementById('ctrlFrom').value;
+    var to=document.getElementById('ctrlTo').value;
+    if(!from||!to||from>to){window.toast('Aplicá un rango válido primero','er');return;}
+    var defs=(window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo'&&window._selectedIdx.has(d.id);});
+    if(!defs.length){window.toast('Seleccioná al menos un índice','er');return;}
+    var months=(window._months&&window._months.length)?window._months:window.buildRange(from,to);
+    window._tasks=[];
+    defs.forEach(function(def){
+      months.forEach(function(ym){
+        var ex=window.idxGet(def.id,ym);
+        if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def:def,ym:ym,status:'pending',found:null,via:null});
+      });
+    });
+    if(!window._tasks.length){window.toast('No hay períodos faltantes','ok');return;}
+    var panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis');
+    document.getElementById('btnStop').style.display='';
+    document.getElementById('btnAI').disabled=true;
+    document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas';
+    document.getElementById('aiBar').style.width='0%';
+    document.getElementById('aiLog').innerHTML='';
+    window._aiStop=false;
+    var done=0,found=0,manual=0,official=0,ai=0;
+    for(var ti=0;ti<window._tasks.length;ti++){
+      var t=window._tasks[ti];
+      if(window._aiStop) break;
+      t.status='running'; window.renderLog();
+      try{
+        var result=null,via=null;
+        if(t.def.cat==='usd'){result=await window.fetchUsdYm(t.ym);via='api';}
+        else if(t.def.cat==='fuel'){result=await window.fetchFuelACAYm(t.def.id,t.ym);via='api';}
+        else if(t.def.src==='INDEC'){
+          try{result=await fetchIndecYm(t.def,t.ym); if(result)via='api';}catch(e){console.warn('indecYm',e);}
+          if(!result){var txt=await window.callGemini(window.buildPrompt(t.def,t.ym));result=window.parseJSON(txt);via=result?'ai':null;}
+        } else {
+          var txt2=await window.callGemini(window.buildPrompt(t.def,t.ym));result=window.parseJSON(txt2);via=result?'ai':null;
+        }
+        if(result&&(result.pct!=null||result.value!=null)){
+          window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,
+            value:result.value!=null?Number(result.value):null,
+            seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,
+            seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,
+            seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,
+            confirmed:false,status:'updated',source:t.def.src,note:result.note||'',
+            publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null});
+          window._meta[t.def.id+'_'+t.ym]=via==='api'?'api':'ai';
+          t.status='found';t.found=result;t.via=via;found++;
+          if(via==='api')official++;else ai++;
+          window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai');
+        } else {
+          t.status='manual';t.via='manual';window._meta[t.def.id+'_'+t.ym]='manual';manual++;
+          window.liveCellManual(t.def,t.ym);
+        }
+      }catch(e){console.warn('task',t.def.id,e);t.status='manual';t.via='manual';window._meta[t.def.id+'_'+t.ym]='manual';manual++;window.liveCellManual(t.def,t.ym);}
+      done++;
+      document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%';
+      window.updateAIStats(found,manual,done,window._tasks.length,official,ai);
+      window.renderLog();
+      await window.sleep(220);
+    }
+    document.getElementById('btnStop').style.display='none';
+    document.getElementById('btnAI').disabled=false;
+    document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales';
+    window.refreshNeedCount();
+    if(typeof window.updateAllAcum==='function') window.updateAllAcum();
+    renderSel();
+    if(found>0){window.toast('Actualización: '+found+' · '+manual+' manuales','ai');await window.saveToSupabase();}
+    else window.toast('Sin datos automáticos · '+manual+' manuales','er');
+  };
+
+  // ═══ BOOT — run AFTER DOMContentLoaded so renderAll/applyRange exist ═══
+  document.addEventListener('DOMContentLoaded',function(){
+    // Render selector once the app has finished loading
+    // loadFromSupabase calls renderAll which now calls renderSel via hook
+    // but we add a safety timeout as well
+    setTimeout(renderSel, 800);
   });
-})();
-</script>
+})()
 
+</script>
 </body>
 </html>
