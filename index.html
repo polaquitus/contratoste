@@ -957,14 +957,67 @@ function _navAct(mod){
 function go(v){
   ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv'].forEach(id=>document.getElementById(id).classList.remove('on'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){document.getElementById('vList').classList.add('on');_navAct('list');t.innerHTML='📋 Contratos';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div>';editId=null;resetForm();}
-  else if(v==='form'){document.getElementById('vForm').classList.add('on');_navAct('form');t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';a.innerHTML='<button class="btn btn-s" onclick="go('list')">← Volver</button>';window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='detail'){document.getElementById('vDet').classList.add('on');_navAct('list');t.innerHTML='📄 Detalle';a.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>';renderDet();window.scrollTo({top:0,behavior:'smooth'});}
-  else if(v==='me2n'){document.getElementById('vMe2n').classList.add('on');_navAct('me2n');t.innerHTML='🛒 Purchase Orders (ME2N)';a.innerHTML='';renderMe2n();buildPlantFilter();}
-  else if(v==='idx'){document.getElementById('vIdx').classList.add('on');_navAct('idx');t.innerHTML='📊 Master de Índices';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>';renderIdxView();}
-  else if(v==='licit'){document.getElementById('vLicit').classList.add('on');_navAct('licit');t.innerHTML='📋 Licitaciones';a.innerHTML='<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>';renderLicit();}
-  else if(v==='prov'){document.getElementById('vProv').classList.add('on');_navAct('prov');t.innerHTML='🏢 Proveedores';a.innerHTML='<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(function(){renderProv();toast(PROV_DB.length+' proveedores','ok');}).catch(function(e){toast('Error: '+e.message,'er');})">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>';loadProv().then(function(){renderProv();}).catch(function(){renderProv();});}
-  else if(v==='me2ndet'){document.getElementById('vMe2nDet').classList.add('on');_navAct('me2n');t.innerHTML='🛒 Detalle PO por Contrato';a.innerHTML='<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>';renderMe2nDet();window.scrollTo({top:0,behavior:'smooth'});}
+  if(v==='list'){
+    document.getElementById('vList').classList.add('on');
+    _navAct('list');
+    t.innerHTML='📋 Contratos';
+    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div>`;
+    editId=null;
+    resetForm();
+  }
+  else if(v==='form'){
+    document.getElementById('vForm').classList.add('on');
+    _navAct('form');
+    t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';
+    a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  else if(v==='detail'){
+    document.getElementById('vDet').classList.add('on');
+    _navAct('list');
+    t.innerHTML='📄 Detalle';
+    a.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>`;
+    renderDet();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  else if(v==='me2n'){
+    document.getElementById('vMe2n').classList.add('on');
+    _navAct('me2n');
+    t.innerHTML='🛒 Purchase Orders (ME2N)';
+    a.innerHTML='';
+    renderMe2n();
+    buildPlantFilter();
+  }
+  else if(v==='idx'){
+    document.getElementById('vIdx').classList.add('on');
+    _navAct('idx');
+    t.innerHTML='📊 Master de Índices';
+    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>`;
+    renderIdxView();
+  }
+  else if(v==='licit'){
+    document.getElementById('vLicit').classList.add('on');
+    _navAct('licit');
+    t.innerHTML='📋 Licitaciones';
+    a.innerHTML=`<button class="btn btn-p btn-sm" onclick="openLicitModal(null)">➕ Nueva Licitación</button>`;
+    renderLicit();
+  }
+  else if(v==='prov'){
+    document.getElementById('vProv').classList.add('on');
+    _navAct('prov');
+    t.innerHTML='🏢 Proveedores';
+    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importProvModal()">📤 Importar SAP</button><button class="btn btn-s btn-sm" onclick="loadProv().then(function(){renderProv();toast(PROV_DB.length+' proveedores','ok');}).catch(function(e){toast('Error: '+e.message,'er');})">🔄 Recargar</button><button class="btn btn-p btn-sm" onclick="openProvModal(null)">➕ Nuevo Proveedor</button></div>`;
+    loadProv().then(function(){renderProv();}).catch(function(){renderProv();});
+  }
+  else if(v==='me2ndet'){
+    document.getElementById('vMe2nDet').classList.add('on');
+    _navAct('me2n');
+    t.innerHTML='🛒 Detalle PO por Contrato';
+    a.innerHTML=`<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>`;
+    renderMe2nDet();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+}
 }
 
 // POLY
