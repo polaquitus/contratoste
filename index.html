@@ -1072,6 +1072,7 @@ async function guardar(){
 
   const old=editId?DB.find(x=>x.id===editId):null;
   const c={
+    ...(old||{}),
     id:editId||Date.now().toString(36)+Math.random().toString(36).substr(2,5),
     num:gv('f_num'),cont:gv('f_cont'),tipo:gv('f_tipo'),mon:gv('f_mon'),
     monto:parseFloat(gv('f_monto'))||0,fechaIni:gv('f_ini'),fechaFin:gv('f_fin'),
@@ -1093,10 +1094,10 @@ async function guardar(){
     trigBpct:parseFloat(gv('f_trigBpct'))||null,
     trigC:document.getElementById('f_trigC').checked,
     trigCmes:parseInt(gv('f_trigCmes'))||null,
-    // Tarifario
-    tarifarios:old?.tarifarios||[],
-    enmiendas:old?.enmiendas||[], // Array of {num,motivo,fecha}
-    aves:old?.aves||[], // Array of {id,tipo,subtipo,concepto,monto,enmRef,periodo,fechaFinNueva,pctAjuste,detalleCalc,fecha}
+    // Tarifario / historiales: preservar siempre lo existente si el formulario no los edita
+    tarifarios:old?.tarifarios||c?.tarifarios||[],
+    enmiendas:old?.enmiendas||c?.enmiendas||[],
+    aves:old?.aves||c?.aves||[],
     createdAt:old?.createdAt||new Date().toISOString(),
     updatedAt:new Date().toISOString()
   };
