@@ -143,7 +143,6 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 .sel-chip small{font-size:10px;color:var(--g600c);font-weight:700;background:var(--w);padding:2px 6px;border-radius:999px;border:1px solid var(--g200)}
 .cell-inp.api-found{border-color:var(--b500);background:var(--b100)}
 .ai-log-row.api{color:#1d4ed8;background:var(--b100)}
-
 </style>
 </head>
 <body>
@@ -284,7 +283,9 @@ const SERIES_SEARCH_API = 'https://apis.datos.gob.ar/series/api/search';
 const INDEC_SERIES = {
   ipc_nac:   {id:'148.3_INIVELNAL_DICI_M_26', mode:'index'},
   ipc_gba:   {id:'148.3_INIVELGBA_DICI_M_21', mode:'index'},
-  ipim_gral: {id:'448.1_NIVEL_GENERAL_0_0_13_46', mode:'index'}
+  ipc_pat:   {candidates:['148.3_INIVELNIA_DICI_M_27','148.3_INIVELPAT_DICI_M_27'], mode:'index'},
+  ipim_gral: {id:'448.1_NIVEL_GENERAL_0_0_13_46', mode:'index'},
+  ipim_r29:  {candidates:['178.1_PRP_0_0_13','178.1_REFPET_0_0_13','106.3_I1PRPMEE_1993_M_51'], mode:'index'}
 };
 const INDEC_SEARCH_HINTS = {
   ipc_nac: 'IPC nivel general nacional base diciembre 2016 mensual INDEC',
@@ -444,23 +445,29 @@ function extractSeriesId(item){
   return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null;
 }
 function gatherItemText(item){
-  return [
-    item?.title,item?.description,item?.description_short,item?.field?.description,
-    item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,
-    item?.dataset_source,item?.dataset_publisher_name,item?.notes
-  ].filter(Boolean).join(' ').toLowerCase();
+  return [item?.title,item?.description,item?.description_short,item?.field?.description,item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,item?.dataset_source,item?.dataset_publisher_name,item?.notes].filter(Boolean).join(' ').toLowerCase();
+}
+async function apiSeriesExists(seriesId){
+  try{
+    const r=await fetch(`${SERIES_API}?ids=${encodeURIComponent(seriesId)}&limit=1&format=json`);
+    if(!r.ok)return false;
+    const d=await r.json();
+    return Array.isArray(d?.data) && d.data.length>0;
+  }catch{return false;}
 }
 async function searchOfficialSeriesId(def){
   const q=INDEC_SEARCH_HINTS[def.id] || (`${def.name} mensual INDEC`);
-  const url=`${SERIES_SEARCH_API}?q=${encodeURIComponent(q)}&catalog_id=sspm&limit=25&sort_by=relevance&sort=desc`;
+  const url=`${SERIES_SEARCH_API}?q=${encodeURIComponent(q)}&catalog_id=sspm&limit=50&sort_by=relevance&sort=desc`;
   const r=await fetch(url);
   if(!r.ok)throw new Error('search api '+r.status);
   const d=await r.json();
   const rows=Array.isArray(d?.data)?d.data:[];
   const candidates=rows.map(item=>({id:extractSeriesId(item),txt:gatherItemText(item)})).filter(x=>x.id);
   if(!candidates.length)return null;
-  const best = (
-    candidates.find(x=>/mensual/.test(x.txt)&&/indec/.test(x.txt)&&(/patagonia/.test(x.txt)||/refinad/.test(x.txt)||/nivel general/.test(x.txt))) ||
+  const best=(
+    candidates.find(x=>/nivel general/.test(x.txt)&&/mensual/.test(x.txt)&&/indec/.test(x.txt)) ||
+    candidates.find(x=>/patagonia/.test(x.txt)&&/mensual/.test(x.txt)&&/indec/.test(x.txt)) ||
+    candidates.find(x=>/refinad/.test(x.txt)&&/mensual/.test(x.txt)&&/indec/.test(x.txt)) ||
     candidates.find(x=>/mensual/.test(x.txt)&&/indec/.test(x.txt)) ||
     candidates.find(x=>/mensual/.test(x.txt)) ||
     candidates[0]
@@ -468,9 +475,15 @@ async function searchOfficialSeriesId(def){
   return best?.id||null;
 }
 async function resolveIndecSeriesId(def){
-  if(INDEC_SERIES[def.id]?.id)return INDEC_SERIES[def.id].id;
+  const cfg=INDEC_SERIES[def.id]||{};
+  if(cfg.id)return cfg.id;
+  if(Array.isArray(cfg.candidates)){
+    for(const cand of cfg.candidates){
+      if(await apiSeriesExists(cand)){ cfg.id=cand; INDEC_SERIES[def.id]=cfg; return cand; }
+    }
+  }
   const dyn=await searchOfficialSeriesId(def);
-  if(dyn){INDEC_SERIES[def.id]={id:dyn,mode:'index'};return dyn;}
+  if(dyn){ cfg.id=dyn; INDEC_SERIES[def.id]=cfg; return dyn; }
   return null;
 }
 async function fetchSeriesRowsById(seriesId){
@@ -489,19 +502,26 @@ async function fetchIndecYm(def, ym){
   if(!seriesId)return null;
   const pack=await fetchSeriesRowsById(seriesId);
   const point=findSeriesPoint(pack.rows, ym);
-  if(!point)return null;
   const prev=findSeriesPoint(pack.rows, previousYm(ym));
-  if(!prev||prev[1]==null||point[1]==null)return null;
-  const pct=((Number(point[1])/Number(prev[1]))-1)*100;
-  return {
-    ym,
-    pct:Number(pct.toFixed(2)),
-    value:null,
-    publishedAt:String(point[0]).slice(0,10),
-    sourceUrl:pack.url,
-    note:`Serie oficial INDEC (${seriesId})`,
-    source:def.src
-  };
+  if(point && prev && point[1]!=null && prev[1]!=null && Number(point[1])>0 && Number(prev[1])>0){
+    const pct=((Number(point[1])/Number(prev[1]))-1)*100;
+    if(Number.isFinite(pct) && Math.abs(pct)<1000){
+      return {ym,pct:Number(pct.toFixed(2)),value:null,publishedAt:String(point[0]).slice(0,10),sourceUrl:pack.url,note:`Serie oficial INDEC (${seriesId})`,source:def.src};
+    }
+  }
+  // intento alternativo con representation_mode=change/percent si la serie ya viene como variación
+  if(point && point[1]!=null){
+    const v=Number(point[1]);
+    if(Number.isFinite(v)){
+      if(Math.abs(v)<=1.5){
+        return {ym,pct:Number((v*100).toFixed(2)),value:null,publishedAt:String(point[0]).slice(0,10),sourceUrl:pack.url,note:`Serie INDEC % fraccional (${seriesId})`,source:def.src};
+      }
+      if(Math.abs(v)<=1000){
+        return {ym,pct:Number(v.toFixed(2)),value:null,publishedAt:String(point[0]).slice(0,10),sourceUrl:pack.url,note:`Serie INDEC % directo (${seriesId})`,source:def.src};
+      }
+    }
+  }
+  return null;
 }
 
 // ═══════════════ AI BULK SEARCH ═══════════════
@@ -511,7 +531,6 @@ async function startAISearch(){
   const from=document.getElementById('ctrlFrom').value;
   const to=document.getElementById('ctrlTo').value;
   if(!from||!to||from>to){toast('Aplicá un rango válido primero','er');return;}
-
   const defs=selectedDefsForAI();
   if(!defs.length){toast('Seleccioná al menos un índice para actualizar','er');return;}
   const months=_months.length?_months:buildRange(from,to);
@@ -520,11 +539,9 @@ async function startAISearch(){
   defs.forEach(def=>{
     months.forEach(ym=>{
       const ex=idxGet(def.id,ym);
-      if(!ex||(ex.pct==null&&ex.value==null))
-        _tasks.push({def,ym,status:'pending',found:null,via:null});
+      if(!ex||(ex.pct==null&&ex.value==null)) _tasks.push({def,ym,status:'pending',found:null,via:null});
     });
   });
-
   if(!_tasks.length){toast('No hay períodos faltantes para la selección actual','ok');return;}
 
   const panel=document.getElementById('aiPanel');
@@ -537,77 +554,57 @@ async function startAISearch(){
   _aiStop=false;
 
   let done=0,found=0,manual=0,official=0,ai=0;
-
   for(const t of _tasks){
     if(_aiStop)break;
     t.status='running';renderLog();
-
     try{
-      let result=null;
-      let via=null;
-
+      let result=null, via=null;
       if(t.def.cat==='usd'){
-        result=await fetchUsdYm(t.ym);
-        via='api';
+        result=await fetchUsdYm(t.ym); via='api';
       } else if(t.def.cat==='fuel'){
-        result=await fetchFuelACAYm(t.def.id,t.ym);
-        via='api';
+        result=await fetchFuelACAYm(t.def.id,t.ym); via='api';
       } else if(t.def.src==='INDEC'){
-        try{
-          result=await fetchIndecYm(t.def,t.ym);
-          if(result)via='api';
-        }catch(err){console.warn('fetchIndecYm',t.def.id,t.ym,err);}
+        try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); }
         if(!result){
           const txt=await callGemini(buildPrompt(t.def,t.ym));
-          result=parseJSON(txt);
-          via=result?'ai':null;
+          result=parseJSON(txt); via=result?'ai':null;
         }
       } else {
         const txt=await callGemini(buildPrompt(t.def,t.ym));
-        result=parseJSON(txt);
-        via=result?'ai':null;
+        result=parseJSON(txt); via=result?'ai':null;
       }
 
       if(result&&(result.pct!=null||result.value!=null)){
-        idxSet(t.def.id,{
-          ym:result.ym||t.ym,
-          pct:result.pct!=null?Number(result.pct):null,
-          value:result.value!=null?Number(result.value):null,
-          confirmed:false,status:'updated',
-          source:t.def.src,note:result.note||'',
-          publishedAt:result.publishedAt||null,
-          sourceUrl:result.sourceUrl||null
-        });
+        idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null});
         _meta[t.def.id+'_'+t.ym]=via==='api'?'api':'ai';
-        t.status='found';t.found=result;t.via=via;found++;
+        t.status='found'; t.found=result; t.via=via; found++;
         if(via==='api')official++; else ai++;
         liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai');
       } else {
-        t.status='manual';t.via='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+        t.status='manual'; t.via='manual'; _meta[t.def.id+'_'+t.ym]='manual'; manual++;
         liveCellManual(t.def,t.ym);
       }
     }catch(e){
       console.warn('auto task',t.def.id,t.ym,e);
-      t.status='manual';t.via='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+      t.status='manual'; t.via='manual'; _meta[t.def.id+'_'+t.ym]='manual'; manual++;
       liveCellManual(t.def,t.ym);
     }
-
     done++;
     document.getElementById('aiBar').style.width=Math.round(done/_tasks.length*100)+'%';
     updateAIStats(found,manual,done,_tasks.length,official,ai);
     renderLog();
     await sleep(220);
   }
-
   document.getElementById('btnStop').style.display='none';
   document.getElementById('btnAI').disabled=false;
   document.getElementById('aiSub').textContent=`· Listo: ${found} encontrados, ${manual} manuales`;
-  refreshNeedCount();
-  updateAllAcum();
-  renderSelectionPanel();
-  if(found>0){toast(`Actualización: ${found} encontrados · ${manual} manuales`,'ai');await saveToSupabase();}
+  refreshNeedCount(); updateAllAcum(); renderSelectionPanel();
+  if(found>0){toast(`Actualización: ${found} encontrados · ${manual} manuales`,'ai'); await saveToSupabase();}
   else toast(`Sin datos automáticos · ${manual} requieren carga manual`,'er');
 }
+
+function buildPrompt(def,ym){
+
 function buildPrompt(def,ym){
   return `Sos un asistente experto en estadísticas económicas argentinas oficiales.
 
@@ -727,27 +724,17 @@ function renderLog(){
     const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳';
     const cls=t.status==='found'&&t.via==='api'?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending');
     let val='';
-    if(t.found){
-      if(t.found.pct!=null)val=pF(t.found.pct);
-      else if(t.found.value!=null)val='$'+Number(t.found.value).toFixed(2);
-    }
-    return `<div class="ai-log-row ${cls}">
-      <span class="ai-log-ico">${ico}</span>
-      <span class="ai-log-name">${esc(t.def.name)}</span>
-      <span class="ai-log-ym">${fmtM(t.ym)}${t.via==='api'?' · oficial':t.via==='ai'?' · IA':''}</span>
-      ${val?`<span class="ai-log-val">${esc(val)}</span>`:''}
-    </div>`;
+    if(t.found){ if(t.found.pct!=null)val=pF(t.found.pct); else if(t.found.value!=null)val='$'+Number(t.found.value).toFixed(2); }
+    return `<div class="ai-log-row ${cls}"><span class="ai-log-ico">${ico}</span><span class="ai-log-name">${esc(t.def.name)}</span><span class="ai-log-ym">${fmtM(t.ym)}${t.via==='api'?' · oficial':t.via==='ai'?' · IA':''}</span>${val?`<span class="ai-log-val">${esc(val)}</span>`:''}</div>`;
   }).join('');
   log.scrollTop=log.scrollHeight;
 }
 function updateAIStats(found,manual,done,total,official=0,ai=0){
-  document.getElementById('aiStats').innerHTML=
-  `<span class="ai-stat info">${done}/${total}</span>
-   <span class="ai-stat ok">🏛️ ${official}</span>
-   <span class="ai-stat info">🤖 ${ai}</span>
-   <span class="ai-stat ok">✅ ${found}</span>
-   <span class="ai-stat warn">⚠️ ${manual} manuales</span>`;
+  document.getElementById('aiStats').innerHTML=`<span class="ai-stat info">${done}/${total}</span><span class="ai-stat ok">🏛️ ${official}</span><span class="ai-stat info">🤖 ${ai}</span><span class="ai-stat ok">✅ ${found}</span><span class="ai-stat warn">⚠️ ${manual} manuales</span>`;
 }
+
+// ═══════════════ LIVE CELL UPDATE ═══════════════
+
 // ═══════════════ LIVE CELL UPDATE ═══════════════
 function liveCellOk(def,ym,result,metaType='ai'){
   const field=isUsd(def)?'value':'pct';
