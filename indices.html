@@ -857,6 +857,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
   window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
+  window.renderSelectionPanel = renderSelectionPanel;
   function renderSelectionPanel(){
     const wrap = document.getElementById('selectorList');
     const stats = document.getElementById('selStats');
@@ -893,11 +894,32 @@ document.addEventListener('DOMContentLoaded',async()=>{
   async function apiSeriesExists(seriesId){ try{ const r=await fetch(SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&limit=1&format=json'); if(!r.ok)return false; const d=await r.json(); return Array.isArray(d?.data)&&d.data.length>0; }catch{return false;} }
   async function searchOfficialSeriesId(def){ const cfg=seriesCfg(def); const queries=(cfg.queries&&cfg.queries.length)?cfg.queries:[def.name+' mensual INDEC']; let best=null; for(const q of queries){ try{ const url=SERIES_SEARCH_API+'?q='+encodeURIComponent(q)+'&catalog_id=sspm&limit=50&sort_by=relevance&sort=desc'; const r=await fetch(url); if(!r.ok)continue; const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const candidates=rows.map(item=>({id:extractSeriesId(item),txt:gatherItemText(item)})).filter(x=>x.id); for(const cand of candidates){ cand.score=scoreSeriesCandidate(def,cand); if(!best||cand.score>best.score)best=cand; } }catch(e){ console.warn('searchOfficialSeriesId',def.id,q,e); } } return best?.id||null; }
   async function resolveIndecSeriesId(def){ const cfg=seriesCfg(def); if(cfg.id) return cfg.id; if(Array.isArray(cfg.candidates)){ for(const cand of cfg.candidates){ if(await apiSeriesExists(cand)){ cfg.id=cand; return cand; } } } const dyn=await searchOfficialSeriesId(def); if(dyn){ cfg.id=dyn; return dyn; } return null; }
-  async function fetchSeriesBundleById(seriesId){ if(window._seriesCache[seriesId]) return window._seriesCache[seriesId]; const url=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full'; const r=await fetch(url); if(!r.ok) throw new Error('series api '+r.status); const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const meta=Array.isArray(d?.meta)?d.meta:[]; window._seriesCache[seriesId]={rows,meta,url}; return window._seriesCache[seriesId]; }
+  async function fetchSeriesBundleById(seriesId){ if(window._seriesCache[seriesId]) return window._seriesCache[seriesId]; const url=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full&limit=500&sort=asc'; const r=await fetch(url); if(!r.ok) throw new Error('series api '+r.status); const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const meta=Array.isArray(d?.meta)?d.meta:[]; window._seriesCache[seriesId]={rows,meta,url}; return window._seriesCache[seriesId]; }
   function findSeriesPoint(rows,ym){ return rows.find(x=>String(x?.[0]||'').slice(0,7)===ym)||null; }
   function metaText(bundle){ return (bundle?.meta||[]).map(x=>JSON.stringify(x)).join(' ').toLowerCase(); }
   function interpretSeriesValue(def,seriesId,bundle,ym){ const point=findSeriesPoint(bundle.rows,ym); if(!point||point[1]==null)return null; const prev=findSeriesPoint(bundle.rows,previousYm(ym)); const metaTxt=metaText(bundle); const v=Number(point[1]); if(!Number.isFinite(v)) return null; const looksIndex=/índice|indice|2004=100|1993=100|2015=100|2016/.test(metaTxt)||v>20; if(looksIndex&&prev&&prev[1]!=null){ const pv=Number(prev[1]); if(Number.isFinite(pv)&&pv>0&&v>0){ const pct=((v/pv)-1)*100; if(Number.isFinite(pct)&&Math.abs(pct)<1000){ return {ym,pct:Number(pct.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:Number(pv.toFixed(4)),seriesId,calcMethod:'series_ratio',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie oficial INDEC ('+seriesId+')',source:def.src,rawValue:v}; } } } if(Math.abs(v)<=1.5){ return {ym,pct:Number((v*100).toFixed(2)),value:null,seriesValue:Number(v.toFixed(6)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(6)):null,seriesId,calcMethod:'series_fraction',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % fraccional ('+seriesId+')',source:def.src,rawValue:v}; } if(Math.abs(v)<=1000){ return {ym,pct:Number(v.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(4)):null,seriesId,calcMethod:'series_percent_direct',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % directo ('+seriesId+')',source:def.src,rawValue:v}; } return null; }
-  async function fetchIndecYm(def,ym){ const seriesId=await resolveIndecSeriesId(def); if(!seriesId)return null; const bundle=await fetchSeriesBundleById(seriesId); return interpretSeriesValue(def,seriesId,bundle,ym); }
+  async function fetchIndecYm(def,ym){
+    const seriesId=await resolveIndecSeriesId(def);
+    if(!seriesId)return null;
+    // First try with cached bundle
+    let bundle=await fetchSeriesBundleById(seriesId);
+    let result=interpretSeriesValue(def,seriesId,bundle,ym);
+    if(result) return result;
+    // If point not found, fetch fresh with explicit date range to get latest data
+    try{
+      const startDate=previousYm(previousYm(ym))+'-01'; // 2 months back for prev needed
+      const freshUrl=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full&limit=500&sort=asc&start_date=2016-01-01';
+      const r=await fetch(freshUrl);
+      if(r.ok){
+        const d=await r.json();
+        const freshBundle={rows:Array.isArray(d?.data)?d.data:[],meta:Array.isArray(d?.meta)?d.meta:[],url:freshUrl};
+        window._seriesCache[seriesId]=freshBundle; // update cache with fresh data
+        result=interpretSeriesValue(def,seriesId,freshBundle,ym);
+        if(result) return result;
+      }
+    }catch(e){ console.warn('fetchIndecYm fresh',def.id,ym,e); }
+    return null;
+  }
   window.renderLog=function(){ const log=document.getElementById('aiLog'); if(!log)return; const show=(window._tasks||[]).slice(-50); log.innerHTML=show.map(t=>{ const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳'; const cls=(t.status==='found'&&t.via==='api')?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending'); let val=''; let note=''; if(t.found){ if(t.found.pct!=null) val=window.pF(t.found.pct); else if(t.found.value!=null) val='$'+Number(t.found.value).toFixed(2); if(t.found.seriesId) note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+' · serie '+(t.found.rawValue!=null?Number(t.found.rawValue).toFixed(2):'')+'</span>'; } return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span><span class="ai-log-name">'+window.esc(t.def.name)+note+'</span><span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'+(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>'; }).join(''); log.scrollTop=log.scrollHeight; };
   window.updateAIStats=function(found,manual,done,total,official=0,ai=0){ const el=document.getElementById('aiStats'); if(!el)return; el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span><span class="ai-stat ok">🏛️ '+official+'</span><span class="ai-stat info">🤖 '+ai+'</span><span class="ai-stat ok">✅ '+found+'</span><span class="ai-stat warn">⚠️ '+manual+' manuales</span>'; };
   window.liveCellOk=function(def,ym,result,metaType='ai'){ const field=window.isUsd(def)?'value':'pct'; const inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field); if(inp){ const val=field==='value'?result.value:result.pct; if(val!=null){ inp.value=Number(val).toFixed(2); inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found'); } } if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id); };
