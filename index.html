@@ -754,6 +754,7 @@ async function loginApp(){
     if(typeof applyPermissions==='function') applyPermissions();
     if(typeof toast==='function') toast('Sesión iniciada: '+row.username,'ok');
     if(typeof initApp==='function') await initApp(true);
+    if(typeof UsersAdmin!=='undefined' && typeof UsersAdmin.goFirstAllowed==='function') UsersAdmin.goFirstAllowed();
   }catch(err){
     _APP_USER = null;
     _APP_ROLE = null;
@@ -4313,7 +4314,7 @@ async function delAveById(aveId) {
       var nav=document.querySelector('.sb-nav'); if(!nav) return;
       if(q('navUsersModule')){ refs.nav=q('navUsersModule'); return; }
       var sec=make('div','sb-sec','Administracion');
-      var a=make('a','nv'); a.id='navUsersModule'; a.href='#'; a.appendChild(make('span','ni','U')); a.appendChild(make('span','', 'Usuarios')); a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); });
+      var a=make('a','nv'); a.id='navUsersModule'; a.href='#'; a.setAttribute('data-mod','users'); a.appendChild(make('span','ni','U')); a.appendChild(make('span','', 'Usuarios')); a.addEventListener('click', function(ev){ ev.preventDefault(); showPage(); });
       nav.appendChild(sec); nav.appendChild(a); refs.nav=a;
     }
     function ensureView(){
@@ -4349,8 +4350,19 @@ async function delAveById(aveId) {
       async function resetPassword(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!row) return; var pwd=prompt('Nueva contrasena temporal para '+(row.username||id)+':',''); if(!pwd) return; showLoader('Reseteando contrasena...'); try{ await sbFetch('app_users','PATCH',{password_hash:await sha256Hex(pwd)},'?id=eq.'+encodeURIComponent(id)); toast('Contrasena reseteada','ok'); }catch(err){ console.error('users reset',err); toast(err.message||'No se pudo resetear la contrasena','er'); }finally{ hideLoader(); } }
       async function deleteUser(id){ var row=(state.list||[]).find(function(u){ return String(u.id)===String(id); }); if(!confirm('Eliminar el usuario '+((row&&row.username)||id)+'?')) return; showLoader('Eliminando usuario...'); try{ await sbFetch('app_users','DELETE',null,'?id=eq.'+encodeURIComponent(id)); await reload(); toast('Usuario eliminado','ok'); }catch(err){ console.error('users delete',err); toast(err.message||'No se pudo eliminar el usuario','er'); }finally{ hideLoader(); } }
       function installGoHook(){ if(typeof go!=='function') return; var originalGo=go; go=function(v){ if(v==='users'){ showPage(); return; } return originalGo.apply(this,arguments); }; }
+      function goFirstAllowed(){
+        var mods=['list','form','me2n','idx','licit','prov','users'];
+        var goMap={list:'list',form:'form',me2n:'me2n',idx:'idx',licit:'licit',prov:'prov',users:'users'};
+        for(var i=0;i<mods.length;i++){
+          if(typeof canAccess==='function' && canAccess(mods[i])){
+            if(mods[i]==='users'){ showPage(); }
+            else if(typeof go==='function'){ go(goMap[mods[i]]); }
+            return;
+          }
+        }
+      }
       function boot(){ ensureNav(); ensureView(); installGoHook(); }
-      return {boot:boot,show:showPage,reload:reload};
+      return {boot:boot,show:showPage,reload:reload,goFirstAllowed:goFirstAllowed};
   })();
   document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot',err); } });
 })();
