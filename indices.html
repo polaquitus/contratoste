@@ -498,69 +498,123 @@ const RES_VIGENTE = '80ac25de-a44a-4445-9215-090cf55cfda5';
 const ENERGIA_API = 'https://datos.energia.gob.ar/api/3/action/datastore_search';
 
 async function fetchFuelACAYm(idxId, ym) {
-  const productName = FUEL_PRODUCT[idxId];
+  const productName = FUEL_PRODUCT[idxId]; // 'Gasoil Grado 2' o 'Gasoil Grado 3'
   if (!productName) return null;
 
   const [y, mo] = ym.split('-').map(Number);
-  const lastDay = new Date(y, mo, 0);
+  const lastDay    = new Date(y, mo, 0);
   const lastDayStr = lastDay.toISOString().substring(0, 10);
   const firstDayStr = ym + '-01';
+  const grade = idxId === 'go_g2' ? '2' : '3';
 
-  function isACA(rec) {
-    const rs = String(rec.razon_social || rec.empresa || '').toUpperCase();
-    return rs.includes('ACA') || rs.includes('AUTOMOVIL CLUB') || rs.includes('AUTOMOVILCLUB');
+  // ── Helper: parsear precio ──────────────────────────────────────────────
+  function toPrice(v) {
+    const n = parseFloat(String(v||'').replace(',','.'));
+    return (n > 50) ? n : null; // descarta valores claramente erróneos
   }
-  function avgPrice(recs) {
-    const prices = recs.map(r => parseFloat(r.precio || r.precio_por_litro || 0)).filter(p => p > 0);
+  function avgOf(recs, field) {
+    const prices = recs.map(r => toPrice(r[field])).filter(Boolean);
     if (!prices.length) return null;
     return Math.round(prices.reduce((a,b)=>a+b,0)/prices.length * 100) / 100;
   }
 
-  // 1. Recurso histórico — filtra por provincia + producto, luego ACA + rango de fecha
-  try {
-    const filters = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN', producto:productName}));
-    const urlH = ENERGIA_API + '?resource_id=' + RES_HIST + '&filters=' + filters + '&limit=1000';
-    const rH = await fetch(urlH);
-    if (rH.ok) {
-      const dH = await rH.json();
-      const recs = (dH?.result?.records || []).filter(rec => {
-        const fd = String(rec.fecha_desde_vigencia || rec.indice_tiempo || '').substring(0, 10);
-        return isACA(rec) && fd >= firstDayStr && fd <= lastDayStr;
-      });
-      const avg = avgPrice(recs);
-      if (avg) {
-        const last = recs[recs.length - 1];
-        return { ym, value: avg, pct: null,
-          publishedAt: String(last.fecha_desde_vigencia || lastDayStr).substring(0, 10),
-          note: 'ACA Neuquén · Sec. Energía Nación',
-          sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor' };
-      }
-    }
-  } catch(e) { console.warn('fetchFuelHist', idxId, ym, e); }
+  // ── 1. API Secretaría de Energía — recurso histórico ────────────────────
+  // Intentamos múltiples variantes del nombre de producto porque la BD no es consistente
+  const prodVariants = [
+    productName,
+    productName.toUpperCase(),
+    'GAS OIL GRADO ' + grade,
+    'Gas Oil Grado ' + grade,
+    'GASOIL G' + grade,
+    'Diesel Grado ' + grade,
+    'DIESEL GRADO ' + grade,
+  ];
 
-  // 2. Recurso vigente — solo para mes actual
-  const nowYm = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0');
-  if (ym === nowYm) {
-    try {
-      const filters2 = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN', producto:productName}));
-      const urlV = ENERGIA_API + '?resource_id=' + RES_VIGENTE + '&filters=' + filters2 + '&limit=500';
-      const rV = await fetch(urlV);
-      if (rV.ok) {
-        const dV = await rV.json();
-        const recs = (dV?.result?.records || []).filter(isACA);
-        const avg = avgPrice(recs);
-        if (avg) return { ym, value: avg, pct: null, publishedAt: lastDayStr,
-          note: 'ACA Neuquén · vigente Sec. Energía',
-          sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor' };
-      }
-    } catch(e) { console.warn('fetchFuelVig', idxId, ym, e); }
+  for (const res of [RES_HIST, RES_VIGENTE]) {
+    for (const prod of prodVariants) {
+      try {
+        const filters = encodeURIComponent(JSON.stringify({provincia: 'NEUQUEN', producto: prod}));
+        const url = ENERGIA_API + '?resource_id=' + res + '&filters=' + filters + '&limit=500';
+        const r = await fetch(url);
+        if (!r.ok) continue;
+        const d = await r.json();
+        let recs = d?.result?.records || [];
+        // Filtro de fecha solo para recurso histórico
+        if (res === RES_HIST) {
+          recs = recs.filter(rec => {
+            const fd = String(rec.fecha_desde_vigencia || rec.indice_tiempo || '').substring(0,10);
+            return fd >= firstDayStr && fd <= lastDayStr;
+          });
+        }
+        const avg = avgOf(recs, 'precio') || avgOf(recs, 'precio_por_litro');
+        if (avg) {
+          const last = recs[recs.length-1] || {};
+          return {
+            ym, value: avg, pct: null,
+            publishedAt: String(last.fecha_desde_vigencia || lastDayStr).substring(0,10),
+            note: prod + ' · Sec. Energía (prom. Neuquén)',
+            sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor'
+          };
+        }
+      } catch(_e) { /* try next variant */ }
+    }
   }
 
-  // 3. Fallback Gemini
+  // ── 2. API Sec. Energía — búsqueda full-text como fallback ──────────────
+  for (const res of [RES_HIST, RES_VIGENTE]) {
+    try {
+      const url = ENERGIA_API + '?resource_id=' + res
+        + '&q=' + encodeURIComponent('gasoil grado ' + grade + ' neuquen')
+        + '&limit=500';
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const d = await r.json();
+      let recs = (d?.result?.records || []).filter(rec => {
+        const prov = String(rec.provincia || '').toUpperCase();
+        const prod = String(rec.producto  || '').toUpperCase().replace(/\s+/g,'');
+        return prov.includes('NEUQU')
+          && (prod.includes('GASOIL') || prod.includes('GASOILG') || prod.includes('DIESEL'))
+          && prod.includes(grade);
+      });
+      if (res === RES_HIST) {
+        recs = recs.filter(rec => {
+          const fd = String(rec.fecha_desde_vigencia || '').substring(0,10);
+          return fd >= firstDayStr && fd <= lastDayStr;
+        });
+      }
+      const avg = avgOf(recs, 'precio') || avgOf(recs, 'precio_por_litro');
+      if (avg) return {
+        ym, value: avg, pct: null, publishedAt: lastDayStr,
+        note: 'Gasoil G' + grade + ' · Sec. Energía full-text (prom. Neuquén)',
+        sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor'
+      };
+    } catch(_e) { /* continue */ }
+  }
+
+  // ── 3. Gemini con prompt especializado ──────────────────────────────────
+  // El prompt pide el precio exacto con contexto específico de Neuquén
   try {
-    const txt = await callGemini(buildPrompt({name: productName + ' ACA Neuquén', src:'YPF / Sec. Energía'}, ym));
-    return parseJSON(txt);
-  } catch(e) { return null; }
+    const nomProd = idxId === 'go_g2'
+      ? 'Gasoil Grado 2 (diesel común, YPF D500 o equivalente)'
+      : 'Gasoil Grado 3 (diesel premium, YPF Infinia Diesel o equivalente)';
+    const gemPrompt =
+`Necesito el precio en pesos argentinos (ARS) por litro del ${nomProd} en las estaciones de servicio de Neuquén capital, Argentina, para el mes ${ym}.
+
+Fuentes de referencia: YPF, Shell, PUMA, AXION en Neuquén. Todos tienen precios muy similares.
+Si hubo cambios de precio durante el mes, usá el valor vigente al último día del mes.
+El valor debe ser el precio final al público en surtidor (incluye impuestos).
+
+Respondé ÚNICAMENTE con este JSON (sin markdown):
+{"ym":"${ym}","value":PRECIO_NUMERO,"pct":null,"publishedAt":"YYYY-MM-DD","note":"marca y fuente usada","sourceUrl":"url si disponible"}
+
+Si no tenés datos confiables para ese mes exacto, devolvé value:null.`;
+
+    const txt = await callGemini(gemPrompt);
+    const result = parseJSON(txt);
+    if (result && result.value != null && toPrice(result.value)) return result;
+  } catch(e) { console.warn('fetchFuelGemini', idxId, ym, e); }
+
+  return null;
 }
 
 function stopAI(){_aiStop=true;document.getElementById('btnStop').style.display='none';toast('Detenido','er');}
