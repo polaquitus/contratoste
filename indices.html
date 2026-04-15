@@ -128,6 +128,22 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 .loader-msg{font-size:13px;font-weight:600;color:var(--p700)}
 .empty-msg{text-align:center;padding:48px;color:var(--g500);font-size:13px}
 .need-count{font-size:11.5px;color:#92400e;font-weight:700}
+
+/* SELECCIÓN DE ÍNDICES */
+.selector-bar{background:var(--w);border-bottom:2px solid var(--g200);padding:12px 24px;display:flex;flex-direction:column;gap:10px}
+.selector-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.selector-top .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.selector-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.selector-stats{font-size:11.5px;font-weight:700;color:var(--p700);background:var(--p50);border:1px solid var(--p100);padding:4px 10px;border-radius:99px}
+.selector-list{display:flex;flex-wrap:wrap;gap:8px}
+.sel-chip{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:999px;background:var(--g50);font-size:12px;line-height:1;cursor:pointer;user-select:none}
+.sel-chip:hover{background:var(--p50);border-color:var(--p300)}
+.sel-chip input{accent-color:var(--p600);cursor:pointer}
+.sel-chip.active{background:var(--p50);border-color:var(--p400)}
+.sel-chip small{font-size:10px;color:var(--g600c);font-weight:700;background:var(--w);padding:2px 6px;border-radius:999px;border:1px solid var(--g200)}
+.cell-inp.api-found{border-color:var(--b500);background:var(--b100)}
+.ai-log-row.api{color:#1d4ed8;background:var(--b100)}
+
 </style>
 </head>
 <body>
@@ -139,11 +155,11 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <div class="topbar">
   <div class="tb-left">
     <div class="tb-logo">📊</div>
-    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + Gemini AI</span></div></div>
+    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + fuentes oficiales + IA fallback</span></div></div>
   </div>
   <div class="tb-right">
     <span class="sb-badge warn" id="sbBadge">⬤ Conectando...</span>
-    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🤖 Buscar con IA</button>
+    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🔎 Actualizar selección</button>
     <button class="btn btn-s btn-sm" onclick="loadFromSupabase()">🔄 Recargar</button>
     <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar en BD</button>
     <button class="btn btn-s btn-sm" onclick="exportJSON()">⬇ JSON</button>
@@ -174,6 +190,23 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
   <span class="need-count" id="needCount" style="display:none"></span>
 </div>
 
+<!-- SELECTOR -->
+<div class="selector-bar" id="selectorBar">
+  <div class="selector-top">
+    <div class="left">
+      <span class="ctrl-lbl">Índices a actualizar</span>
+      <span class="selector-stats" id="selStats">0 seleccionados</span>
+    </div>
+    <div class="selector-actions">
+      <button class="btn btn-s btn-sm" onclick="selectAllAuto()">☑️ Todos automáticos</button>
+      <button class="btn btn-s btn-sm" onclick="selectVisibleAuto()">👁️ Seleccionar visibles</button>
+      <button class="btn btn-s btn-sm" onclick="selectCurrentCategory()">🧩 Categoría actual</button>
+      <button class="btn btn-s btn-sm" onclick="clearSelectedAuto()">🧹 Limpiar</button>
+    </div>
+  </div>
+  <div class="selector-list" id="selectorList"></div>
+</div>
+
 <!-- STATUS -->
 <div class="status-bar info" id="statusBar">
   <div class="status-dot"></div>
@@ -183,7 +216,7 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
 <!-- AI PANEL -->
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-hdr">
-    <h3>🤖 Búsqueda masiva con Gemini <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
+    <h3>🔎 Actualización automática <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
     <div class="ai-stats" id="aiStats"></div>
     <div style="display:flex;gap:7px;flex-shrink:0">
       <button class="btn btn-d btn-sm" id="btnStop" onclick="stopAI()" style="display:none">⏹ Detener</button>
@@ -244,6 +277,22 @@ let _months   = [];
 let _coll     = {};  // collapsed cats
 let _meta     = {};  // {idxId_ym: 'ai'|'manual'|'manual-filled'}
 let _aiStop   = false;
+let _selectedIdx = new Set(IDX_CATALOG.filter(d=>d.cat!=='mo').map(d=>d.id));
+let _seriesCache = {};
+const SERIES_API = 'https://apis.datos.gob.ar/series/api/series';
+const SERIES_SEARCH_API = 'https://apis.datos.gob.ar/series/api/search';
+const INDEC_SERIES = {
+  ipc_nac:   {id:'148.3_INIVELNAL_DICI_M_26', mode:'index'},
+  ipc_gba:   {id:'148.3_INIVELGBA_DICI_M_21', mode:'index'},
+  ipim_gral: {id:'448.1_NIVEL_GENERAL_0_0_13_46', mode:'index'}
+};
+const INDEC_SEARCH_HINTS = {
+  ipc_nac: 'IPC nivel general nacional base diciembre 2016 mensual INDEC',
+  ipc_gba: 'IPC nivel general GBA base diciembre 2016 mensual INDEC',
+  ipc_pat: 'IPC nivel general Patagonia base diciembre 2016 mensual INDEC',
+  ipim_gral: 'IPIM nivel general mensual INDEC',
+  ipim_r29: 'IPIM productos refinados del petróleo mensual INDEC'
+};
 
 // ═══════════════ UTILS ═══════════════
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -258,6 +307,15 @@ function buildRange(from,to){
   while(c<=e){out.push(c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0'));c.setMonth(c.getMonth()+1);}
   return out;
 }
+function previousYm(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y,m-2,1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function selectedDefsForAI(){return IDX_CATALOG.filter(d=>d.cat!=='mo'&&_selectedIdx.has(d.id));}
+function countMissingForIdx(id){return _months.filter(ym=>{const ex=idxGet(id,ym);return !ex||(ex.pct==null&&ex.value==null);}).length;}
+function escAttr(s){return esc(s).replace(/'/g,'&#39;');}
+
 function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
 function idxGet(id,ym){return idxRows(id).find(r=>r.ym===ym)||null;}
 function idxSet(id,row){
@@ -336,6 +394,116 @@ function parseJSON(txt){
   }catch{return null;}
 }
 
+// ═══════════════ SELECCIÓN DE ÍNDICES ═══════════════
+function selectAllAuto(){
+  _selectedIdx = new Set(IDX_CATALOG.filter(d=>d.cat!=='mo').map(d=>d.id));
+  renderSelectionPanel();
+}
+function clearSelectedAuto(){
+  _selectedIdx = new Set();
+  renderSelectionPanel();
+}
+function selectVisibleAuto(){
+  const cf=document.getElementById('catFilter').value;
+  _selectedIdx = new Set(IDX_CATALOG.filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id));
+  renderSelectionPanel();
+}
+function selectCurrentCategory(){
+  const cf=document.getElementById('catFilter').value;
+  if(!cf){selectVisibleAuto();return;}
+  _selectedIdx = new Set(IDX_CATALOG.filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id));
+  renderSelectionPanel();
+}
+function toggleIdxSelection(id,checked){
+  if(checked)_selectedIdx.add(id); else _selectedIdx.delete(id);
+  renderSelectionPanel();
+}
+function renderSelectionPanel(){
+  const wrap=document.getElementById('selectorList');
+  const stats=document.getElementById('selStats');
+  if(!wrap||!stats)return;
+  const cf=document.getElementById('catFilter')?.value||'';
+  const visible=IDX_CATALOG.filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf));
+  const allAuto=IDX_CATALOG.filter(d=>d.cat!=='mo');
+  const selCount=allAuto.filter(d=>_selectedIdx.has(d.id)).length;
+  const missingSelected=allAuto.filter(d=>_selectedIdx.has(d.id)).reduce((acc,d)=>acc+countMissingForIdx(d.id),0);
+  stats.textContent=`${selCount}/${allAuto.length} seleccionados · ${missingSelected} celdas faltantes`;
+  wrap.innerHTML=visible.map(def=>{
+    const active=_selectedIdx.has(def.id);
+    const missing=countMissingForIdx(def.id);
+    return `<label class="sel-chip ${active?'active':''}" title="${escAttr(def.name)} · ${missing} períodos faltantes">
+      <input type="checkbox" ${active?'checked':''} onchange="toggleIdxSelection('${def.id}',this.checked)">
+      <span>${esc(def.name)}</span>
+      <small>${missing}</small>
+    </label>`;
+  }).join('') || '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
+}
+
+// ═══════════════ FUENTES OFICIALES INDEC ═══════════════
+function extractSeriesId(item){
+  return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null;
+}
+function gatherItemText(item){
+  return [
+    item?.title,item?.description,item?.description_short,item?.field?.description,
+    item?.field_description,item?.dataset?.title,item?.dataset?.description,item?.dataset?.source,
+    item?.dataset_source,item?.dataset_publisher_name,item?.notes
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+async function searchOfficialSeriesId(def){
+  const q=INDEC_SEARCH_HINTS[def.id] || (`${def.name} mensual INDEC`);
+  const url=`${SERIES_SEARCH_API}?q=${encodeURIComponent(q)}&catalog_id=sspm&limit=25&sort_by=relevance&sort=desc`;
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('search api '+r.status);
+  const d=await r.json();
+  const rows=Array.isArray(d?.data)?d.data:[];
+  const candidates=rows.map(item=>({id:extractSeriesId(item),txt:gatherItemText(item)})).filter(x=>x.id);
+  if(!candidates.length)return null;
+  const best = (
+    candidates.find(x=>/mensual/.test(x.txt)&&/indec/.test(x.txt)&&(/patagonia/.test(x.txt)||/refinad/.test(x.txt)||/nivel general/.test(x.txt))) ||
+    candidates.find(x=>/mensual/.test(x.txt)&&/indec/.test(x.txt)) ||
+    candidates.find(x=>/mensual/.test(x.txt)) ||
+    candidates[0]
+  );
+  return best?.id||null;
+}
+async function resolveIndecSeriesId(def){
+  if(INDEC_SERIES[def.id]?.id)return INDEC_SERIES[def.id].id;
+  const dyn=await searchOfficialSeriesId(def);
+  if(dyn){INDEC_SERIES[def.id]={id:dyn,mode:'index'};return dyn;}
+  return null;
+}
+async function fetchSeriesRowsById(seriesId){
+  if(_seriesCache[seriesId])return _seriesCache[seriesId];
+  const url=`${SERIES_API}?ids=${encodeURIComponent(seriesId)}&format=json&metadata=full`;
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('series api '+r.status);
+  const d=await r.json();
+  const rows=Array.isArray(d?.data)?d.data:[];
+  _seriesCache[seriesId]={rows, url};
+  return _seriesCache[seriesId];
+}
+function findSeriesPoint(rows, ym){return rows.find(x=>String(x?.[0]||'').slice(0,7)===ym)||null;}
+async function fetchIndecYm(def, ym){
+  const seriesId=await resolveIndecSeriesId(def);
+  if(!seriesId)return null;
+  const pack=await fetchSeriesRowsById(seriesId);
+  const point=findSeriesPoint(pack.rows, ym);
+  if(!point)return null;
+  const prev=findSeriesPoint(pack.rows, previousYm(ym));
+  if(!prev||prev[1]==null||point[1]==null)return null;
+  const pct=((Number(point[1])/Number(prev[1]))-1)*100;
+  return {
+    ym,
+    pct:Number(pct.toFixed(2)),
+    value:null,
+    publishedAt:String(point[0]).slice(0,10),
+    sourceUrl:pack.url,
+    note:`Serie oficial INDEC (${seriesId})`,
+    source:def.src
+  };
+}
+
 // ═══════════════ AI BULK SEARCH ═══════════════
 let _tasks=[];
 
@@ -343,19 +511,21 @@ async function startAISearch(){
   const from=document.getElementById('ctrlFrom').value;
   const to=document.getElementById('ctrlTo').value;
   if(!from||!to||from>to){toast('Aplicá un rango válido primero','er');return;}
+
+  const defs=selectedDefsForAI();
+  if(!defs.length){toast('Seleccioná al menos un índice para actualizar','er');return;}
   const months=_months.length?_months:buildRange(from,to);
 
-  // Build tasks: non-MO indexes × missing months
   _tasks=[];
-  IDX_CATALOG.filter(d=>d.cat!=='mo').forEach(def=>{
+  defs.forEach(def=>{
     months.forEach(ym=>{
       const ex=idxGet(def.id,ym);
       if(!ex||(ex.pct==null&&ex.value==null))
-        _tasks.push({def,ym,status:'pending',found:null});
+        _tasks.push({def,ym,status:'pending',found:null,via:null});
     });
   });
 
-  if(!_tasks.length){toast('No hay períodos faltantes para buscar','ok');return;}
+  if(!_tasks.length){toast('No hay períodos faltantes para la selección actual','ok');return;}
 
   const panel=document.getElementById('aiPanel');
   panel.classList.add('vis');
@@ -366,7 +536,7 @@ async function startAISearch(){
   document.getElementById('aiLog').innerHTML='';
   _aiStop=false;
 
-  let done=0,found=0,manual=0;
+  let done=0,found=0,manual=0,official=0,ai=0;
 
   for(const t of _tasks){
     if(_aiStop)break;
@@ -374,13 +544,28 @@ async function startAISearch(){
 
     try{
       let result=null;
+      let via=null;
+
       if(t.def.cat==='usd'){
         result=await fetchUsdYm(t.ym);
+        via='api';
       } else if(t.def.cat==='fuel'){
         result=await fetchFuelACAYm(t.def.id,t.ym);
+        via='api';
+      } else if(t.def.src==='INDEC'){
+        try{
+          result=await fetchIndecYm(t.def,t.ym);
+          if(result)via='api';
+        }catch(err){console.warn('fetchIndecYm',t.def.id,t.ym,err);}
+        if(!result){
+          const txt=await callGemini(buildPrompt(t.def,t.ym));
+          result=parseJSON(txt);
+          via=result?'ai':null;
+        }
       } else {
         const txt=await callGemini(buildPrompt(t.def,t.ym));
         result=parseJSON(txt);
+        via=result?'ai':null;
       }
 
       if(result&&(result.pct!=null||result.value!=null)){
@@ -393,24 +578,25 @@ async function startAISearch(){
           publishedAt:result.publishedAt||null,
           sourceUrl:result.sourceUrl||null
         });
-        _meta[t.def.id+'_'+t.ym]='ai';
-        t.status='found';t.found=result;found++;
-        liveCellOk(t.def,t.ym,result);
+        _meta[t.def.id+'_'+t.ym]=via==='api'?'api':'ai';
+        t.status='found';t.found=result;t.via=via;found++;
+        if(via==='api')official++; else ai++;
+        liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai');
       } else {
-        t.status='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+        t.status='manual';t.via='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
         liveCellManual(t.def,t.ym);
       }
     }catch(e){
-      console.warn('ai task',t.def.id,t.ym,e);
-      t.status='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+      console.warn('auto task',t.def.id,t.ym,e);
+      t.status='manual';t.via='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
       liveCellManual(t.def,t.ym);
     }
 
     done++;
     document.getElementById('aiBar').style.width=Math.round(done/_tasks.length*100)+'%';
-    updateAIStats(found,manual,done,_tasks.length);
+    updateAIStats(found,manual,done,_tasks.length,official,ai);
     renderLog();
-    await sleep(350);
+    await sleep(220);
   }
 
   document.getElementById('btnStop').style.display='none';
@@ -418,10 +604,10 @@ async function startAISearch(){
   document.getElementById('aiSub').textContent=`· Listo: ${found} encontrados, ${manual} manuales`;
   refreshNeedCount();
   updateAllAcum();
-  if(found>0){toast(`IA: ${found} encontrados · ${manual} para carga manual`,'ai');await saveToSupabase();}
+  renderSelectionPanel();
+  if(found>0){toast(`Actualización: ${found} encontrados · ${manual} manuales`,'ai');await saveToSupabase();}
   else toast(`Sin datos automáticos · ${manual} requieren carga manual`,'er');
 }
-
 function buildPrompt(def,ym){
   return `Sos un asistente experto en estadísticas económicas argentinas oficiales.
 
@@ -538,8 +724,8 @@ function renderLog(){
   const log=document.getElementById('aiLog');
   const show=_tasks.slice(-50);
   log.innerHTML=show.map(t=>{
-    const ico={pending:'⏳',running:'🔄',found:'✅',manual:'⚠️',failed:'❌'}[t.status]||'⏳';
-    const cls={pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending';
+    const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳';
+    const cls=t.status==='found'&&t.via==='api'?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending');
     let val='';
     if(t.found){
       if(t.found.pct!=null)val=pF(t.found.pct);
@@ -548,29 +734,29 @@ function renderLog(){
     return `<div class="ai-log-row ${cls}">
       <span class="ai-log-ico">${ico}</span>
       <span class="ai-log-name">${esc(t.def.name)}</span>
-      <span class="ai-log-ym">${fmtM(t.ym)}</span>
+      <span class="ai-log-ym">${fmtM(t.ym)}${t.via==='api'?' · oficial':t.via==='ai'?' · IA':''}</span>
       ${val?`<span class="ai-log-val">${esc(val)}</span>`:''}
     </div>`;
   }).join('');
   log.scrollTop=log.scrollHeight;
 }
-
-function updateAIStats(found,manual,done,total){
+function updateAIStats(found,manual,done,total,official=0,ai=0){
   document.getElementById('aiStats').innerHTML=
-    `<span class="ai-stat info">${done}/${total}</span>
-     <span class="ai-stat ok">✅ ${found}</span>
-     <span class="ai-stat warn">⚠️ ${manual} manuales</span>`;
+  `<span class="ai-stat info">${done}/${total}</span>
+   <span class="ai-stat ok">🏛️ ${official}</span>
+   <span class="ai-stat info">🤖 ${ai}</span>
+   <span class="ai-stat ok">✅ ${found}</span>
+   <span class="ai-stat warn">⚠️ ${manual} manuales</span>`;
 }
-
 // ═══════════════ LIVE CELL UPDATE ═══════════════
-function liveCellOk(def,ym,result){
+function liveCellOk(def,ym,result,metaType='ai'){
   const field=isUsd(def)?'value':'pct';
   const inp=document.getElementById(`ci_${def.id}_${ym}_${field}`);
   if(!inp)return;
   const val=field==='value'?result.value:result.pct;
   if(val!=null){
     inp.value=Number(val).toFixed(2);
-    inp.className=inp.className.replace(/\b(need-manual|has-val)\b/g,'').trim()+' has-val ai-found';
+    inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found');
   }
   updateAcumCell(def.id);
 }
@@ -587,8 +773,8 @@ function onCellChange(id,ym,field,el){
   if(field==='pct')ex.pct=raw===''?null:parseFloat(raw);
   else if(field==='value')ex.value=raw===''?null:parseFloat(raw);
   idxSet(id,ex);
-  if(raw!==''){el.classList.add('has-val');el.classList.remove('need-manual','ai-found');}
-  else{el.classList.remove('has-val','ai-found','need-manual');}
+  if(raw!==''){el.classList.add('has-val');el.classList.remove('need-manual','ai-found','api-found');}
+  else{el.classList.remove('has-val','ai-found','api-found','need-manual');}
   updateAcumCell(id);refreshNeedCount();
 }
 
@@ -599,7 +785,7 @@ function onConfirm(id,ym,el){
   const field=isUsd(def)?'value':'pct';
   const inp=document.getElementById(`ci_${id}_${ym}_${field}`);
   if(inp){
-    if(el.checked){inp.classList.add('confirmed');inp.classList.remove('ai-found','need-manual');}
+    if(el.checked){inp.classList.add('confirmed');inp.classList.remove('ai-found','api-found','need-manual');}
     else inp.classList.remove('confirmed');
   }
 }
@@ -617,7 +803,7 @@ function onPaste(id,ym,field,el,e){
     if(field==='pct')ex.pct=num;else ex.value=num;
     idxSet(id,ex);
     const inp=document.getElementById(`ci_${id}_${tYm}_${field}`);
-    if(inp){inp.value=num.toFixed(2);inp.classList.add('has-val');inp.classList.remove('need-manual');}
+    if(inp){inp.value=num.toFixed(2);inp.classList.add('has-val');inp.classList.remove('need-manual','ai-found','api-found');}
   });
   updateAcumCell(id);refreshNeedCount();
   toast(`${vals.length} valores pegados desde ${fmtM(ym)}`,'info');
@@ -659,6 +845,7 @@ function refreshNeedCount(){
   const el=document.getElementById('needCount');
   if(n>0){el.textContent=`⚠️ ${n} celdas requieren carga manual`;el.style.display='';}
   else el.style.display='none';
+  renderSelectionPanel();
 }
 
 // ═══════════════ RANGE ═══════════════
@@ -666,7 +853,7 @@ function applyRange(){
   const from=document.getElementById('ctrlFrom').value;
   const to=document.getElementById('ctrlTo').value;
   if(!from||!to||from>to){toast('Rango inválido','er');return;}
-  _months=buildRange(from,to);_meta={};renderAll();
+  _months=buildRange(from,to);_meta={};renderAll();renderSelectionPanel();
   toast(`${fmtMF(from)} → ${fmtMF(to)} · ${_months.length} meses`,'info');
 }
 
@@ -680,6 +867,7 @@ function initRange(){
 // ═══════════════ RENDER ═══════════════
 function renderAll(){
   const cf=document.getElementById('catFilter').value;
+  renderSelectionPanel();
   const wrap=document.getElementById('mainContent');
   if(!_months.length){wrap.innerHTML='<div class="empty-msg">Seleccioná un rango y presioná Aplicar.</div>';return;}
   let html='';
@@ -704,7 +892,7 @@ function renderAll(){
 
 function renderTable(defs){
   const ths=_months.map(ym=>`<th style="min-width:84px">${esc(fmtM(ym))}</th>`).join('');
-  const sub=_months.map(()=>'<th style="font-size:8px;opacity:.45;font-weight:500">% · ✓</th>').join('');
+  const sub=_months.map(()=>'<th style="font-size:8px;opacity:.45;font-weight:500">dato · ✓</th>').join('');
   const rows=defs.map(def=>{
     const field=isUsd(def)?'value':'pct';
     const sRows=idxRows(def.id).filter(r=>_months.includes(r.ym)&&r.pct!=null);
@@ -720,6 +908,7 @@ function renderTable(defs){
       const hasV=val!=null&&val!=='';
       let cls='cell-inp'+(isUsd(def)?' usd-w':'');
       if(conf)cls+=' confirmed';
+      else if(meta==='api'&&hasV)cls+=' api-found';
       else if(meta==='ai'&&hasV)cls+=' ai-found';
       else if(meta==='manual'&&!hasV)cls+=' need-manual';
       else if(hasV)cls+=' has-val';
@@ -754,7 +943,7 @@ function renderTable(defs){
       <thead>
         <tr><th class="th-idx">Índice</th>${ths}<th class="th-acum">Acum. período</th></tr>
         <tr style="background:var(--p700)">
-          <th class="th-idx" style="background:var(--p700);font-size:8px;opacity:.55">% var. mensual · USD: TC vendedor · ✓ confirmar</th>
+          <th class="th-idx" style="background:var(--p700);font-size:8px;opacity:.55">% var. mensual / valor oficial · USD: TC vendedor · ✓ confirmar</th>
           ${sub}<th style="background:var(--p700)"></th>
         </tr>
       </thead>
@@ -800,7 +989,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     document.getElementById('sbBadge').className='sb-badge err';
     return;
   }
-  initRange();await loadFromSupabase();
+  initRange();renderSelectionPanel();await loadFromSupabase();renderSelectionPanel();
 });
 </script>
 </body>
