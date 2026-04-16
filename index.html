@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión de Contratos TA</title>
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--p900:#14303a;--p800:#1c4252;--p700:#24566c;--p600:#3E8095;--p500:#4c96ad;--p400:#6db1c4;--p300:#92c8d6;--p200:#AED0DD;--p100:#d6e9f0;--p50:#eef6f9;--r500:#dc3545;--r100:#fde8ea;--g600:#198754;--g100d:#d1f5e0;--a500:#f59e0b;--a100:#fef3cd;--b500:#3b82f6;--b100:#dbeafe;--w:#fff;--g50:#f8f9fa;--g100:#f1f3f5;--g200:#e9ecef;--g300:#dee2e6;--g400:#ced4da;--g500:#adb5bd;--g600c:#6c757d;--g700:#495057;--g800:#343a40;--g900:#212529;--rad:8px;--radl:14px;--sh:0 2px 8px rgba(0,0,0,.06);--shm:0 4px 16px rgba(0,0,0,.08)}
@@ -439,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v40</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -4810,6 +4811,7 @@ function renderUpdateSection(contract){
       '</div></div>';
     auditHtml+='</div>';
   }
+  }else{
     auditHtml+='<div style="padding:12px;text-align:center;color:var(--g500);font-size:12px;font-style:italic">Seleccione un mes y presione "Evaluar"</div>';
   }
   
@@ -4888,15 +4890,16 @@ function evaluateConditions(cid){
     var lastUpdate=ymOf(conditions.lastUpdateDate)||ymOf(contract.fechaIni);
     var mesesTranscurridos=monthsBetween(normalizeToMonthStart(lastUpdate), normalizeToMonthStart(mesEval));
     var cumpleMeses=mesesTranscurridos>=conditions.monthsElapsed;
+    var firstMesCond=lastUpdate; for(var i=1;i<=conditions.monthsElapsed;i++) firstMesCond=nextYm(firstMesCond);
     details.push({
       condicion:'Meses transcurridos ≥ '+conditions.monthsElapsed,
       cumplimiento:Math.min(mesesTranscurridos/conditions.monthsElapsed,1),
       cumplido:cumpleMeses,
       detalle:'Base '+formatYmLabel(lastUpdate)+' → Eval '+formatYmLabel(mesEval)+' | Transcurridos: '+mesesTranscurridos+' meses',
-      firstMet:(function(){ var firstM=lastUpdate; for(var i=1;i<=conditions.monthsElapsed;i++) firstM=nextYm(firstM); return firstM; })()
+      firstMet:firstMesCond
     });
     if(cumpleMeses)cumpleGeneral=true;
-    if(!firstComplianceMonth && cumpleMeses){ var firstM=lastUpdate; for(var i=1;i<=conditions.monthsElapsed;i++) firstM=nextYm(firstM); firstComplianceMonth=firstM; }
+    if(!firstComplianceMonth && cumpleMeses){ firstComplianceMonth=firstMesCond; }
   }
 
   if(!details.length){toast('No hay condiciones para evaluar','er');return;}
@@ -4916,97 +4919,6 @@ function detectFirstCompliance(cid){
   if(result && result.firstComplianceMonth){ toast('Cumple por primera vez en '+formatYmLabel(result.firstComplianceMonth),'ok'); }
   else{ toast('Aún no se identifica un mes con cumplimiento','er'); }
 }
-function evaluateConditions(cid){
-  var mesEval=document.getElementById('polEvalMonth').value;
-  if(!mesEval){toast('Seleccione un mes','er');return;}
-  
-  localStorage.setItem('pol_eval_month_'+cid,mesEval);
-  
-  var contract=DB.find(function(c){return c.id==cid;});
-  if(!contract){toast('Contrato no encontrado','er');return;}
-  
-  var conditions=PolUpdate.getConditions(cid);
-  if(!conditions){toast('Sin condiciones configuradas','er');return;}
-  
-  var details=[];
-  var cumpleGeneral=false;
-  
-  // Evaluar variación acumulada
-  if(conditions.allComponentsThreshold>0){
-    var poly=contract.poly.filter(function(p){return p.idx;});
-    if(!poly.length){
-      toast('Sin índices configurados','er');
-      return;
-    }
-    
-    var detalleIndices=[];
-    var cumpleTodas=true;
-    var promCumplimiento=0;
-    var countPoly=0;
-    
-    poly.forEach(function(p){
-      var baseSnap=getIndicatorAtDate(p.idx,conditions.baseDate||contract.fechaIni);
-      var evalSnap=getIndicatorAtDate(p.idx,mesEval+'-01');
-      
-      if(baseSnap&&evalSnap&&baseSnap.value&&evalSnap.value){
-        var variacion=((evalSnap.value-baseSnap.value)/baseSnap.value)*100;
-        var cumple=variacion>=conditions.allComponentsThreshold;
-        if(!cumple)cumpleTodas=false;
-        promCumplimiento+=Math.min(variacion/conditions.allComponentsThreshold,1);
-        countPoly++;
-        detalleIndices.push(p.idx+': '+variacion.toFixed(2)+'% '+(cumple?'✓':'○'));
-      }else{
-        detalleIndices.push(p.idx+': Sin datos');
-        cumpleTodas=false;
-      }
-    });
-    
-    if(countPoly>0){
-      details.push({
-        condicion:'Variación acumulada ≥ '+conditions.allComponentsThreshold+'%',
-        cumplimiento:promCumplimiento/countPoly,
-        cumplido:cumpleTodas,
-        detalle:detalleIndices.join(' | ')
-      });
-      if(cumpleTodas)cumpleGeneral=true;
-    }else{
-      toast('No hay datos de indicadores para evaluar','er');
-      return;
-    }
-  }
-  
-  // Evaluar meses transcurridos
-  if(conditions.monthsElapsed>0){
-    var lastUpdate=conditions.lastUpdateDate||contract.fechaIni;
-    var mesesTranscurridos=monthsBetween(lastUpdate,mesEval+'-01');
-    var cumple=mesesTranscurridos>=conditions.monthsElapsed;
-    details.push({
-      condicion:'Meses transcurridos ≥ '+conditions.monthsElapsed,
-      cumplimiento:Math.min(mesesTranscurridos/conditions.monthsElapsed,1),
-      cumplido:cumple,
-      detalle:'Transcurridos: '+mesesTranscurridos+' meses desde '+(lastUpdate||'inicio')
-    });
-    if(cumple)cumpleGeneral=true;
-  }
-  
-  if(!details.length){
-    toast('No hay condiciones para evaluar','er');
-    return;
-  }
-  
-  var result={
-    mesEval:mesEval,
-    fecha:new Date().toISOString(),
-    details:details,
-    cumpleGeneral:cumpleGeneral
-  };
-  
-  localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
-  
-  toast(cumpleGeneral?'✓ Condiciones cumplidas':'○ No cumple aún','ok');
-  loadContract(cid);
-}
-
 function getIndicatorAtDate(code,date){
   var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
   var filtered=snaps.filter(function(s){return s.indicator_code===code&&s.snapshot_date<=date;});
