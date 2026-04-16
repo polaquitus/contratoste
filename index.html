@@ -1555,6 +1555,7 @@ function renderDet(){
           </div>
         </div>
       </div>
+      ${(function(){return renderUpdateSection(c).outerHTML;})()}
       <div class="section-box">
         <h3>💲 Listas de Precios / Tarifarios <span class="tcnt">${(c.tarifarios||[]).length} tablas</span></h3>
         ${renderTarSection(c)}
@@ -4440,6 +4441,243 @@ async function delAveById(aveId) {
   })();
   document.addEventListener('DOMContentLoaded', function(){ try{ UsersAdmin.boot(); }catch(err){ console.error('UsersAdmin boot',err); } });
 })();
+
+// ═══════════ MÓDULO ACTUALIZACIÓN POLINÓMICA ═══════════════════════════════
+var PolUpdate = (function(){
+  var state = { contractId: null, baseData: null, conditions: null, currentPrices: [], updatedPrices: [], aveAmount: 0, newMonthlyEstimate: 0 };
+  
+  function getConditions(cid){ var key='pol_cond_'+cid; var stored=localStorage.getItem(key); if(!stored)return null; try{return JSON.parse(stored);}catch(e){return null;} }
+  function saveConditions(cid,data){ localStorage.setItem('pol_cond_'+cid,JSON.stringify(data)); }
+  
+  function checkConditions(contract,conditions){
+    if(!conditions||!conditions.enabled)return{met:false,reasons:[]};
+    var reasons=[]; var met=false;
+    if(conditions.moThreshold&&conditions.moThreshold>0){
+      var moSnap=getLatestIndicator('mo');
+      if(moSnap&&moSnap.value){
+        var baseSnap=getIndicatorAtDate('mo',conditions.baseDate||contract.fechaIni);
+        if(baseSnap&&baseSnap.value){
+          var inc=((moSnap.value-baseSnap.value)/baseSnap.value)*100;
+          if(inc>=conditions.moThreshold){ met=true; reasons.push('MO +'+inc.toFixed(2)+'%'); }
+        }
+      }
+    }
+    if(conditions.allComponentsThreshold&&conditions.allComponentsThreshold>0){
+      var allMet=true; var poly=contract.poly;
+      if(poly&&poly.length){
+        poly.forEach(function(c){
+          if(!c.idx)return;
+          var snap=getLatestIndicator(c.idx); var base=getIndicatorAtDate(c.idx,conditions.baseDate||contract.fechaIni);
+          if(!snap||!base||!snap.value||!base.value){ allMet=false; return; }
+          var inc=((snap.value-base.value)/base.value)*100;
+          if(inc<conditions.allComponentsThreshold)allMet=false;
+        });
+        if(allMet){ met=true; reasons.push('Todos >'+conditions.allComponentsThreshold+'%'); }
+      }
+    }
+    if(conditions.monthsElapsed&&conditions.monthsElapsed>0){
+      var lastUpdate=conditions.lastUpdateDate||contract.fechaIni;
+      var monthsDiff=monthsBetween(lastUpdate,ymToday());
+      if(monthsDiff>=conditions.monthsElapsed){ met=true; reasons.push(monthsDiff+' meses'); }
+    }
+    return{met:met,reasons:reasons};
+  }
+  
+  function getLatestIndicator(code){
+    var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+    var filtered=snaps.filter(function(s){return s.indicator_code===code;});
+    if(!filtered.length)return null;
+    filtered.sort(function(a,b){return new Date(b.snapshot_date)-new Date(a.snapshot_date);});
+    return filtered[0];
+  }
+  
+  function getIndicatorAtDate(code,date){
+    var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+    var filtered=snaps.filter(function(s){return s.indicator_code===code&&s.snapshot_date<=date;});
+    if(!filtered.length)return null;
+    filtered.sort(function(a,b){return new Date(b.snapshot_date)-new Date(a.snapshot_date);});
+    return filtered[0];
+  }
+  
+  function monthsBetween(d1,d2){
+    var start=new Date(d1+'T00:00:00'); var end=new Date(d2+'T00:00:00');
+    return(end.getFullYear()-start.getFullYear())*12+(end.getMonth()-start.getMonth());
+  }
+  
+  function calculateUpdate(contract){
+    state.contractId=contract.id; state.baseData=contract; state.conditions=getConditions(contract.id);
+    if(!contract.poly||!contract.poly.length)return null;
+    var poly=contract.poly.filter(function(p){return p.idx;});
+    var baseDate=state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni;
+    var tars=getTar()||[]; var currentList=tars.filter(function(t){return t.period===contract.btar||(!t.period&&tars.indexOf(t)===0);});
+    state.currentPrices=currentList.length&&currentList[0].rows?currentList[0].rows.map(function(r){return{description:r[1]||'',unit:r[2]||'',quantity:parseFloat(r[3])||1,unit_price:parseFloat(r[3])||0};}):[{description:'Item base',unit:'UN',quantity:1,unit_price:contract.monto||0}];
+    var Ko=1;
+    poly.forEach(function(c){
+      var baseSnap=getIndicatorAtDate(c.idx,baseDate); var currentSnap=getLatestIndicator(c.idx);
+      if(baseSnap&&currentSnap&&baseSnap.value&&currentSnap.value){
+        var ratio=currentSnap.value/baseSnap.value;
+        Ko*=Math.pow(ratio,c.inc);
+      }
+    });
+    state.updatedPrices=state.currentPrices.map(function(item){
+      var newPrice=item.unit_price*Ko;
+      return{description:item.description,unit:item.unit,quantity:item.quantity,unit_price:newPrice,old_price:item.unit_price,variation:((newPrice-item.unit_price)/item.unit_price)*100};
+    });
+    var oldMonthly=(contract.monto||0)/(contract.plazo||1);
+    var newMonthly=state.updatedPrices.reduce(function(sum,p){return sum+(p.unit_price*p.quantity);},0);
+    var ini=new Date(contract.fechaIni+'T00:00:00'); var fin=new Date(contract.fechaFin+'T00:00:00'); var hoy=new Date();
+    var totalMeses=Math.max((fin.getFullYear()-ini.getFullYear())*12+(fin.getMonth()-ini.getMonth()),1);
+    var mesesPasados=(hoy.getFullYear()-ini.getFullYear())*12+(hoy.getMonth()-ini.getMonth());
+    var monthsRemaining=Math.max(totalMeses-mesesPasados,0);
+    state.aveAmount=(newMonthly-oldMonthly)*monthsRemaining; state.newMonthlyEstimate=newMonthly;
+    return{updatedPrices:state.updatedPrices,aveAmount:state.aveAmount,newMonthlyEstimate:newMonthly,oldMonthlyEstimate:oldMonthly,monthsRemaining:monthsRemaining,Ko:Ko};
+  }
+  
+  function applyUpdate(){
+    if(!state.contractId||!state.baseData)return;
+    var contract=state.baseData; var updateDate=ymToday();
+    var enms=(contract.enmiendas||[]).slice();
+    var newEnm={num:(enms.length+1),tipo:'ACTUALIZACION_TARIFAS',fecha:updateDate,motivo:'Actualización automática por fórmula polinómica',pctPoli:((state.updatedPrices.length&&state.updatedPrices[0].unit_price/state.updatedPrices[0].old_price)||1)-1,basePeriodo:state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni,nuevoPeriodo:updateDate};
+    enms.push(newEnm); contract.enmiendas=enms;
+    var tars=getTar()||[]; var baseTar=tars.find(function(t){return t.period===(state.conditions?(state.conditions.baseDate||contract.btar):contract.btar);});
+    if(baseTar){
+      var newTar={name:baseTar.name+' ACT',cols:baseTar.cols||['Item','Descripción','Unidad','Precio'],rows:state.updatedPrices.map(function(p){return['',p.description,p.unit,p.unit_price];}),period:updateDate,source:'POLINOMICA',importedAt:new Date().toISOString(),editable:true};
+      tars.push(newTar); setTar(tars);
+    }
+    var aves=(contract.aves||[]).slice();
+    var newAve={id:Date.now()+'',tipo:'POLINOMICA',enmRef:newEnm.num,fecha:updateDate,periodo:updateDate,monto:state.aveAmount,concepto:'AVE por actualización polinómica',autoGenerated:true};
+    aves.push(newAve); contract.aves=aves;
+    contract.monto=(contract.monto||0)+state.aveAmount;
+    var idx=DB.findIndex(function(c){return c.id===contract.id;}); if(idx!==-1)DB[idx]=contract;
+    save();
+    if(state.conditions){
+      state.conditions.lastUpdateDate=updateDate;
+      if(state.conditions.resetBase)state.conditions.baseDate=updateDate;
+      saveConditions(contract.id,state.conditions);
+    }
+    toast('Actualización aplicada: AVE '+fN(state.aveAmount),'ok'); loadContract(contract.id);
+  }
+  
+  return{getConditions:getConditions,saveConditions:saveConditions,checkConditions:checkConditions,calculateUpdate:calculateUpdate,applyUpdate:applyUpdate};
+})();
+
+function renderUpdateSection(contract){
+  var section=document.createElement('div'); section.className='card'; section.style.marginBottom='20px';
+  var header=document.createElement('div'); header.className='fsec';
+  header.innerHTML='<div class="fsh"><div class="fi a">⚡</div><h2>Actualización Polinómica</h2></div>';
+  section.appendChild(header);
+  var body=document.createElement('div'); body.className='fsec';
+  if(!contract.poly||!contract.poly.filter(function(p){return p.idx;}).length){
+    body.innerHTML='<p style="color:var(--g500);font-size:13px">Este contrato no tiene fórmula polinómica configurada</p>';
+    section.appendChild(body); return section;
+  }
+  var conditions=PolUpdate.getConditions(contract.id);
+  if(!conditions||!conditions.enabled){
+    body.innerHTML='<p style="color:var(--g500);font-size:13px">Actualización polinómica no habilitada</p>'+
+      '<button class="btn btn-p btn-sm" onclick="openConditionsModal('+contract.id+')" style="margin-top:12px">⚙️ Configurar condiciones</button>';
+    section.appendChild(body); return section;
+  }
+  var poly=contract.poly.filter(function(p){return p.idx;});
+  var formulaDiv=document.createElement('div'); formulaDiv.style.marginBottom='16px';
+  formulaDiv.innerHTML='<strong style="font-size:12px;color:var(--g700)">Fórmula:</strong> '+
+    '<code style="background:var(--g100);padding:4px 8px;border-radius:4px;font-size:11px;font-family:monospace">'+
+    'Ko = '+poly.map(function(c){return c.idx+'^'+(c.inc*100)+'%';}).join(' × ')+'</code>';
+  body.appendChild(formulaDiv);
+  var condDiv=document.createElement('div'); condDiv.style.marginBottom='16px';
+  var condHtml='<strong style="font-size:12px;color:var(--g700)">Condiciones:</strong><ul style="margin:6px 0 0 20px;font-size:12px;color:var(--g600c)">';
+  if(conditions.moThreshold)condHtml+='<li>MO ≥ +'+conditions.moThreshold+'%</li>';
+  if(conditions.allComponentsThreshold)condHtml+='<li>Todos los componentes ≥ +'+conditions.allComponentsThreshold+'%</li>';
+  if(conditions.monthsElapsed)condHtml+='<li>'+conditions.monthsElapsed+' meses desde última actualización</li>';
+  condHtml+='</ul>'; condDiv.innerHTML=condHtml; body.appendChild(condDiv);
+  var check=PolUpdate.checkConditions(contract,conditions);
+  var statusDiv=document.createElement('div');
+  statusDiv.style.padding='10px 14px'; statusDiv.style.borderRadius='6px'; statusDiv.style.marginBottom='16px'; statusDiv.style.fontSize='12px'; statusDiv.style.fontWeight='600';
+  if(check.met){
+    statusDiv.style.background='var(--a100)'; statusDiv.style.color='#92400e';
+    statusDiv.innerHTML='✓ Condiciones cumplidas: '+check.reasons.join(', ');
+  }else{
+    statusDiv.style.background='var(--g100)'; statusDiv.style.color='var(--g600c)';
+    statusDiv.innerHTML='○ Condiciones no cumplidas';
+  }
+  body.appendChild(statusDiv);
+  var actions=document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+  actions.innerHTML='<button class="btn btn-s btn-sm" onclick="openConditionsModal('+contract.id+')">⚙️ Editar condiciones</button>'+
+    (check.met?'<button class="btn btn-a btn-sm" onclick="previewUpdate('+contract.id+')">🔄 Calcular actualización</button>':'');
+  body.appendChild(actions); section.appendChild(body); return section;
+}
+
+function openConditionsModal(cid){
+  var contract=DB.find(function(c){return c.id==cid;}); if(!contract)return;
+  var conditions=PolUpdate.getConditions(cid)||{enabled:false,moThreshold:0,allComponentsThreshold:0,monthsElapsed:0,baseDate:contract.fechaIni,lastUpdateDate:null,resetBase:false};
+  var modal=document.createElement('div'); modal.id='conditionsModal';
+  modal.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center';
+  modal.innerHTML='<div style="background:#fff;border-radius:12px;padding:28px;max-width:560px;width:92%;box-shadow:var(--shm)">'+
+    '<h3 style="font-size:16px;font-weight:700;margin-bottom:20px">Configurar Condiciones de Actualización</h3>'+
+    '<div class="fg fg2" style="margin-bottom:20px">'+
+      '<div class="fgrp c2"><label><input type="checkbox" id="condEnabled" '+(conditions.enabled?'checked':'')+' style="width:auto;margin-right:6px"> Habilitar actualización automática</label></div>'+
+      '<div class="fgrp"><label>MO mínimo (%)</label><input type="number" id="condMo" value="'+(conditions.moThreshold||0)+'" step="0.1"></div>'+
+      '<div class="fgrp"><label>Todos componentes (%)</label><input type="number" id="condAll" value="'+(conditions.allComponentsThreshold||0)+'" step="0.1"></div>'+
+      '<div class="fgrp"><label>Meses transcurridos</label><input type="number" id="condMonths" value="'+(conditions.monthsElapsed||0)+'"></div>'+
+      '<div class="fgrp"><label>Fecha base</label><input type="date" id="condBase" value="'+(conditions.baseDate||contract.fechaIni)+'"></div>'+
+      '<div class="fgrp c2"><label><input type="checkbox" id="condReset" '+(conditions.resetBase?'checked':'')+' style="width:auto;margin-right:6px"> Resetear base tras actualización</label></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="btn btn-s" onclick="closeConditionsModal()">Cancelar</button>'+
+      '<button class="btn btn-p" onclick="saveConditionsModal('+cid+')">Guardar</button>'+
+    '</div></div>';
+  document.body.appendChild(modal);
+}
+
+function closeConditionsModal(){ var m=document.getElementById('conditionsModal'); if(m)m.remove(); }
+
+function saveConditionsModal(cid){
+  var data={
+    enabled:document.getElementById('condEnabled').checked,
+    moThreshold:parseFloat(document.getElementById('condMo').value)||0,
+    allComponentsThreshold:parseFloat(document.getElementById('condAll').value)||0,
+    monthsElapsed:parseInt(document.getElementById('condMonths').value)||0,
+    baseDate:document.getElementById('condBase').value,
+    resetBase:document.getElementById('condReset').checked,
+    lastUpdateDate:(PolUpdate.getConditions(cid)||{}).lastUpdateDate||null
+  };
+  PolUpdate.saveConditions(cid,data); closeConditionsModal(); loadContract(cid); toast('Condiciones guardadas','ok');
+}
+
+function previewUpdate(cid){
+  var contract=DB.find(function(c){return c.id==cid;}); if(!contract)return;
+  var calc=PolUpdate.calculateUpdate(contract); if(!calc)return;
+  var modal=document.createElement('div'); modal.id='updatePreviewModal';
+  modal.style.cssText='display:flex;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center';
+  var pricesTable='<table style="width:100%;font-size:11px;margin:12px 0"><thead><tr style="background:var(--g100)"><th style="padding:6px;text-align:left">Item</th><th style="padding:6px;text-align:right">Anterior</th><th style="padding:6px;text-align:right">Nuevo</th><th style="padding:6px;text-align:right">Var%</th></tr></thead><tbody>';
+  calc.updatedPrices.forEach(function(p){
+    pricesTable+='<tr><td style="padding:6px">'+esc(p.description)+'</td>'+
+      '<td style="padding:6px;text-align:right">'+fN(p.old_price)+'</td>'+
+      '<td style="padding:6px;text-align:right;font-weight:700">'+fN(p.unit_price)+'</td>'+
+      '<td style="padding:6px;text-align:right;color:'+(p.variation>=0?'var(--g600)':'var(--r500)')+'">'+p.variation.toFixed(2)+'%</td></tr>';
+  });
+  pricesTable+='</tbody></table>';
+  modal.innerHTML='<div style="background:#fff;border-radius:12px;padding:28px;max-width:700px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:var(--shm)">'+
+    '<h3 style="font-size:16px;font-weight:700;margin-bottom:16px">Vista Previa: Actualización Polinómica</h3>'+
+    '<div style="background:var(--p50);padding:14px;border-radius:8px;margin-bottom:16px;font-size:13px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        '<div><strong>Ko aplicado:</strong> '+calc.Ko.toFixed(4)+'</div>'+
+        '<div><strong>Meses restantes:</strong> '+calc.monthsRemaining+'</div>'+
+        '<div><strong>Mensual anterior:</strong> '+fN(calc.oldMonthlyEstimate)+'</div>'+
+        '<div><strong>Mensual nuevo:</strong> '+fN(calc.newMonthlyEstimate)+'</div>'+
+      '</div></div>'+
+    '<div style="background:var(--a100);padding:14px;border-radius:8px;margin-bottom:16px;text-align:center">'+
+      '<div style="font-size:12px;color:#92400e;font-weight:600;margin-bottom:4px">AVE GENERADO</div>'+
+      '<div style="font-size:24px;font-weight:800;color:#92400e">'+fN(calc.aveAmount)+'</div></div>'+
+    '<details style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:600;font-size:12px;margin-bottom:8px">Ver detalle de precios</summary>'+pricesTable+'</details>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="btn btn-s" onclick="closeUpdatePreview()">Cancelar</button>'+
+      '<button class="btn btn-a" onclick="confirmApplyUpdate()">✓ Aplicar actualización</button>'+
+    '</div></div>';
+  document.body.appendChild(modal);
+}
+
+function closeUpdatePreview(){ var m=document.getElementById('updatePreviewModal'); if(m)m.remove(); }
+function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); }
 
 </script>
 
