@@ -439,7 +439,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">sys_A2_force</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v38</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -4619,11 +4619,10 @@ var PolUpdate = (function(){
 function renderUpdateSection(contract){
   var section=document.createElement('div'); section.className='card'; section.style.marginBottom='20px';
   var header=document.createElement('div'); header.className='fsec';
-  header.innerHTML='<div class="fsh"><div class="fi a">⚡</div><h2>Actualización Polinómica <span style="font-size:10px;background:var(--p600);color:var(--w);padding:2px 6px;border-radius:4px;font-weight:800;margin-left:6px">v37</span></h2></div>';
+  header.innerHTML='<div class="fsh"><div class="fi a">⚡</div><h2>Actualización Polinómica</h2></div>';
   section.appendChild(header);
   var body=document.createElement('div'); body.className='fsec';
   
-  // Verificar si tiene fórmula polinómica
   if(!contract.poly||!contract.poly.filter(function(p){return p.idx;}).length){
     body.innerHTML='<p style="color:var(--g500);font-size:13px">Este contrato no tiene fórmula polinómica configurada</p>';
     section.appendChild(body); return section;
@@ -4631,7 +4630,7 @@ function renderUpdateSection(contract){
   
   var poly=contract.poly.filter(function(p){return p.idx;});
   
-  // SIEMPRE mostrar fórmula configurada
+  // Fórmula configurada
   var formulaDiv=document.createElement('div'); 
   formulaDiv.style.marginBottom='16px';
   formulaDiv.style.padding='12px 14px';
@@ -4644,11 +4643,9 @@ function renderUpdateSection(contract){
   body.appendChild(formulaDiv);
   
   var conditions=PolUpdate.getConditions(contract.id);
-  
-  // Detectar gatillos automáticamente
   var hasGatillos=contract.gatillos&&(contract.gatillos.B||contract.gatillos.C);
   
-  // Si no está habilitado pero hay gatillos: auto-migrar
+  // Auto-migrar gatillos si no hay condiciones
   if((!conditions||!conditions.enabled)&&hasGatillos){
     var warnDiv=document.createElement('div');
     warnDiv.style.padding='12px 16px';
@@ -4665,23 +4662,18 @@ function renderUpdateSection(contract){
     }
     warnDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
       '<span style="font-size:20px">ℹ️</span>'+
-      '<div style="font-size:13px;font-weight:700;color:#1e3a8a">Gatillos detectados en cláusula de redeterminación</div>'+
+      '<div style="font-size:13px;font-weight:700;color:#1e3a8a">Gatillos detectados en cláusula</div>'+
       '</div>'+
-      '<ul style="margin:6px 0 0 20px;font-size:12px;color:#1e3a8a;line-height:1.8">'+gatillosText+'</ul>'+
-      '<div style="font-size:11px;color:#1e3a8a;margin-top:8px;font-style:italic">Haga clic en "Activar condiciones" para habilitar monitoreo automático</div>';
+      '<ul style="margin:6px 0 0 20px;font-size:12px;color:#1e3a8a;line-height:1.8">'+gatillosText+'</ul>';
     body.appendChild(warnDiv);
     
     var btnDiv=document.createElement('div');
-    btnDiv.style.display='flex';
-    btnDiv.style.gap='8px';
-    btnDiv.innerHTML='<button class="btn btn-p" onclick="activateFromGatillos('+contract.id+')">✓ Activar condiciones detectadas</button>'+
-      '<button class="btn btn-s" onclick="openConditionsModal('+contract.id+')">⚙️ Configurar manualmente</button>';
+    btnDiv.innerHTML='<button class="btn btn-p" onclick="activateFromGatillos('+contract.id+')">✓ Activar monitoreo automático</button>';
     body.appendChild(btnDiv);
     section.appendChild(body); 
     return section;
   }
   
-  // Si no está habilitado: mostrar advertencia
   if(!conditions||!conditions.enabled){
     var warnDiv=document.createElement('div');
     warnDiv.style.padding='12px 16px';
@@ -4689,81 +4681,157 @@ function renderUpdateSection(contract){
     warnDiv.style.border='2px solid var(--a500)';
     warnDiv.style.borderRadius='8px';
     warnDiv.style.marginBottom='14px';
-    warnDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+    warnDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px">'+
       '<span style="font-size:20px">⚠️</span>'+
-      '<div style="font-size:13px;font-weight:700;color:#92400e">Actualización automática NO habilitada</div>'+
-      '</div>'+
-      '<div style="font-size:12px;color:#92400e;line-height:1.5">'+
-      'La fórmula está definida pero las condiciones de disparo no están configuradas. '+
-      'Configure los umbrales para activar actualizaciones automáticas.'+
+      '<div style="font-size:13px;font-weight:700;color:#92400e">Monitoreo automático NO habilitado</div>'+
       '</div>';
     body.appendChild(warnDiv);
-    
-    var btnDiv=document.createElement('div');
-    btnDiv.innerHTML='<button class="btn btn-p" onclick="openConditionsModal('+contract.id+')">⚙️ Configurar condiciones de actualización</button>';
-    body.appendChild(btnDiv);
     section.appendChild(body); 
     return section;
   }
   
-  // Si está habilitado: mostrar condiciones y estado
-  var condDiv=document.createElement('div'); 
-  condDiv.style.marginBottom='16px';
-  condDiv.style.padding='10px 14px';
-  condDiv.style.background='var(--g100d)';
-  condDiv.style.borderRadius='6px';
-  condDiv.style.border='2px solid var(--g600)';
-  var condHtml='<div style="font-size:11px;font-weight:700;color:var(--g600);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✓ Condiciones activas</div><ul style="margin:0 0 0 20px;font-size:12px;color:var(--g600);line-height:1.8;font-weight:600">';
-  if(conditions.moThreshold)condHtml+='<li>MO ≥ +'+conditions.moThreshold+'%</li>';
-  if(conditions.allComponentsThreshold)condHtml+='<li>Todos los componentes ≥ +'+conditions.allComponentsThreshold+'%</li>';
-  if(conditions.monthsElapsed)condHtml+='<li>'+conditions.monthsElapsed+' meses desde última actualización</li>';
-  condHtml+='</ul>'; 
-  condDiv.innerHTML=condHtml; 
-  body.appendChild(condDiv);
+  // PANEL AUDITORÍA
+  var auditDiv=document.createElement('div');
+  auditDiv.style.marginBottom='16px';
+  auditDiv.style.padding='14px 16px';
+  auditDiv.style.background='var(--g50)';
+  auditDiv.style.borderRadius='8px';
+  auditDiv.style.border='1px solid var(--g300)';
   
-  var check=PolUpdate.checkConditions(contract,conditions);
-  var statusDiv=document.createElement('div');
-  statusDiv.style.padding='12px 16px'; 
-  statusDiv.style.borderRadius='8px'; 
-  statusDiv.style.marginBottom='16px'; 
-  statusDiv.style.fontSize='13px'; 
-  statusDiv.style.fontWeight='600';
-  statusDiv.style.border='2px solid';
+  var auditHtml='<div style="font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">📊 Auditoría de condiciones</div>';
   
-  if(check.met){
-    statusDiv.style.background='var(--a100)'; 
-    statusDiv.style.color='#92400e';
-    statusDiv.style.borderColor='var(--a500)';
-    statusDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">✓</span><div>Condiciones cumplidas: '+check.reasons.join(', ')+'</div></div>';
-  }else{
-    statusDiv.style.background='var(--g100)'; 
-    statusDiv.style.color='var(--g600c)';
-    statusDiv.style.borderColor='var(--g300)';
-    statusDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">○</span><div>Condiciones no cumplidas aún</div></div>';
+  // Selector mes evaluación
+  var mesEval=localStorage.getItem('pol_eval_month_'+contract.id)||ymToday();
+  auditHtml+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">'+
+    '<label style="font-size:12px;font-weight:600;color:var(--g700)">Mes evaluación:</label>'+
+    '<input type="month" id="polEvalMonth" value="'+mesEval+'" style="width:150px;font-size:12px;padding:6px 8px">'+
+    '<button class="btn btn-p btn-sm" onclick="evaluateConditions('+contract.id+')">🔍 Evaluar</button>'+
+    '</div>';
+  
+  // Resultados evaluación
+  var evalResult=getEvaluationResult(contract.id,mesEval);
+  if(evalResult){
+    auditHtml+='<div style="background:var(--w);padding:12px;border-radius:6px;border:1px solid var(--g200)">';
+    evalResult.details.forEach(function(d){
+      var pct=(d.cumplimiento*100).toFixed(1);
+      var color=d.cumplido?'var(--g600)':'var(--r500)';
+      var icon=d.cumplido?'✓':'○';
+      auditHtml+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--g100)">'+
+        '<span style="font-size:12px;color:var(--g700)">'+icon+' '+d.condicion+'</span>'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="width:100px;height:8px;background:var(--g200);border-radius:4px;overflow:hidden">'+
+            '<div style="width:'+pct+'%;height:100%;background:'+color+'"></div>'+
+          '</div>'+
+          '<span style="font-size:12px;font-weight:700;color:'+color+';min-width:50px;text-align:right">'+pct+'%</span>'+
+        '</div>'+
+      '</div>';
+    });
+    auditHtml+='<div style="margin-top:10px;padding-top:10px;border-top:2px solid var(--g300);font-size:13px;font-weight:700;color:'+(evalResult.cumpleGeneral?'var(--g600)':'var(--g700)')+'">'+
+      (evalResult.cumpleGeneral?'✓ Condiciones CUMPLIDAS para actualización':'○ Condiciones NO cumplidas aún')+
+      '</div></div>';
   }
-  body.appendChild(statusDiv);
   
-  var actions=document.createElement('div'); 
-  actions.style.display='flex'; 
-  actions.style.gap='8px';
-  actions.innerHTML='<button class="btn btn-s btn-sm" onclick="openConditionsModal('+contract.id+')">⚙️ Editar condiciones</button>'+
-    (check.met?'<button class="btn btn-a btn-sm" onclick="previewUpdate('+contract.id+')">🔄 Calcular actualización</button>':'');
-  body.appendChild(actions); 
+  auditDiv.innerHTML=auditHtml;
+  body.appendChild(auditDiv);
+  
+  // Botón acción
+  if(evalResult&&evalResult.cumpleGeneral){
+    var actionDiv=document.createElement('div');
+    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate('+contract.id+')">🔄 Calcular actualización polinómica</button>';
+    body.appendChild(actionDiv);
+  }
+  
   section.appendChild(body); 
   return section;
 }
 
-// Nueva función: activar desde gatillos
-function activateFromGatillos(cid){
+// Evaluar condiciones en mes específico
+function evaluateConditions(cid){
+  var mesEval=document.getElementById('polEvalMonth').value;
+  if(!mesEval){toast('Seleccione un mes para evaluar','er');return;}
+  
+  localStorage.setItem('pol_eval_month_'+cid,mesEval);
+  
   var contract=DB.find(function(c){return c.id==cid;});
   if(!contract)return;
+  
   var conditions=PolUpdate.getConditions(cid);
-  if(conditions){
-    conditions.enabled=true;
-    PolUpdate.saveConditions(cid,conditions);
-    toast('Condiciones activadas desde gatillos de cláusula','ok');
-    loadContract(cid);
+  if(!conditions)return;
+  
+  var details=[];
+  var cumpleGeneral=false;
+  
+  // Evaluar cada condición
+  if(conditions.allComponentsThreshold>0){
+    var poly=contract.poly.filter(function(p){return p.idx;});
+    var cumpleTodas=true;
+    var promCumplimiento=0;
+    var countPoly=0;
+    
+    poly.forEach(function(p){
+      var baseSnap=PolUpdate.getIndicatorAtDate(p.idx,conditions.baseDate||contract.fechaIni);
+      var evalSnap=PolUpdate.getIndicatorAtDate(p.idx,mesEval+'-01');
+      
+      if(baseSnap&&evalSnap&&baseSnap.value&&evalSnap.value){
+        var variacion=((evalSnap.value-baseSnap.value)/baseSnap.value)*100;
+        var cumple=variacion>=conditions.allComponentsThreshold;
+        if(!cumple)cumpleTodas=false;
+        promCumplimiento+=Math.min(variacion/conditions.allComponentsThreshold,1);
+        countPoly++;
+      }
+    });
+    
+    if(countPoly>0){
+      details.push({
+        condicion:'Variación componentes ≥ '+conditions.allComponentsThreshold+'%',
+        cumplimiento:promCumplimiento/countPoly,
+        cumplido:cumpleTodas
+      });
+      if(cumpleTodas)cumpleGeneral=true;
+    }
   }
+  
+  if(conditions.monthsElapsed>0){
+    var lastUpdate=conditions.lastUpdateDate||contract.fechaIni;
+    var mesesTranscurridos=monthsBetween(lastUpdate,mesEval+'-01');
+    var cumple=mesesTranscurridos>=conditions.monthsElapsed;
+    details.push({
+      condicion:'Meses transcurridos ≥ '+conditions.monthsElapsed,
+      cumplimiento:Math.min(mesesTranscurridos/conditions.monthsElapsed,1),
+      cumplido:cumple
+    });
+    if(cumple)cumpleGeneral=true;
+  }
+  
+  // Guardar resultado
+  var result={
+    mesEval:mesEval,
+    fecha:new Date().toISOString(),
+    details:details,
+    cumpleGeneral:cumpleGeneral
+  };
+  
+  localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
+  
+  toast('Evaluación completada','ok');
+  loadContract(cid);
+}
+
+function getEvaluationResult(cid,mesEval){
+  var stored=localStorage.getItem('pol_eval_result_'+cid);
+  if(!stored)return null;
+  try{
+    var result=JSON.parse(stored);
+    return result;
+  }catch(e){
+    return null;
+  }
+}
+
+function monthsBetween(d1,d2){
+  var start=new Date(d1+'T00:00:00');
+  var end=new Date(d2+'T00:00:00');
+  return(end.getFullYear()-start.getFullYear())*12+(end.getMonth()-start.getMonth());
 }
 
 function openConditionsModal(cid){
