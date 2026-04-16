@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42.2</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -4781,7 +4781,6 @@ function renderUpdateSection(contract){
     '<button class="btn btn-p btn-sm" onclick="evaluateConditions(\''+contract.id+'\')">🔍 Evaluar</button>'+
     '<button class="btn btn-s btn-sm" onclick="detectFirstCompliance(\''+contract.id+'\')">🧭 Primer mes que cumple</button>'+
     '</div>';
-  
   var evalResult=getEvaluationResult(contract.id,mesEval);
   if(evalResult){
     auditHtml+='<div style="background:var(--w);padding:14px;border-radius:6px;border:1px solid var(--g200)">';
@@ -4811,9 +4810,6 @@ function renderUpdateSection(contract){
       '</div></div>';
     auditHtml+='</div>';
   }
-  }else{
-    auditHtml+='<div style="padding:12px;text-align:center;color:var(--g500);font-size:12px;font-style:italic">Seleccione un mes y presione "Evaluar"</div>';
-  }
   
   auditDiv.innerHTML=auditHtml;
   body.appendChild(auditDiv);
@@ -4834,21 +4830,16 @@ function evaluateConditions(cid){
   if(!mesEval){toast('Seleccione un mes de evaluación','er');return;}
   if(!baseMonth){toast('Seleccione un mes base','er');return;}
   if(compareYm(mesEval,baseMonth)<=0){toast('El mes de evaluación debe ser posterior a la base','er');return;}
-
   localStorage.setItem('pol_eval_month_'+cid,mesEval);
-
   var contract=DB.find(function(c){return c.id==cid;});
   if(!contract){toast('Contrato no encontrado','er');return;}
-
   var conditions=PolUpdate.getConditions(cid);
   if(!conditions){toast('Sin condiciones configuradas','er');return;}
   conditions.baseDate=normalizeToMonthStart(baseMonth)||conditions.baseDate;
   PolUpdate.saveConditions(cid,conditions);
-
   var details=[];
   var cumpleGeneral=false;
   var firstComplianceMonth='';
-
   if(conditions.allComponentsThreshold>0){
     var poly=(contract.poly||[]).filter(function(p){return p.idx;});
     if(!poly.length){toast('Sin índices configurados','er');return;}
@@ -4883,9 +4874,11 @@ function evaluateConditions(cid){
         firstMet:firstComplianceMonth||''
       });
       if(cumpleTodas)cumpleGeneral=true;
-    }else{toast('No hay datos de indicadores para evaluar','er');return;}
+    } else {
+      toast('No hay datos de indicadores para evaluar','er');
+      return;
+    }
   }
-
   if(conditions.monthsElapsed>0){
     var lastUpdate=ymOf(conditions.lastUpdateDate)||ymOf(contract.fechaIni);
     var mesesTranscurridos=monthsBetween(normalizeToMonthStart(lastUpdate), normalizeToMonthStart(mesEval));
@@ -4901,9 +4894,7 @@ function evaluateConditions(cid){
     if(cumpleMeses)cumpleGeneral=true;
     if(!firstComplianceMonth && cumpleMeses){ firstComplianceMonth=firstMesCond; }
   }
-
   if(!details.length){toast('No hay condiciones para evaluar','er');return;}
-
   var result={mesEval:mesEval,baseMonth:baseMonth,fecha:new Date().toISOString(),details:details,cumpleGeneral:cumpleGeneral,firstComplianceMonth:firstComplianceMonth||''};
   localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
   toast(cumpleGeneral?'✓ Condiciones cumplidas':'○ No cumple aún',cumpleGeneral?'ok':'er');
