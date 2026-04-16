@@ -1417,10 +1417,12 @@ function renderDet(){
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
+            <div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:700;color:var(--p800)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:15px">${c.mon||''} ${fN((tot/(c.plazo||1))*30.4)}</span></div>
           </div>
           <div>
             <div class="dr"><span>Inicio</span><span class="dv">${fD(c.fechaIni||'')}</span></div>
             <div class="dr"><span>Fin</span><span class="dv">${fD(c.fechaFin||'')}</span></div>
+            <div class="dr"><span>Plazo</span><span class="dv">${c.plazo||'—'} días (${Math.round((c.plazo||0)/30.4)} meses)</span></div>
             <div class="dr"><span>Responsable</span><span class="dv">${esc(c.resp||'—')}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${esc(c.own||'—')}</span></div>
           </div>
@@ -4567,43 +4569,99 @@ function renderUpdateSection(contract){
   header.innerHTML='<div class="fsh"><div class="fi a">⚡</div><h2>Actualización Polinómica</h2></div>';
   section.appendChild(header);
   var body=document.createElement('div'); body.className='fsec';
+  
+  // Verificar si tiene fórmula polinómica
   if(!contract.poly||!contract.poly.filter(function(p){return p.idx;}).length){
     body.innerHTML='<p style="color:var(--g500);font-size:13px">Este contrato no tiene fórmula polinómica configurada</p>';
     section.appendChild(body); return section;
   }
-  var conditions=PolUpdate.getConditions(contract.id);
-  if(!conditions||!conditions.enabled){
-    body.innerHTML='<p style="color:var(--g500);font-size:13px">Actualización polinómica no habilitada</p>'+
-      '<button class="btn btn-p btn-sm" onclick="openConditionsModal('+contract.id+')" style="margin-top:12px">⚙️ Configurar condiciones</button>';
-    section.appendChild(body); return section;
-  }
+  
   var poly=contract.poly.filter(function(p){return p.idx;});
-  var formulaDiv=document.createElement('div'); formulaDiv.style.marginBottom='16px';
-  formulaDiv.innerHTML='<strong style="font-size:12px;color:var(--g700)">Fórmula:</strong> '+
-    '<code style="background:var(--g100);padding:4px 8px;border-radius:4px;font-size:11px;font-family:monospace">'+
-    'Ko = '+poly.map(function(c){return c.idx+'^'+(c.inc*100)+'%';}).join(' × ')+'</code>';
+  
+  // SIEMPRE mostrar fórmula configurada
+  var formulaDiv=document.createElement('div'); 
+  formulaDiv.style.marginBottom='16px';
+  formulaDiv.style.padding='12px 14px';
+  formulaDiv.style.background='var(--p50)';
+  formulaDiv.style.borderRadius='8px';
+  formulaDiv.style.border='1px solid var(--p200)';
+  formulaDiv.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--p800);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">✓ Fórmula polinómica configurada</div>'+
+    '<code style="background:var(--w);padding:8px 12px;border-radius:6px;font-size:12px;font-family:monospace;display:block;border:1px solid var(--p200);color:var(--p900)">'+
+    'Ko = '+poly.map(function(c){return c.idx+' × '+(c.inc*100).toFixed(1)+'%';}).join(' + ')+'</code>';
   body.appendChild(formulaDiv);
-  var condDiv=document.createElement('div'); condDiv.style.marginBottom='16px';
-  var condHtml='<strong style="font-size:12px;color:var(--g700)">Condiciones:</strong><ul style="margin:6px 0 0 20px;font-size:12px;color:var(--g600c)">';
+  
+  var conditions=PolUpdate.getConditions(contract.id);
+  
+  // Si no está habilitado: mostrar advertencia
+  if(!conditions||!conditions.enabled){
+    var warnDiv=document.createElement('div');
+    warnDiv.style.padding='12px 16px';
+    warnDiv.style.background='var(--a100)';
+    warnDiv.style.border='2px solid var(--a500)';
+    warnDiv.style.borderRadius='8px';
+    warnDiv.style.marginBottom='14px';
+    warnDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<span style="font-size:20px">⚠️</span>'+
+      '<div style="font-size:13px;font-weight:700;color:#92400e">Actualización automática NO habilitada</div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#92400e;line-height:1.5">'+
+      'La fórmula está definida pero las condiciones de disparo no están configuradas. '+
+      'Configure los umbrales para activar actualizaciones automáticas.'+
+      '</div>';
+    body.appendChild(warnDiv);
+    
+    var btnDiv=document.createElement('div');
+    btnDiv.innerHTML='<button class="btn btn-p" onclick="openConditionsModal('+contract.id+')">⚙️ Configurar condiciones de actualización</button>';
+    body.appendChild(btnDiv);
+    section.appendChild(body); 
+    return section;
+  }
+  
+  // Si está habilitado: mostrar condiciones y estado
+  var condDiv=document.createElement('div'); 
+  condDiv.style.marginBottom='16px';
+  condDiv.style.padding='10px 14px';
+  condDiv.style.background='var(--g50)';
+  condDiv.style.borderRadius='6px';
+  condDiv.style.border='1px solid var(--g200)';
+  var condHtml='<div style="font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Condiciones activas</div><ul style="margin:0 0 0 20px;font-size:12px;color:var(--g600c);line-height:1.8">';
   if(conditions.moThreshold)condHtml+='<li>MO ≥ +'+conditions.moThreshold+'%</li>';
   if(conditions.allComponentsThreshold)condHtml+='<li>Todos los componentes ≥ +'+conditions.allComponentsThreshold+'%</li>';
   if(conditions.monthsElapsed)condHtml+='<li>'+conditions.monthsElapsed+' meses desde última actualización</li>';
-  condHtml+='</ul>'; condDiv.innerHTML=condHtml; body.appendChild(condDiv);
+  condHtml+='</ul>'; 
+  condDiv.innerHTML=condHtml; 
+  body.appendChild(condDiv);
+  
   var check=PolUpdate.checkConditions(contract,conditions);
   var statusDiv=document.createElement('div');
-  statusDiv.style.padding='10px 14px'; statusDiv.style.borderRadius='6px'; statusDiv.style.marginBottom='16px'; statusDiv.style.fontSize='12px'; statusDiv.style.fontWeight='600';
+  statusDiv.style.padding='12px 16px'; 
+  statusDiv.style.borderRadius='8px'; 
+  statusDiv.style.marginBottom='16px'; 
+  statusDiv.style.fontSize='13px'; 
+  statusDiv.style.fontWeight='600';
+  statusDiv.style.border='2px solid';
+  
   if(check.met){
-    statusDiv.style.background='var(--a100)'; statusDiv.style.color='#92400e';
-    statusDiv.innerHTML='✓ Condiciones cumplidas: '+check.reasons.join(', ');
+    statusDiv.style.background='var(--a100)'; 
+    statusDiv.style.color='#92400e';
+    statusDiv.style.borderColor='var(--a500)';
+    statusDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">✓</span><div>Condiciones cumplidas: '+check.reasons.join(', ')+'</div></div>';
   }else{
-    statusDiv.style.background='var(--g100)'; statusDiv.style.color='var(--g600c)';
-    statusDiv.innerHTML='○ Condiciones no cumplidas';
+    statusDiv.style.background='var(--g100)'; 
+    statusDiv.style.color='var(--g600c)';
+    statusDiv.style.borderColor='var(--g300)';
+    statusDiv.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">○</span><div>Condiciones no cumplidas aún</div></div>';
   }
   body.appendChild(statusDiv);
-  var actions=document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+  
+  var actions=document.createElement('div'); 
+  actions.style.display='flex'; 
+  actions.style.gap='8px';
   actions.innerHTML='<button class="btn btn-s btn-sm" onclick="openConditionsModal('+contract.id+')">⚙️ Editar condiciones</button>'+
     (check.met?'<button class="btn btn-a btn-sm" onclick="previewUpdate('+contract.id+')">🔄 Calcular actualización</button>':'');
-  body.appendChild(actions); section.appendChild(body); return section;
+  body.appendChild(actions); 
+  section.appendChild(body); 
+  return section;
 }
 
 function openConditionsModal(cid){
