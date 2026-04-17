@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v44-final</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v45-indices</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -984,8 +984,67 @@ function getContractMonths(contract){
   return 0;
 }
 function getIndicatorSnapshots(code){
+  function labelToIdxId(label){
+    var map={
+      'PP':'mo_pp',
+      'UOCRA':'mo_uocra',
+      'COMERCIO':'mo_com',
+      'CAMIONEROS':'mo_cam',
+      'UOM RAMA N°10':'mo_uom10',
+      'UOM RAMA N°17':'mo_uom17',
+      'USD DIVISA':'usd_div',
+      'USD BILLETE':'usd_bill',
+      'FADEAAC':'fadeaac',
+      'GAS OIL G3 YPF NQN':'go_g3',
+      'GAS OIL G2 YPF NQN':'go_g2',
+      'IPIM GRAL':'ipim_gral',
+      'IPC PATAGONIA':'ipc_pat',
+      'IPC NAC GRAL':'ipc_nac',
+      'IPC NQN GRAL':'ipc_nqn',
+      'IPC NQN ALIM':'ipc_nqnab',
+      'IPC GBA GRAL':'ipc_gba',
+      'IPIM R29':'ipim_r29'
+    };
+    return map[String(label||'').trim()] || '';
+  }
+  function seedSnapshotsFromIdxStore(targetCode){
+    try{
+      var idxId = labelToIdxId(targetCode);
+      if(!idxId || typeof IDX_STORE==='undefined' || !IDX_STORE[idxId] || !Array.isArray(IDX_STORE[idxId].rows)) return;
+      var snaps = JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+      var changed = false;
+      IDX_STORE[idxId].rows.forEach(function(r){
+        if(!r || !r.ym) return;
+        var snapDate = r.ym + '-01';
+        var exists = snaps.find(function(s){ return s.indicator_code===targetCode && s.snapshot_date===snapDate; });
+        if(!exists){
+          snaps.push({
+            indicator_code: targetCode,
+            snapshot_date: snapDate,
+            pct: r.pct!=null ? Number(r.pct) : null,
+            value: r.value!=null ? Number(r.value) : null,
+            series_value: r.value!=null ? Number(r.value) : null,
+            source: 'IDX_STORE',
+            confirmed: !!r.confirmed,
+            note: r.note || ''
+          });
+          changed = true;
+        }
+      });
+      if(changed){
+        snaps.sort(function(a,b){ return String(a.snapshot_date).localeCompare(String(b.snapshot_date)); });
+        localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
+      }
+    }catch(e){ console.warn('seedSnapshotsFromIdxStore', targetCode, e); }
+  }
   var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-  return snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+  var filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+  if(!filtered.length){
+    seedSnapshotsFromIdxStore(code);
+    snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+    filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+  }
+  return filtered;
 }
 function computeAccumulatedVariationPct(code, baseMonth, evalMonth){
   var fromYm=ymOf(baseMonth), toYm=ymOf(evalMonth);
