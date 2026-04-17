@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v43-fix1</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v44-final</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -948,7 +948,13 @@ function onTrigCToggle(){const on=document.getElementById('f_trigC').checked;doc
 function monthDiffInclusive(a,b){if(!a||!b)return 0;const d1=new Date(a+'T00:00:00'),d2=new Date(b+'T00:00:00');return Math.max((d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth())+1,0);}
 function monthsRemainingInclusive(fromYm,toDateStr){if(!toDateStr)return 0;const base=fromYm?new Date(fromYm+'-01T00:00:00'):new Date();const end=new Date(toDateStr+'T00:00:00');return Math.max((end.getFullYear()-base.getFullYear())*12+(end.getMonth()-base.getMonth())+1,0);}
 function ymToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
-function calcPlazo(){ var a=gv('f_ini'), b=gv('f_fin'); document.getElementById('f_plazo').value=(a&&b)?monthDiffInclusive(a,b):''; }
+function calcPlazo(){const a=document.getElementById('f_ini').value,b=document.getElementById('f_fin').value;if(a&&b)document.getElementById('f_plazo').value=monthDiffInclusive(a,b);}
+function normalizeToMonthStart(v){
+  if(!v)return '';
+  if(/^\d{4}-\d{2}$/.test(v))return v+'-01';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v.slice(0,7)+'-01';
+  return '';
+}
 function ymOf(v){
   if(!v)return '';
   if(/^\d{4}-\d{2}$/.test(v))return v;
@@ -1506,7 +1512,7 @@ function renderDet(){
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
-            <div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:600;color:var(--p700)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:14px">${c.mon||''} ${fN((c.monto||0)/(getContractMonths(c)||1))}</span></div>
+            <div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:600;color:var(--p700)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:14px">${c.mon||''} ${fN(tot/(monthDiffInclusive(c.fechaIni,c.fechaFin)||1))}</span></div>
           </div>
           <div>
             <div class="dr"><span>Inicio</span><span class="dv">${fD(c.fechaIni||'')}</span></div>
