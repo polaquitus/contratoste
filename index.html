@@ -1432,7 +1432,7 @@ function renderDossierHtml(c){
 +'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial de AVEs<span class="ct">'+aves.length+' registrados \u00b7 Total: '+_m(avePoly+aveOwner)+' '+_e(c.mon||'ARS')+'</span></div>'
 +'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
 +'</div>'
-+'
++'</body></html>';
 <script>
 /* ===== PARCHE INTEGRADO V43 POLUPDATE ===== */
 (function(){
@@ -1771,8 +1771,8 @@ function renderDossierHtml(c){
 })();
 </script>
 
-</body></html>';
 }
+
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 
 function renderDet(){
