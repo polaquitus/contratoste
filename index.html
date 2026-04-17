@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v45-indices</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46-auditoria</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -4985,7 +4985,9 @@ function evaluateConditions(cid){
   var result={mesEval:mesEval,baseMonth:baseMonth,fecha:new Date().toISOString(),details:details,cumpleGeneral:cumpleGeneral,firstComplianceMonth:firstComplianceMonth||''};
   localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
   toast(cumpleGeneral?'✓ Condiciones cumplidas':'○ No cumple aún',cumpleGeneral?'ok':'er');
-  loadContract(cid);
+  if(typeof detId!=='undefined') detId=cid;
+  if(typeof renderDet==='function'){ renderDet(); }
+  else if(typeof go==='function'){ go('detail'); }
 }
 function detectFirstCompliance(cid){
   var baseMonth=document.getElementById('polBaseMonth')?document.getElementById('polBaseMonth').value:'';
