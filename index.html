@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46-auditoria</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v47-periodos</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -986,24 +986,12 @@ function getContractMonths(contract){
 function getIndicatorSnapshots(code){
   function labelToIdxId(label){
     var map={
-      'PP':'mo_pp',
-      'UOCRA':'mo_uocra',
-      'COMERCIO':'mo_com',
-      'CAMIONEROS':'mo_cam',
-      'UOM RAMA N°10':'mo_uom10',
-      'UOM RAMA N°17':'mo_uom17',
-      'USD DIVISA':'usd_div',
-      'USD BILLETE':'usd_bill',
-      'FADEAAC':'fadeaac',
-      'GAS OIL G3 YPF NQN':'go_g3',
-      'GAS OIL G2 YPF NQN':'go_g2',
-      'IPIM GRAL':'ipim_gral',
-      'IPC PATAGONIA':'ipc_pat',
-      'IPC NAC GRAL':'ipc_nac',
-      'IPC NQN GRAL':'ipc_nqn',
-      'IPC NQN ALIM':'ipc_nqnab',
-      'IPC GBA GRAL':'ipc_gba',
-      'IPIM R29':'ipim_r29'
+      'PP':'mo_pp','UOCRA':'mo_uocra','COMERCIO':'mo_com','CAMIONEROS':'mo_cam',
+      'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17',
+      'USD DIVISA':'usd_div','USD BILLETE':'usd_bill','FADEAAC':'fadeaac',
+      'GAS OIL G3 YPF NQN':'go_g3','GAS OIL G2 YPF NQN':'go_g2',
+      'IPIM GRAL':'ipim_gral','IPC PATAGONIA':'ipc_pat','IPC NAC GRAL':'ipc_nac',
+      'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29'
     };
     return map[String(label||'').trim()] || '';
   }
@@ -1018,16 +1006,7 @@ function getIndicatorSnapshots(code){
         var snapDate = r.ym + '-01';
         var exists = snaps.find(function(s){ return s.indicator_code===targetCode && s.snapshot_date===snapDate; });
         if(!exists){
-          snaps.push({
-            indicator_code: targetCode,
-            snapshot_date: snapDate,
-            pct: r.pct!=null ? Number(r.pct) : null,
-            value: r.value!=null ? Number(r.value) : null,
-            series_value: r.value!=null ? Number(r.value) : null,
-            source: 'IDX_STORE',
-            confirmed: !!r.confirmed,
-            note: r.note || ''
-          });
+          snaps.push({indicator_code: targetCode,snapshot_date: snapDate,pct: r.pct!=null ? Number(r.pct) : null,value: r.value!=null ? Number(r.value) : null,series_value: r.value!=null ? Number(r.value) : null,source: 'IDX_STORE',confirmed: !!r.confirmed,note: r.note || ''});
           changed = true;
         }
       });
@@ -5114,5 +5093,155 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  function getCurrentContract(){
+    if(typeof detId==='undefined') return null;
+    return (window.DB||[]).find(function(c){ return String(c.id)===String(detId); }) || null;
+  }
+  function getSelectedAdjustmentMonths(cid){
+    try{ return JSON.parse(localStorage.getItem('pol_selected_periods_'+cid) || '[]') || []; }
+    catch(e){ return []; }
+  }
+  function saveSelectedAdjustmentMonths(cid, arr){
+    localStorage.setItem('pol_selected_periods_'+cid, JSON.stringify(arr||[]));
+  }
+  window.clearSelectedAdjustmentMonths=function(cid){
+    saveSelectedAdjustmentMonths(cid, []);
+    enhanceAuditUI();
+    if(window.toast) toast('Selección limpiada','ok');
+  };
+  window.toggleAdjustmentMonthSelection=function(cid, ym, checked){
+    var arr = getSelectedAdjustmentMonths(cid).slice();
+    var pos = arr.indexOf(ym);
+    if(checked){
+      if(pos===-1){
+        if(arr.length>=2){
+          if(window.toast) toast('Podés seleccionar hasta 2 períodos para preparar enmiendas','er');
+          enhanceAuditUI();
+          return;
+        }
+        arr.push(ym);
+      }
+    } else if(pos>=0){
+      arr.splice(pos,1);
+    }
+    arr.sort();
+    saveSelectedAdjustmentMonths(cid, arr);
+    enhanceAuditUI();
+  };
+  function listEligibleAdjustmentMonths(cid, baseMonth, evalMonth){
+    var contract=(window.DB||[]).find(function(c){ return String(c.id)===String(cid); });
+    if(!contract) return [];
+    var conditions=window.PolUpdate && PolUpdate.getConditions ? PolUpdate.getConditions(cid) : null;
+    if(!conditions) return [];
+    var monthsMap={};
+    var fromYm = (typeof ymOf==='function' ? ymOf(baseMonth) : String(baseMonth||''));
+    var toYm = (typeof ymOf==='function' ? ymOf(evalMonth) : String(evalMonth||''));
+    if(!fromYm || !toYm || (typeof compareYm==='function' && compareYm(toYm,fromYm)<=0)) return [];
+    if(Number(conditions.allComponentsThreshold)>0){
+      var poly=(contract.poly||[]).filter(function(p){ return p && p.idx; });
+      var cur = typeof nextYm==='function' ? nextYm(fromYm) : '';
+      while(cur && (!compareYm || compareYm(cur,toYm)<=0)){
+        var ok = poly.length>0;
+        var minPct = null;
+        poly.forEach(function(p){
+          var calc = typeof computeAccumulatedVariationPct==='function' ? computeAccumulatedVariationPct(p.idx, fromYm, cur) : null;
+          if(!calc || !isFinite(calc.pct) || calc.pct < Number(conditions.allComponentsThreshold)) ok = false;
+          if(calc && isFinite(calc.pct)) minPct = (minPct==null ? calc.pct : Math.min(minPct, calc.pct));
+        });
+        if(ok) monthsMap[cur] = {ym:cur, pct:minPct, reason:'threshold'};
+        cur = typeof nextYm==='function' ? nextYm(cur) : '';
+      }
+    }
+    if(Number(conditions.monthsElapsed)>0){
+      var lastUpdate = (typeof ymOf==='function' ? ymOf(conditions.lastUpdateDate) : '') || (typeof ymOf==='function' ? ymOf(contract.fechaIni) : '');
+      var firstM = lastUpdate;
+      for(var i=1;i<=Number(conditions.monthsElapsed);i++) firstM = typeof nextYm==='function' ? nextYm(firstM) : '';
+      var cur2 = firstM;
+      while(cur2 && (!compareYm || compareYm(cur2,toYm)<=0)){
+        if(!monthsMap[cur2]) monthsMap[cur2] = {ym:cur2, pct:null, reason:'months'};
+        cur2 = typeof nextYm==='function' ? nextYm(cur2) : '';
+      }
+    }
+    return Object.values(monthsMap).sort(function(a,b){ return String(a.ym).localeCompare(String(b.ym)); });
+  }
+  window.applySelectedAdjustmentMonthsToEnmienda=function(cid){
+    var selected = getSelectedAdjustmentMonths(cid);
+    if(!selected.length){ if(window.toast) toast('Seleccioná al menos un período aplicable','er'); return; }
+    localStorage.setItem('pol_enm_periods_'+cid, JSON.stringify(selected));
+    if(typeof openEnmPanel==='function'){
+      openEnmPanel();
+      var tipo=document.getElementById('ne_tipo');
+      if(tipo){ tipo.value='ACTUALIZACION_TARIFAS'; if(typeof onEnmTipoChange==='function') onEnmTipoChange(); }
+      var base=document.getElementById('polBaseMonth') ? document.getElementById('polBaseMonth').value : '';
+      var b=document.getElementById('ne_basePer'); if(b && base) b.value=base;
+      var n=document.getElementById('ne_newPer'); if(n) n.value=selected[0];
+      if(typeof buildPolyForm==='function') buildPolyForm();
+      if(typeof calcAveSug==='function') calcAveSug();
+      if(window.toast) toast(selected.length===1 ? 'Se cargó el período seleccionado en la nueva enmienda' : 'Se cargó el primer período. Los demás quedaron guardados para enmiendas adicionales','ok');
+    } else {
+      if(window.toast) toast('Selección guardada para enmienda','ok');
+    }
+  };
+  function buildEligibleMonthsHtml(cid){
+    var evalResult = typeof getEvaluationResult==='function' ? getEvaluationResult(cid) : null;
+    if(!evalResult || !evalResult.cumpleGeneral) return '';
+    var baseMonth = evalResult.baseMonth || (document.getElementById('polBaseMonth') ? document.getElementById('polBaseMonth').value : '');
+    var evalMonth = evalResult.mesEval || (document.getElementById('polEvalMonth') ? document.getElementById('polEvalMonth').value : '');
+    var months = listEligibleAdjustmentMonths(cid, baseMonth, evalMonth);
+    if(!months.length) return '';
+    var selected = getSelectedAdjustmentMonths(cid);
+    var chips = months.map(function(m){
+      var checked = selected.indexOf(m.ym)>=0;
+      return '<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid '+(checked?'var(--g600)':'var(--g300)')+';border-radius:999px;background:'+(checked?'var(--g100d)':'var(--w)')+';cursor:pointer">'+
+        '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleAdjustmentMonthSelection(\''+cid+'\',\''+m.ym+'\',this.checked)">'+
+        '<span style="font-size:12px;font-weight:600;color:var(--g800)">'+(typeof formatYmLabel==='function' ? formatYmLabel(m.ym) : m.ym)+'</span>'+
+        (m.pct!=null?'<span style="font-size:11px;color:var(--g600c)">+'+Number(m.pct).toFixed(2)+'%</span>':'')+
+      '</label>';
+    }).join('');
+    var selText = selected.length ? selected.map(function(ym){ return typeof formatYmLabel==='function' ? formatYmLabel(ym) : ym; }).join(', ') : 'ninguno';
+    return '<div id="eligibleMonthsBlock" style="margin-top:14px;padding:14px;border-radius:8px;background:var(--b50);border:1px solid var(--b200)">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--b700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📆 Períodos con ajuste aplicable</div>'+
+      '<div style="font-size:12px;color:var(--g700);margin-bottom:10px">Se listan todos los períodos desde el primer cumplimiento hasta el mes evaluado en los que el ajuste puede aplicarse. Podés seleccionar hasta <strong>2 períodos</strong> para preparar enmiendas.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+chips+'</div>'+
+      '<div style="margin-top:12px;font-size:12px;color:var(--g600c)"><strong>Seleccionados:</strong> '+selText+'</div>'+
+      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btn-s btn-sm" onclick="applySelectedAdjustmentMonthsToEnmienda(\''+cid+'\')">📝 Usar selección para enmienda</button>'+
+        '<button class="btn btn-s btn-sm" onclick="clearSelectedAdjustmentMonths(\''+cid+'\')">🧹 Limpiar selección</button>'+
+      '</div>'+
+      '<div style="margin-top:10px;font-size:11px;color:var(--g600c)">Sugerencia: si negociás dos aplicaciones distintas, seleccioná los dos períodos y generá una enmienda por cada uno.</div>'+
+    '</div>';
+  }
+  window.enhanceAuditUI=function(){
+    try{
+      var contract = getCurrentContract();
+      if(!contract) return;
+      var evalBtn = document.querySelector('#detCard button[onclick*="evaluateConditions(\''+contract.id+'\')"]');
+      if(!evalBtn) return;
+      var auditDiv = evalBtn.parentElement && evalBtn.parentElement.parentElement;
+      if(!auditDiv) return;
+      var existing = auditDiv.querySelector('#eligibleMonthsBlock');
+      if(existing) existing.remove();
+      var html = buildEligibleMonthsHtml(contract.id);
+      if(!html) return;
+      auditDiv.insertAdjacentHTML('beforeend', html);
+    }catch(e){ console.warn('enhanceAuditUI', e); }
+  };
+  if(typeof window.renderDet==='function' && !window.__v47AuditWrapped){
+    var _origRenderDet = window.renderDet;
+    window.renderDet = function(){
+      var r = _origRenderDet.apply(this, arguments);
+      setTimeout(window.enhanceAuditUI, 60);
+      return r;
+    };
+    window.__v47AuditWrapped = true;
+  }
+  setTimeout(function(){ if(window.enhanceAuditUI) window.enhanceAuditUI(); }, 300);
+  setInterval(function(){ if(window.enhanceAuditUI) window.enhanceAuditUI(); }, 1500);
+})();
+</script>
+
 </body>
 </html>
