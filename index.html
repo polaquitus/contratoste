@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.1-pasoA</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.3-selector</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1006,16 +1006,7 @@ function getIndicatorSnapshots(code){
         var snapDate = r.ym + '-01';
         var exists = snaps.find(function(s){ return s.indicator_code===targetCode && s.snapshot_date===snapDate; });
         if(!exists){
-          snaps.push({
-            indicator_code: targetCode,
-            snapshot_date: snapDate,
-            pct: r.pct!=null ? Number(r.pct) : null,
-            value: r.value!=null ? Number(r.value) : null,
-            series_value: r.value!=null ? Number(r.value) : null,
-            source: 'IDX_STORE',
-            confirmed: !!r.confirmed,
-            note: r.note || ''
-          });
+          snaps.push({indicator_code: targetCode,snapshot_date: snapDate,pct: r.pct!=null ? Number(r.pct) : null,value: r.value!=null ? Number(r.value) : null,series_value: r.value!=null ? Number(r.value) : null,source: 'IDX_STORE',confirmed: !!r.confirmed,note: r.note || ''});
           changed = true;
         }
       });
@@ -4891,7 +4882,8 @@ function renderUpdateSection(contract){
   
   if(evalResult&&evalResult.cumpleGeneral){
     var actionDiv=document.createElement('div');
-    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>';
+    actionDiv.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((evalResult.eligibleMonths&&evalResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button>':'');
     body.appendChild(actionDiv);
   }
   
@@ -5041,7 +5033,67 @@ function getEligibleAdjustmentMonths(cid, baseMonth, evalMonth){
   }
   return Object.values(monthsMap).sort(function(a,b){return String(a.ym).localeCompare(String(b.ym));});
 }
-
+function getSelectedAdjustmentMonths(cid){
+  try{return JSON.parse(localStorage.getItem('pol_selected_periods_'+cid)||'[]')||[];}catch(e){return [];}
+}
+function setSelectedAdjustmentMonths(cid, arr){
+  localStorage.setItem('pol_selected_periods_'+cid, JSON.stringify(arr||[]));
+}
+function toggleAdjustmentMonthSelection(cid, ym, checked){
+  var arr=getSelectedAdjustmentMonths(cid).slice();
+  var pos=arr.indexOf(ym);
+  if(checked){ if(pos===-1) arr.push(ym); }
+  else if(pos>=0){ arr.splice(pos,1); }
+  arr.sort();
+  setSelectedAdjustmentMonths(cid, arr);
+  renderEligibleMonthsModal(cid);
+}
+function clearAdjustmentMonthSelection(cid){
+  setSelectedAdjustmentMonths(cid, []);
+  renderEligibleMonthsModal(cid);
+}
+function closeEligibleMonthsModal(){
+  var m=document.getElementById('eligibleMonthsModal');
+  if(m) m.remove();
+}
+function renderEligibleMonthsModal(cid){
+  var old=document.getElementById('eligibleMonthsModal');
+  if(old) old.remove();
+  var res=getEvaluationResult(cid,'') || getEvaluationResult(cid,null);
+  if(!res) return;
+  var months=(res.eligibleMonths||[]).slice();
+  var selected=getSelectedAdjustmentMonths(cid);
+  var chips='';
+  months.forEach(function(m){
+    var ym=m.ym||m;
+    var checked=selected.indexOf(ym)>=0;
+    chips += '<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid '+(checked?'var(--g600)':'var(--g300)')+';border-radius:10px;background:'+(checked?'var(--g100d)':'var(--w)')+'">'+
+      '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleAdjustmentMonthSelection(\''+cid+'\',\''+ym+'\',this.checked)">'+
+      '<span style="font-size:13px;font-weight:600;color:var(--g800)">'+formatYmLabel(ym)+'</span>'+
+      (m.pct!=null?'<span style="margin-left:auto;font-size:12px;color:var(--g600c)">+'+Number(m.pct).toFixed(2)+'%</span>':'')+
+    '</label>';
+  });
+  var selectedText=selected.length?selected.map(function(ym){return formatYmLabel(ym);}).join(', '):'ninguno';
+  var modal=document.createElement('div');
+  modal.id='eligibleMonthsModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px';
+  modal.innerHTML='<div style="background:#fff;border-radius:14px;max-width:760px;width:96%;box-shadow:var(--shm);padding:22px 22px 18px 22px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">'+
+      '<div><div style="font-size:16px;font-weight:800;color:var(--g900)">📆 Períodos con ajuste aplicable</div><div style="font-size:12px;color:var(--g600c);margin-top:4px">Podés seleccionar uno o varios períodos. Esta selección no genera todavía enmiendas; solo deja la elección guardada.</div></div>'+
+      '<button class="btn btn-s btn-sm" onclick="closeEligibleMonthsModal()">✖ Cerrar</button>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;max-height:360px;overflow:auto;padding:4px 2px">'+chips+'</div>'+
+    '<div style="margin-top:14px;padding:12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200);font-size:12px;color:var(--g700)"><strong>Seleccionados:</strong> '+selectedText+'</div>'+
+    '<div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">'+
+      '<button class="btn btn-s btn-sm" onclick="clearAdjustmentMonthSelection(\''+cid+'\')">🧹 Limpiar</button>'+
+      '<button class="btn btn-p btn-sm" onclick="closeEligibleMonthsModal()">Listo</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(modal);
+}
+function openEligibleMonthsModal(cid){
+  renderEligibleMonthsModal(cid);
+}
 function monthsBetween(d1,d2){
   var start=new Date(d1+'T00:00:00');
   var end=new Date(d2+'T00:00:00');
