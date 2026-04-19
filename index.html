@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.3-selector-rebase</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.4-multi-estable</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1491,142 +1491,7 @@ function renderDossierHtml(c){
 +'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial de AVEs<span class="ct">'+aves.length+' registrados \u00b7 Total: '+_m(avePoly+aveOwner)+' '+_e(c.mon||'ARS')+'</span></div>'
 +'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
 +'</div>'
-+'
-<script>
-// PATCH AISLADO TARIFARIOS v1: persistencia local + generación multi-tabla
-(function(){
-  'use strict';
-  var TAR_LS_PREFIX='tarifarios_local_';
-  function k(cid){ return TAR_LS_PREFIX + String(cid); }
-  function clone(x){ return JSON.parse(JSON.stringify(x||[])); }
-  function normPeriod(p){ return String(p||'').slice(0,7); }
-  function getContract(cid){ return (window.DB||[]).find(function(c){ return String(c.id)===String(cid); }) || null; }
-  function persistLocal(cid, tars){ try{ localStorage.setItem(k(cid), JSON.stringify(tars||[])); }catch(e){ console.warn('persistLocal tarifarios', e); } }
-  function readLocal(cid){ try{ return JSON.parse(localStorage.getItem(k(cid))||'[]') || []; }catch(e){ return []; } }
-  function mergeTarifarios(base, extra){
-    var out = (base||[]).slice();
-    (extra||[]).forEach(function(tbl){
-      var idx = out.findIndex(function(x){
-        return String(x.name||'')===String(tbl.name||'') &&
-               String(normPeriod(x.period||''))===String(normPeriod(tbl.period||'')) &&
-               String(x.source||'')===String(tbl.source||'');
-      });
-      if(idx>=0) out[idx] = Object.assign({}, out[idx], tbl, {updatedAt:new Date().toISOString()});
-      else out.push(tbl);
-    });
-    return out;
-  }
-  function ensureTarifariosInContract(cid){
-    var c = getContract(cid); if(!c) return [];
-    var dbTars = Array.isArray(c.tarifarios) ? c.tarifarios : [];
-    var lsTars = readLocal(cid);
-    if(lsTars.length){
-      c.tarifarios = mergeTarifarios(dbTars, lsTars);
-      c.updatedAt = new Date().toISOString();
-      if(typeof save==='function') save();
-    } else if(!Array.isArray(c.tarifarios)) {
-      c.tarifarios = [];
-    }
-    return c.tarifarios || [];
-  }
-
-  if(typeof window.getTar==='function' && !window.__tarPatchGetSet){
-    window.getTar = function(){
-      var c = getContract(window.detId); if(!c) return [];
-      return ensureTarifariosInContract(window.detId);
-    };
-    window.setTar = async function(t){
-      var c = getContract(window.detId); if(!c) return;
-      c.tarifarios = clone(t||[]);
-      c.updatedAt = new Date().toISOString();
-      persistLocal(c.id, c.tarifarios);
-      if(typeof save==='function') save();
-    };
-    window.__tarPatchGetSet = true;
-  }
-
-  if(typeof window.importPriceListsFromFiles==='function' && !window.__tarPatchImport){
-    var _origImport = window.importPriceListsFromFiles;
-    window.importPriceListsFromFiles = async function(files){
-      var cid = window.detId;
-      var before = clone(ensureTarifariosInContract(cid));
-      var res = await _origImport.apply(this, arguments);
-      var after = clone(ensureTarifariosInContract(cid));
-      var merged = mergeTarifarios(before, after);
-      var c = getContract(cid);
-      if(c){
-        c.tarifarios = merged;
-        c.updatedAt = new Date().toISOString();
-        persistLocal(cid, merged);
-        if(typeof save==='function') save();
-      }
-      if(typeof renderTarifario==='function') renderTarifario();
-      return res;
-    };
-    window.__tarPatchImport = true;
-  }
-
-  function getSelectedRows(cid){ return (typeof getSelectedPeriodsSummaryRows==='function') ? (getSelectedPeriodsSummaryRows(cid) || []) : []; }
-  function priceColIndex(cols){ cols=cols||[]; var idx=cols.findIndex(function(c){ return /valor\s*unitario|precio/i.test(String(c||'')); }); return idx>=0 ? idx : Math.max(0, cols.length-1); }
-  window.generateSelectedPriceLists = function(cid){
-    var contract = getContract(cid);
-    if(!contract){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return; }
-    ensureTarifariosInContract(cid);
-    var rows = getSelectedRows(cid);
-    if(!rows.length){ if(typeof toast==='function') toast('Seleccioná al menos un período','er'); return; }
-    var all = clone(contract.tarifarios || []);
-    var created = 0;
-    rows.forEach(function(sel){
-      var refYm = String(sel.refYm||'');
-      var targetYm = String(sel.ym||'');
-      var baseTables = all.filter(function(t){ return normPeriod(t.period||'')===normPeriod(refYm); });
-      baseTables.forEach(function(baseTar){
-        if(!baseTar || !Array.isArray(baseTar.rows) || !baseTar.rows.length) return;
-        var deltaPct = (typeof computePoliDeltaPct==='function') ? computePoliDeltaPct(contract, refYm, targetYm) : null;
-        if(deltaPct==null || !isFinite(Number(deltaPct))) return;
-        var factor = 1 + (Number(deltaPct)/100);
-        var cols = (baseTar.cols||[]).slice();
-        var pidx = priceColIndex(cols);
-        var newRows = (baseTar.rows||[]).map(function(r){
-          var rr = (r||[]).slice();
-          var ov = Number(rr[pidx]);
-          rr[pidx] = isFinite(ov) ? (ov * factor) : rr[pidx];
-          return rr;
-        });
-        var newName = String(baseTar.name||'Tarifario') + ' · Ajuste ' + targetYm;
-        var exists = all.find(function(t){ return normPeriod(t.period||'')===normPeriod(targetYm) && String(t.name||'')===newName && String(t.source||'')==='POLI_SELECT'; });
-        if(exists){
-          exists.rows = newRows;
-          exists.basePeriod = refYm;
-          exists.pctApplied = Number(deltaPct);
-          exists.updatedAt = new Date().toISOString();
-        } else {
-          all.push({name:newName,cols:cols,rows:newRows,period:targetYm,basePeriod:refYm,pctApplied:Number(deltaPct),source:'POLI_SELECT',importedAt:new Date().toISOString(),editable:true});
-          created++;
-        }
-      });
-    });
-    contract.tarifarios = all;
-    contract.updatedAt = new Date().toISOString();
-    persistLocal(cid, all);
-    if(typeof save==='function') save();
-    if(typeof renderTarifario==='function') renderTarifario();
-    if(typeof renderSelectedPeriodsSummary==='function') setTimeout(function(){ renderSelectedPeriodsSummary(cid); }, 50);
-    if(typeof toast==='function') toast((created||rows.length)+' lista(s) de precios generada(s)','ok');
-  };
-
-  if(typeof window.renderTarifario==='function' && !window.__tarPatchRender){
-    var _origRenderTar = window.renderTarifario;
-    window.renderTarifario = function(){
-      if(window.detId!=null) ensureTarifariosInContract(window.detId);
-      return _origRenderTar.apply(this, arguments);
-    };
-    window.__tarPatchRender = true;
-  }
-})();
-</script>
-
-</body></html>';
++'</body></html>';
 }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 
@@ -2048,6 +1913,7 @@ async function analyzePriceListsWithGemini(filePayload, cc, fileName=''){
   const txt=parts.map(p=>p.text||'').join('\n').trim();
   return extractJsonFromGeminiText(txt);
 }
+function slugSource(fileName, fallback){const s=String(fileName||'').replace(/\.[^.]+$/,'').trim().toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');return s||fallback||'EXCEL';}
 function normalizeAiPriceLists(result, fileName, cc){
   const lists=Array.isArray(result?.listasDePrecios)?result.listasDePrecios:[];
   const fallbackPeriod=cc?.btar||cc?.fechaIni?.substring(0,7)||null;
@@ -2066,7 +1932,7 @@ function normalizeAiPriceLists(result, fileName, cc){
       cols:['Item','Descripción','Unidad','Precio'],
       rows,
       period,
-      source:'WORD_IA',
+      source:slugSource(fileName,'WORD_IA'),
       sourceFileName:fileName,
       importedAt:new Date().toISOString(),
       editable:true
@@ -2101,7 +1967,7 @@ function standardizeExcelPriceList(sheetName, json, cc, fileName){
     cols:['Item','Descripción','Unidad','Precio'],
     rows,
     period:detectPeriodFromText(blobText)||(cc?.btar||cc?.fechaIni?.substring(0,7)||null),
-    source:'EXCEL',
+    source:slugSource(fileName,'EXCEL'),
     sourceFileName:fileName,
     importedAt:new Date().toISOString(),
     editable:true
@@ -2151,11 +2017,18 @@ async function importPriceListsFromFiles(files){
     toast(errors.length?errors[0]:'No se importaron listas','er');
     return;
   }
-  const current=getTar()||[];
-  await setTar(current.concat(imported));
+  const current=(cc.tarifarios||[]).slice();
+  imported.forEach(tbl=>{
+    const found=current.findIndex(x=>String(x.period||'')===String(tbl.period||'')&&String(x.name||'')===String(tbl.name||'')&&String(x.source||'')===String(tbl.source||''));
+    if(found>=0) current[found]=Object.assign({},current[found],tbl,{updatedAt:new Date().toISOString()});
+    else current.push(tbl);
+  });
+  cc.tarifarios=current;
+  cc.updatedAt=new Date().toISOString();
+  save();
   renderTarifario();
   const msg=`${imported.length} ${imported.length===1?'lista importada':'listas importadas'}${errors.length?` · ${errors.length} archivo(s) con error`:''}`;
-  toast(msg,'ok');
+  toast(msg+' y guardadas','ok');
   if(errors.length) console.warn('Errores de importación de listas:', errors);
 }
 
@@ -5018,7 +4891,7 @@ function renderUpdateSection(contract){
   if(evalResult&&evalResult.cumpleGeneral){
     var actionDiv=document.createElement('div');
     actionDiv.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
-    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((evalResult.eligibleMonths&&evalResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button>':'');
+    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((evalResult.eligibleMonths&&evalResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button><button class="btn btn-s" onclick="generateSelectedPriceLists(\''+contract.id+'\')">🧾 Generar lista(s) de precios</button>':'');
     body.appendChild(actionDiv);
     var summaryDiv=document.createElement('div');
     summaryDiv.id='selectedAdjustmentSummary_'+contract.id;
@@ -5139,7 +5012,6 @@ function getEvaluationResult(cid,mesEval){
   }
 }
 
-
 function getEligibleAdjustmentMonths(cid, baseMonth, evalMonth){
   var contract=DB.find(function(c){return c.id==cid;});
   if(!contract)return [];
@@ -5149,13 +5021,10 @@ function getEligibleAdjustmentMonths(cid, baseMonth, evalMonth){
   if(!fromYm||!toYm||compareYm(toYm,fromYm)<=0)return [];
   var monthsMap={};
   if(conditions.allComponentsThreshold>0){
-    var poly=(contract.poly||[]).filter(function(p){return p && p.idx;});
     var cur=nextYm(fromYm);
     while(cur && compareYm(cur,toYm)<0){
-      var ok=poly.length>0;
       var cumPct=computePoliDeltaPct(contract, fromYm, cur);
-      if(cumPct==null || !isFinite(cumPct) || cumPct<conditions.allComponentsThreshold) ok=false;
-      if(ok) monthsMap[cur]={ym:cur,pct:cumPct,reason:'threshold'};
+      if(cumPct!=null && isFinite(cumPct) && cumPct>=conditions.allComponentsThreshold) monthsMap[cur]={ym:cur,pct:cumPct,reason:'threshold'};
       cur=nextYm(cur);
     }
   }
@@ -5227,6 +5096,59 @@ function renderSelectedPeriodsSummary(cid){
       return '<div style="font-size:12px;color:var(--g700);margin:4px 0">• <strong>'+formatYmLabel(r.ym)+'</strong> · '+(r.pct!=null?(r.pct>=0?'+':'')+r.pct.toFixed(2)+'%':'s/d')+' sobre '+formatYmLabel(r.refYm)+'</div>';
     }).join('');
 }
+function generateSelectedPriceLists(cid){
+  var contract=DB.find(function(c){return c.id==cid;});
+  if(!contract){ toast('Contrato no encontrado','er'); return; }
+  var rows=getSelectedPeriodsSummaryRows(cid);
+  if(!rows.length){ toast('Seleccioná al menos un período','er'); return; }
+  var all=(contract.tarifarios||[]).slice();
+  var created=0;
+  rows.forEach(function(sel){
+    var refYm=sel.refYm;
+    var targetYm=sel.ym;
+    var baseTables=all.filter(function(t){ return String(t.period||'')===String(refYm); });
+    baseTables.forEach(function(refTar){
+      if(!refTar || !refTar.rows || !refTar.rows.length) return;
+      var deltaPct=computePoliDeltaPct(contract, refYm, targetYm);
+      if(deltaPct==null) return;
+      var factor=1+(deltaPct/100);
+      var cols=(refTar.cols||[]).slice();
+      var priceIdx=cols.findIndex(function(c){ return /valor\s*unitario|precio/i.test(String(c||'')); });
+      if(priceIdx<0) priceIdx=cols.length-1;
+      var newRows=(refTar.rows||[]).map(function(r){
+        var rr=(r||[]).slice();
+        var oldVal=Number(rr[priceIdx]||0);
+        rr[priceIdx]=isFinite(oldVal)?(oldVal*factor):rr[priceIdx];
+        return rr;
+      });
+      var newName=(refTar.name||'Tarifario')+' · Ajuste '+targetYm;
+      var existing=all.find(function(t){ return String(t.period||'')===String(targetYm) && String(t.name||'')===String(newName) && String(t.source||'')==='POLI_SELECT'; });
+      if(existing){
+        existing.rows=newRows; existing.basePeriod=refYm; existing.pctApplied=deltaPct; existing.updatedAt=new Date().toISOString();
+      } else {
+        all.push({
+          name:newName,
+          cols:cols,
+          rows:newRows,
+          period:targetYm,
+          basePeriod:refYm,
+          pctApplied:deltaPct,
+          source:'POLI_SELECT',
+          importedAt:new Date().toISOString(),
+          editable:true
+        });
+        created++;
+      }
+    });
+  });
+  contract.tarifarios=all;
+  contract.updatedAt=new Date().toISOString();
+  save();
+  if(typeof detId!=='undefined') detId=cid;
+  if(typeof renderDet==='function') renderDet();
+  setTimeout(function(){ renderSelectedPeriodsSummary(cid); }, 50);
+  toast((created||rows.length)+' lista(s) de precios generada(s)','ok');
+}
 function toggleAdjustmentMonthSelection(cid, ym, checked){
   var arr=getSelectedAdjustmentMonths(cid).slice();
   var pos=arr.indexOf(ym);
@@ -5295,6 +5217,7 @@ function renderEligibleMonthsModal(cid){
 function openEligibleMonthsModal(cid){
   renderEligibleMonthsModal(cid);
 }
+
 function monthsBetween(d1,d2){
   var start=new Date(d1+'T00:00:00');
   var end=new Date(d2+'T00:00:00');
@@ -5391,140 +5314,5 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
     </div>
   </div>
 </div>
-
-<script>
-// PATCH AISLADO TARIFARIOS v1: persistencia local + generación multi-tabla
-(function(){
-  'use strict';
-  var TAR_LS_PREFIX='tarifarios_local_';
-  function k(cid){ return TAR_LS_PREFIX + String(cid); }
-  function clone(x){ return JSON.parse(JSON.stringify(x||[])); }
-  function normPeriod(p){ return String(p||'').slice(0,7); }
-  function getContract(cid){ return (window.DB||[]).find(function(c){ return String(c.id)===String(cid); }) || null; }
-  function persistLocal(cid, tars){ try{ localStorage.setItem(k(cid), JSON.stringify(tars||[])); }catch(e){ console.warn('persistLocal tarifarios', e); } }
-  function readLocal(cid){ try{ return JSON.parse(localStorage.getItem(k(cid))||'[]') || []; }catch(e){ return []; } }
-  function mergeTarifarios(base, extra){
-    var out = (base||[]).slice();
-    (extra||[]).forEach(function(tbl){
-      var idx = out.findIndex(function(x){
-        return String(x.name||'')===String(tbl.name||'') &&
-               String(normPeriod(x.period||''))===String(normPeriod(tbl.period||'')) &&
-               String(x.source||'')===String(tbl.source||'');
-      });
-      if(idx>=0) out[idx] = Object.assign({}, out[idx], tbl, {updatedAt:new Date().toISOString()});
-      else out.push(tbl);
-    });
-    return out;
-  }
-  function ensureTarifariosInContract(cid){
-    var c = getContract(cid); if(!c) return [];
-    var dbTars = Array.isArray(c.tarifarios) ? c.tarifarios : [];
-    var lsTars = readLocal(cid);
-    if(lsTars.length){
-      c.tarifarios = mergeTarifarios(dbTars, lsTars);
-      c.updatedAt = new Date().toISOString();
-      if(typeof save==='function') save();
-    } else if(!Array.isArray(c.tarifarios)) {
-      c.tarifarios = [];
-    }
-    return c.tarifarios || [];
-  }
-
-  if(typeof window.getTar==='function' && !window.__tarPatchGetSet){
-    window.getTar = function(){
-      var c = getContract(window.detId); if(!c) return [];
-      return ensureTarifariosInContract(window.detId);
-    };
-    window.setTar = async function(t){
-      var c = getContract(window.detId); if(!c) return;
-      c.tarifarios = clone(t||[]);
-      c.updatedAt = new Date().toISOString();
-      persistLocal(c.id, c.tarifarios);
-      if(typeof save==='function') save();
-    };
-    window.__tarPatchGetSet = true;
-  }
-
-  if(typeof window.importPriceListsFromFiles==='function' && !window.__tarPatchImport){
-    var _origImport = window.importPriceListsFromFiles;
-    window.importPriceListsFromFiles = async function(files){
-      var cid = window.detId;
-      var before = clone(ensureTarifariosInContract(cid));
-      var res = await _origImport.apply(this, arguments);
-      var after = clone(ensureTarifariosInContract(cid));
-      var merged = mergeTarifarios(before, after);
-      var c = getContract(cid);
-      if(c){
-        c.tarifarios = merged;
-        c.updatedAt = new Date().toISOString();
-        persistLocal(cid, merged);
-        if(typeof save==='function') save();
-      }
-      if(typeof renderTarifario==='function') renderTarifario();
-      return res;
-    };
-    window.__tarPatchImport = true;
-  }
-
-  function getSelectedRows(cid){ return (typeof getSelectedPeriodsSummaryRows==='function') ? (getSelectedPeriodsSummaryRows(cid) || []) : []; }
-  function priceColIndex(cols){ cols=cols||[]; var idx=cols.findIndex(function(c){ return /valor\s*unitario|precio/i.test(String(c||'')); }); return idx>=0 ? idx : Math.max(0, cols.length-1); }
-  window.generateSelectedPriceLists = function(cid){
-    var contract = getContract(cid);
-    if(!contract){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return; }
-    ensureTarifariosInContract(cid);
-    var rows = getSelectedRows(cid);
-    if(!rows.length){ if(typeof toast==='function') toast('Seleccioná al menos un período','er'); return; }
-    var all = clone(contract.tarifarios || []);
-    var created = 0;
-    rows.forEach(function(sel){
-      var refYm = String(sel.refYm||'');
-      var targetYm = String(sel.ym||'');
-      var baseTables = all.filter(function(t){ return normPeriod(t.period||'')===normPeriod(refYm); });
-      baseTables.forEach(function(baseTar){
-        if(!baseTar || !Array.isArray(baseTar.rows) || !baseTar.rows.length) return;
-        var deltaPct = (typeof computePoliDeltaPct==='function') ? computePoliDeltaPct(contract, refYm, targetYm) : null;
-        if(deltaPct==null || !isFinite(Number(deltaPct))) return;
-        var factor = 1 + (Number(deltaPct)/100);
-        var cols = (baseTar.cols||[]).slice();
-        var pidx = priceColIndex(cols);
-        var newRows = (baseTar.rows||[]).map(function(r){
-          var rr = (r||[]).slice();
-          var ov = Number(rr[pidx]);
-          rr[pidx] = isFinite(ov) ? (ov * factor) : rr[pidx];
-          return rr;
-        });
-        var newName = String(baseTar.name||'Tarifario') + ' · Ajuste ' + targetYm;
-        var exists = all.find(function(t){ return normPeriod(t.period||'')===normPeriod(targetYm) && String(t.name||'')===newName && String(t.source||'')==='POLI_SELECT'; });
-        if(exists){
-          exists.rows = newRows;
-          exists.basePeriod = refYm;
-          exists.pctApplied = Number(deltaPct);
-          exists.updatedAt = new Date().toISOString();
-        } else {
-          all.push({name:newName,cols:cols,rows:newRows,period:targetYm,basePeriod:refYm,pctApplied:Number(deltaPct),source:'POLI_SELECT',importedAt:new Date().toISOString(),editable:true});
-          created++;
-        }
-      });
-    });
-    contract.tarifarios = all;
-    contract.updatedAt = new Date().toISOString();
-    persistLocal(cid, all);
-    if(typeof save==='function') save();
-    if(typeof renderTarifario==='function') renderTarifario();
-    if(typeof renderSelectedPeriodsSummary==='function') setTimeout(function(){ renderSelectedPeriodsSummary(cid); }, 50);
-    if(typeof toast==='function') toast((created||rows.length)+' lista(s) de precios generada(s)','ok');
-  };
-
-  if(typeof window.renderTarifario==='function' && !window.__tarPatchRender){
-    var _origRenderTar = window.renderTarifario;
-    window.renderTarifario = function(){
-      if(window.detId!=null) ensureTarifariosInContract(window.detId);
-      return _origRenderTar.apply(this, arguments);
-    };
-    window.__tarPatchRender = true;
-  }
-})();
-</script>
-
 </body>
 </html>
