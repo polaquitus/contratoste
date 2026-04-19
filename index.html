@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.3-selector-rebase</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42.2</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -984,46 +984,8 @@ function getContractMonths(contract){
   return 0;
 }
 function getIndicatorSnapshots(code){
-  function labelToIdxId(label){
-    var map={
-      'PP':'mo_pp','UOCRA':'mo_uocra','COMERCIO':'mo_com','CAMIONEROS':'mo_cam',
-      'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17',
-      'USD DIVISA':'usd_div','USD BILLETE':'usd_bill','FADEAAC':'fadeaac',
-      'GAS OIL G3 YPF NQN':'go_g3','GAS OIL G2 YPF NQN':'go_g2',
-      'IPIM GRAL':'ipim_gral','IPC PATAGONIA':'ipc_pat','IPC NAC GRAL':'ipc_nac',
-      'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29'
-    };
-    return map[String(label||'').trim()] || '';
-  }
-  function seedSnapshotsFromIdxStore(targetCode){
-    try{
-      var idxId = labelToIdxId(targetCode);
-      if(!idxId || typeof IDX_STORE==='undefined' || !IDX_STORE[idxId] || !Array.isArray(IDX_STORE[idxId].rows)) return;
-      var snaps = JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-      var changed = false;
-      IDX_STORE[idxId].rows.forEach(function(r){
-        if(!r || !r.ym) return;
-        var snapDate = r.ym + '-01';
-        var exists = snaps.find(function(s){ return s.indicator_code===targetCode && s.snapshot_date===snapDate; });
-        if(!exists){
-          snaps.push({indicator_code: targetCode,snapshot_date: snapDate,pct: r.pct!=null ? Number(r.pct) : null,value: r.value!=null ? Number(r.value) : null,series_value: r.value!=null ? Number(r.value) : null,source: 'IDX_STORE',confirmed: !!r.confirmed,note: r.note || ''});
-          changed = true;
-        }
-      });
-      if(changed){
-        snaps.sort(function(a,b){ return String(a.snapshot_date).localeCompare(String(b.snapshot_date)); });
-        localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
-      }
-    }catch(e){ console.warn('seedSnapshotsFromIdxStore', targetCode, e); }
-  }
   var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-  var filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
-  if(!filtered.length){
-    seedSnapshotsFromIdxStore(code);
-    snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-    filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
-  }
-  return filtered;
+  return snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
 }
 function computeAccumulatedVariationPct(code, baseMonth, evalMonth){
   var fromYm=ymOf(baseMonth), toYm=ymOf(evalMonth);
@@ -1213,29 +1175,8 @@ async function guardar(){
     createdAt:old?.createdAt||new Date().toISOString(),
     updatedAt:new Date().toISOString()
   };
-  c.plazo_meses = monthDiffInclusive(c.fechaIni,c.fechaFin);
-  c.gatillos = {
-    A:{ enabled: !!c.trigA },
-    B:{ enabled: !!c.trigB, threshold: Number(c.trigBpct)||0 },
-    C:{ enabled: !!c.trigC, months: Number(c.trigCmes)||0 }
-  };
   if(editId){const i=DB.findIndex(x=>x.id===editId);if(i!==-1)DB[i]=c;editId=null;toast('Actualizado','ok');}
   else{DB.push(c);toast('Contrato creado','ok');}
-  try{
-    if(c.trigB||c.trigC){
-      PolUpdate.saveConditions(c.id,{
-        enabled:true,
-        moThreshold:0,
-        allComponentsThreshold:c.trigB?(Number(c.trigBpct)||0):0,
-        monthsElapsed:c.trigC?(parseInt(c.trigCmes,10)||0):0,
-        baseDate:(c.btar?c.btar+'-01':c.fechaIni),
-        lastUpdateDate:null,
-        resetBase:false
-      });
-    } else {
-      localStorage.removeItem('pol_cond_'+c.id);
-    }
-  }catch(_e){ console.error('PolUpdate saveConditions error',_e); }
   try{
     await sbUpsertItem('contratos',c);
   }catch(e){
@@ -1491,7 +1432,105 @@ function renderDossierHtml(c){
 +'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial de AVEs<span class="ct">'+aves.length+' registrados \u00b7 Total: '+_m(avePoly+aveOwner)+' '+_e(c.mon||'ARS')+'</span></div>'
 +'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Monto</th><th>Concepto</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
 +'</div>'
-+'</body></html>';
++'
+<script>
+// === PATCH: Persistencia de listas base + generación MULTI-tabla (aislado) ===
+(function(){
+  'use strict';
+
+  // --- Utilidades seguras ---
+  function findContract(cid){ return (window.DB||[]).find(c=>String(c.id)===String(cid))||null; }
+  function saveContract(c){
+    const i=(window.DB||[]).findIndex(x=>String(x.id)===String(c.id));
+    if(i>=0){ window.DB[i]=c; if(typeof save==='function') save(); }
+  }
+
+  // --- PERSISTENCIA: asegurar que TODAS las tablas importadas queden guardadas ---
+  // Hook no intrusivo: si existe importPriceListsFromFiles, la envolvemos para persistir SIEMPRE
+  if(typeof window.importPriceListsFromFiles==='function' && !window.__patchPersistWrapped){
+    const _orig = window.importPriceListsFromFiles;
+    window.importPriceListsFromFiles = async function(files){
+      const cid = window.detId;
+      const c = findContract(cid);
+      const before = (c && Array.isArray(c.tarifarios)) ? c.tarifarios.slice() : [];
+      const res = await _orig.apply(this, arguments);
+      const after = (c && Array.isArray(c.tarifarios)) ? c.tarifarios.slice() : [];
+      // Re-guardar explícitamente (defensivo)
+      if(c){ c.tarifarios = after; c.updatedAt = new Date().toISOString(); saveContract(c); }
+      return res;
+    };
+    window.__patchPersistWrapped = true;
+  }
+
+  // --- CÁLCULO: delta polinómico entre períodos (usa funciones existentes) ---
+  function computeDeltaPct(contract, refYm, targetYm){
+    if(!contract || !refYm || !targetYm || typeof compareYm!=='function' || compareYm(targetYm,refYm)<=0) return null;
+    const poly=(contract.poly||[]).filter(p=>p&&p.idx);
+    if(!poly.length) return null;
+    let ko=1, cnt=0;
+    poly.forEach(c=>{
+      const b=getIndicatorAtDate(c.idx, normalizeToMonthStart(refYm));
+      const t=getIndicatorAtDate(c.idx, normalizeToMonthStart(targetYm));
+      if(b&&t&&isFinite(+b.value)&&+b.value!==0&&isFinite(+t.value)){
+        ko*=Math.pow((+t.value)/(+b.value), (+c.inc)||0); cnt++; return;
+      }
+      const calc=computeAccumulatedVariationPct(c.idx, refYm, targetYm);
+      if(calc&&isFinite(calc.pct)){ ko*=Math.pow(1+(+calc.pct/100), (+c.inc)||0); cnt++; }
+    });
+    if(cnt!==poly.length) return null;
+    return (ko-1)*100;
+  }
+
+  // --- GENERACIÓN MULTI-TABLA: una lista por cada tabla del período base ---
+  window.generateSelectedPriceLists = function(cid){
+    const c = findContract(cid);
+    if(!c){ toast('Contrato no encontrado','er'); return; }
+    const res = (typeof getEvaluationResult==='function') ? (getEvaluationResult(cid,'')||getEvaluationResult(cid,null)) : null;
+    if(!res){ toast('Ejecutá Evaluar antes','er'); return; }
+    const selected = (function(){ try{return JSON.parse(localStorage.getItem('pol_selected_periods_'+cid)||'[]');}catch(e){return [];} })().sort();
+    if(!selected.length){ toast('Seleccioná al menos un período','er'); return; }
+
+    const all = Array.isArray(c.tarifarios) ? c.tarifarios.slice() : [];
+    let created=0;
+
+    selected.forEach((targetYm, idx)=>{
+      const baseYm = idx===0 ? res.baseMonth : selected[idx-1];
+      // TODAS las tablas del período base
+      const baseTables = all.filter(t=>String(t.period||'')===String(baseYm));
+      baseTables.forEach(bt=>{
+        const delta = computeDeltaPct(c, baseYm, targetYm);
+        if(delta==null) return;
+        const factor = 1 + (delta/100);
+        const cols = (bt.cols||[]).slice();
+        let priceIdx = cols.findIndex(x=>/precio|valor\s*unitario/i.test(String(x||'')));
+        if(priceIdx<0) priceIdx = cols.length-1;
+        const rows = (bt.rows||[]).map(r=>{
+          const rr=(r||[]).slice(); const v=+rr[priceIdx]; rr[priceIdx]=isFinite(v)?(v*factor):rr[priceIdx]; return rr;
+        });
+        all.push({
+          name: (bt.name||'Tarifario')+' · Ajuste '+targetYm,
+          cols, rows,
+          period: targetYm,
+          basePeriod: baseYm,
+          pctApplied: delta,
+          source: 'POLI_SELECT',
+          importedAt: new Date().toISOString(),
+          editable: true
+        });
+        created++;
+      });
+    });
+
+    c.tarifarios = all;
+    c.updatedAt = new Date().toISOString();
+    saveContract(c);
+    if(typeof renderTarifario==='function') renderTarifario();
+    toast(created+' lista(s) de precios generada(s)','ok');
+  };
+})();
+</script>
+
+</body></html>';
 }
 function openDossier(){ const c=DB.find(x=>x.id===detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
 
@@ -1550,12 +1589,12 @@ function renderDet(){
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
-            <div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:600;color:var(--p700)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:14px">${c.mon||''} ${fN(tot/(monthDiffInclusive(c.fechaIni,c.fechaFin)||1))}</span></div>
+            <div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:600;color:var(--p700)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:14px">${c.mon||''} ${fN(tot/(getContractMonths(c)||36))}</span></div>
           </div>
           <div>
             <div class="dr"><span>Inicio</span><span class="dv">${fD(c.fechaIni||'')}</span></div>
             <div class="dr"><span>Fin</span><span class="dv">${fD(c.fechaFin||'')}</span></div>
-            <div class="dr"><span>Plazo</span><span class="dv">${monthDiffInclusive(c.fechaIni,c.fechaFin)?monthDiffInclusive(c.fechaIni,c.fechaFin)+' meses':'—'}</span></div>
+            <div class="dr"><span>Plazo</span><span class="dv">${getContractMonths(c)?getContractMonths(c)+' meses':'—'}</span></div>
             <div class="dr"><span>Responsable</span><span class="dv">${esc(c.resp||'—')}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${esc(c.own||'—')}</span></div>
           </div>
@@ -4770,27 +4809,20 @@ function renderUpdateSection(contract){
     'Ko = '+poly.map(function(c){return c.idx+' × '+(c.inc*100).toFixed(1)+'%';}).join(' + ')+'</code>';
   body.appendChild(formulaDiv);
   
-  var hasGatillos=((contract.gatillos&&((contract.gatillos.B&&contract.gatillos.B.enabled)||(contract.gatillos.C&&contract.gatillos.C.enabled)))||contract.trigB||contract.trigC);
+  var hasGatillos=contract.gatillos&&(contract.gatillos.B||contract.gatillos.C);
   var conditions=PolUpdate.getConditions(contract.id);
   
   // FORZAR ACTIVACIÓN si tiene gatillos
   if(hasGatillos){
     if(!conditions){
-      conditions={
-        enabled:true,
-        moThreshold:0,
-        allComponentsThreshold:(contract.trigB?(Number(contract.trigBpct)||0):((contract.gatillos&&contract.gatillos.B)?(Number(contract.gatillos.B.threshold)||0):0)),
-        monthsElapsed:(contract.trigC?(parseInt(contract.trigCmes,10)||0):((contract.gatillos&&contract.gatillos.C)?(parseInt(contract.gatillos.C.months,10)||0):0)),
-        baseDate:(contract.btar?contract.btar+'-01':contract.fechaIni),
-        lastUpdateDate:null,
-        resetBase:false
-      };
-      PolUpdate.saveConditions(contract.id,conditions);
+      // Migrar desde gatillos
+      conditions=PolUpdate.getConditions(contract.id);
     }
     if(conditions&&!conditions.enabled){
       conditions.enabled=true;
       PolUpdate.saveConditions(contract.id,conditions);
     }
+    // Recargar para asegurar
     conditions=PolUpdate.getConditions(contract.id);
   }
   
@@ -4882,14 +4914,8 @@ function renderUpdateSection(contract){
   
   if(evalResult&&evalResult.cumpleGeneral){
     var actionDiv=document.createElement('div');
-    actionDiv.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
-    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((evalResult.eligibleMonths&&evalResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button><button class="btn btn-s" onclick="generateSelectedPriceLists(\''+contract.id+'\')">🧾 Generar lista(s) de precios</button>':'');
+    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>';
     body.appendChild(actionDiv);
-    var summaryDiv=document.createElement('div');
-    summaryDiv.id='selectedAdjustmentSummary_'+contract.id;
-    summaryDiv.style.cssText='display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200)';
-    body.appendChild(summaryDiv);
-    renderSelectedPeriodsSummary(contract.id);
   }
   
   section.appendChild(body); 
@@ -4967,13 +4993,10 @@ function evaluateConditions(cid){
     if(!firstComplianceMonth && cumpleMeses){ firstComplianceMonth=firstMesCond; }
   }
   if(!details.length){toast('No hay condiciones para evaluar','er');return;}
-  var eligibleMonths=getEligibleAdjustmentMonths(cid,baseMonth,mesEval);
-  var result={mesEval:mesEval,baseMonth:baseMonth,fecha:new Date().toISOString(),details:details,cumpleGeneral:cumpleGeneral,firstComplianceMonth:firstComplianceMonth||'',eligibleMonths:eligibleMonths};
+  var result={mesEval:mesEval,baseMonth:baseMonth,fecha:new Date().toISOString(),details:details,cumpleGeneral:cumpleGeneral,firstComplianceMonth:firstComplianceMonth||''};
   localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
   toast(cumpleGeneral?'✓ Condiciones cumplidas':'○ No cumple aún',cumpleGeneral?'ok':'er');
-  if(typeof detId!=='undefined') detId=cid;
-  if(typeof renderDet==='function'){ renderDet(); }
-  else if(typeof go==='function'){ go('detail'); }
+  loadContract(cid);
 }
 function detectFirstCompliance(cid){
   var baseMonth=document.getElementById('polBaseMonth')?document.getElementById('polBaseMonth').value:'';
@@ -5004,212 +5027,6 @@ function getEvaluationResult(cid,mesEval){
   }
 }
 
-function getEligibleAdjustmentMonths(cid, baseMonth, evalMonth){
-  var contract=DB.find(function(c){return c.id==cid;});
-  if(!contract)return [];
-  var conditions=PolUpdate.getConditions(cid);
-  if(!conditions)return [];
-  var fromYm=ymOf(baseMonth), toYm=ymOf(evalMonth);
-  if(!fromYm||!toYm||compareYm(toYm,fromYm)<=0)return [];
-  var monthsMap={};
-  if(conditions.allComponentsThreshold>0){
-    var cur=nextYm(fromYm);
-    while(cur && compareYm(cur,toYm)<0){
-      var cumPct=computePoliDeltaPct(contract, fromYm, cur);
-      if(cumPct!=null && isFinite(cumPct) && cumPct>=conditions.allComponentsThreshold) monthsMap[cur]={ym:cur,pct:cumPct,reason:'threshold'};
-      cur=nextYm(cur);
-    }
-  }
-  if(conditions.monthsElapsed>0){
-    var lastUpdate=ymOf(conditions.lastUpdateDate)||ymOf(contract.fechaIni);
-    var firstM=lastUpdate; for(var i=1;i<=conditions.monthsElapsed;i++) firstM=nextYm(firstM);
-    var cur2=firstM;
-    while(cur2 && compareYm(cur2,toYm)<0){
-      if(!monthsMap[cur2]) monthsMap[cur2]={ym:cur2,pct:null,reason:'months'};
-      cur2=nextYm(cur2);
-    }
-  }
-  return Object.values(monthsMap).sort(function(a,b){return String(a.ym).localeCompare(String(b.ym));});
-}
-function computePoliDeltaPct(contract, refYm, targetYm){
-  if(!contract || !refYm || !targetYm || compareYm(targetYm,refYm)<=0) return null;
-  var poly=(contract.poly||[]).filter(function(p){return p && p.idx;});
-  if(!poly.length) return null;
-  var ko=1, count=0;
-  poly.forEach(function(c){
-    var baseSnap=getIndicatorAtDate(c.idx, normalizeToMonthStart(refYm));
-    var currentSnap=getIndicatorAtDate(c.idx, normalizeToMonthStart(targetYm));
-    if(baseSnap && currentSnap && isFinite(Number(baseSnap.value)) && Number(baseSnap.value)!==0 && isFinite(Number(currentSnap.value))){
-      var ratio=Number(currentSnap.value)/Number(baseSnap.value);
-      ko*=Math.pow(ratio, Number(c.inc)||0);
-      count++;
-      return;
-    }
-    var calc=computeAccumulatedVariationPct(c.idx, refYm, targetYm);
-    if(calc && isFinite(calc.pct)){
-      ko*=Math.pow(1+(Number(calc.pct)/100), Number(c.inc)||0);
-      count++;
-    }
-  });
-  if(count!==poly.length) return null;
-  return (ko-1)*100;
-}
-function getSelectedAdjustmentMonths(cid){
-  try{return JSON.parse(localStorage.getItem('pol_selected_periods_'+cid)||'[]')||[];}catch(e){return [];}
-}
-function setSelectedAdjustmentMonths(cid, arr){
-  localStorage.setItem('pol_selected_periods_'+cid, JSON.stringify(arr||[]));
-}
-function getReferenceMonthForTarget(cid, targetYm, baseYm){
-  var selected=getSelectedAdjustmentMonths(cid).slice().sort();
-  var ref=baseYm;
-  selected.forEach(function(ym){ if(compareYm(ym,targetYm)<0) ref=ym; });
-  return ref;
-}
-function getSelectedPeriodsSummaryRows(cid){
-  var res=getEvaluationResult(cid,'')||getEvaluationResult(cid,null); if(!res) return [];
-  var contract=DB.find(function(c){return c.id==cid;}); if(!contract) return [];
-  var baseYm=res.baseMonth;
-  var selected=getSelectedAdjustmentMonths(cid).slice().sort();
-  return selected.map(function(ym){
-    var ref=baseYm;
-    selected.forEach(function(other){ if(compareYm(other,ym)<0) ref=other; });
-    return {ym:ym, refYm:ref, pct:computePoliDeltaPct(contract, ref, ym)};
-  });
-}
-function renderSelectedPeriodsSummary(cid){
-  var host=document.getElementById('selectedAdjustmentSummary_'+cid);
-  if(!host) return;
-  var rows=getSelectedPeriodsSummaryRows(cid);
-  if(!rows.length){ host.innerHTML=''; host.style.display='none'; return; }
-  host.style.display='block';
-  host.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--b700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Selección de períodos</div>'+
-    rows.map(function(r){
-      return '<div style="font-size:12px;color:var(--g700);margin:4px 0">• <strong>'+formatYmLabel(r.ym)+'</strong> · '+(r.pct!=null?(r.pct>=0?'+':'')+r.pct.toFixed(2)+'%':'s/d')+' sobre '+formatYmLabel(r.refYm)+'</div>';
-    }).join('');
-}
-function generateSelectedPriceLists(cid){
-  var contract=DB.find(function(c){return c.id==cid;});
-  if(!contract){ toast('Contrato no encontrado','er'); return; }
-  var rows=getSelectedPeriodsSummaryRows(cid);
-  if(!rows.length){ toast('Seleccioná al menos un período','er'); return; }
-  var all=(contract.tarifarios||[]).slice();
-  var created=0;
-  rows.forEach(function(sel){
-    var refYm=sel.refYm;
-    var targetYm=sel.ym;
-    var refTar=(all||[]).filter(function(t){ return (t.period||'')===refYm; }).slice(-1)[0];
-    if(!refTar){
-      refTar=(all||[]).filter(function(t){ return (t.period||'')<refYm; }).sort(function(a,b){ return String(a.period||'').localeCompare(String(b.period||'')); }).slice(-1)[0];
-    }
-    if(!refTar){ refTar=(all||[]).slice(-1)[0]; }
-    if(!refTar || !refTar.rows || !refTar.rows.length) return;
-    var deltaPct=computePoliDeltaPct(contract, refYm, targetYm);
-    if(deltaPct==null) return;
-    var factor=1+(deltaPct/100);
-    var cols=(refTar.cols||[]).slice();
-    var priceIdx=cols.findIndex(function(c){ return /valor\s*unitario|precio/i.test(String(c||'')); });
-    if(priceIdx<0) priceIdx=cols.length-1;
-    var newRows=(refTar.rows||[]).map(function(r){
-      var rr=(r||[]).slice();
-      var oldVal=Number(rr[priceIdx]||0);
-      rr[priceIdx]=isFinite(oldVal)?(oldVal*factor):rr[priceIdx];
-      return rr;
-    });
-    var existing=all.find(function(t){ return (t.period||'')===targetYm && (t.source||'')==='POLI_SELECT'; });
-    if(existing){
-      existing.rows=newRows; existing.basePeriod=refYm; existing.pctApplied=deltaPct; existing.updatedAt=new Date().toISOString();
-    } else {
-      all.push({
-        name:(refTar.name||'Tarifario')+' · Ajuste '+targetYm,
-        cols:cols,
-        rows:newRows,
-        period:targetYm,
-        basePeriod:refYm,
-        pctApplied:deltaPct,
-        source:'POLI_SELECT',
-        importedAt:new Date().toISOString(),
-        editable:true
-      });
-      created++;
-    }
-  });
-  contract.tarifarios=all;
-  contract.updatedAt=new Date().toISOString();
-  save();
-  if(typeof detId!=='undefined') detId=cid;
-  if(typeof renderDet==='function') renderDet();
-  setTimeout(function(){ renderSelectedPeriodsSummary(cid); }, 50);
-  toast((created||rows.length)+' lista(s) de precios generada(s)','ok');
-}
-function toggleAdjustmentMonthSelection(cid, ym, checked){
-  var arr=getSelectedAdjustmentMonths(cid).slice();
-  var pos=arr.indexOf(ym);
-  if(checked){ if(pos===-1) arr.push(ym); }
-  else if(pos>=0){ arr.splice(pos,1); }
-  arr.sort();
-  setSelectedAdjustmentMonths(cid, arr);
-  renderEligibleMonthsModal(cid);
-}
-function clearAdjustmentMonthSelection(cid){
-  setSelectedAdjustmentMonths(cid, []);
-  renderEligibleMonthsModal(cid);
-  renderSelectedPeriodsSummary(cid);
-}
-function closeEligibleMonthsModal(){
-  var m=document.getElementById('eligibleMonthsModal');
-  if(m) m.remove();
-}
-function finishEligibleMonthsSelection(cid){
-  closeEligibleMonthsModal();
-  renderSelectedPeriodsSummary(cid);
-  var rows=getSelectedPeriodsSummaryRows(cid);
-  if(rows.length){ toast('Períodos elegidos: '+rows.map(function(r){return formatYmLabel(r.ym);}).join(', '),'ok'); }
-  else { toast('No hay períodos seleccionados','ok'); }
-}
-function renderEligibleMonthsModal(cid){
-  var old=document.getElementById('eligibleMonthsModal');
-  if(old) old.remove();
-  var res=getEvaluationResult(cid,'') || getEvaluationResult(cid,null);
-  if(!res) return;
-  var contract=DB.find(function(c){return c.id==cid;}); if(!contract) return;
-  var months=(res.eligibleMonths||[]).slice();
-  var selected=getSelectedAdjustmentMonths(cid).slice().sort();
-  var chips='';
-  months.forEach(function(m){
-    var ym=m.ym||m;
-    var checked=selected.indexOf(ym)>=0;
-    var refYm=getReferenceMonthForTarget(cid, ym, res.baseMonth);
-    var deltaPct=computePoliDeltaPct(contract, refYm, ym);
-    chips += '<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid '+(checked?'var(--g600)':'var(--g300)')+';border-radius:10px;background:'+(checked?'var(--g100d)':'var(--w)')+'">'+
-      '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleAdjustmentMonthSelection(\''+cid+'\',\''+ym+'\',this.checked)">'+
-      '<span style="font-size:13px;font-weight:600;color:var(--g800)">'+formatYmLabel(ym)+'</span>'+
-      (deltaPct!=null?'<span style="margin-left:auto;font-size:12px;color:var(--g600c)">'+(deltaPct>=0?'+':'')+Number(deltaPct).toFixed(2)+'%</span>':'<span style="margin-left:auto;font-size:12px;color:var(--g500)">s/d</span>')+
-      '<span style="margin-left:6px;font-size:11px;color:var(--g500)">sobre '+formatYmLabel(refYm)+'</span>'+
-    '</label>';
-  });
-  var selectedRows=getSelectedPeriodsSummaryRows(cid);
-  var selectedText=selectedRows.length?selectedRows.map(function(r){return formatYmLabel(r.ym)+' ('+(r.pct!=null?(r.pct>=0?'+':'')+r.pct.toFixed(2)+'%':'s/d')+' sobre '+formatYmLabel(r.refYm)+')';}).join(' · '):'ninguno';
-  var modal=document.createElement('div');
-  modal.id='eligibleMonthsModal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px';
-  modal.innerHTML='<div style="background:#fff;border-radius:14px;max-width:960px;width:96%;box-shadow:var(--shm);padding:22px 22px 18px 22px">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">'+
-      '<div><div style="font-size:16px;font-weight:800;color:var(--g900)">📆 Períodos con ajuste aplicable</div><div style="font-size:12px;color:var(--g600c);margin-top:4px">Si seleccionás un período, los porcentajes de los períodos posteriores se recalculan sobre ese período y no sobre la base original.</div></div>'+
-      '<button class="btn btn-s btn-sm" onclick="closeEligibleMonthsModal()">✖ Cerrar</button>'+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;max-height:360px;overflow:auto;padding:4px 2px">'+chips+'</div>'+
-    '<div style="margin-top:14px;padding:12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200);font-size:12px;color:var(--g700)"><strong>Seleccionados:</strong> '+selectedText+'</div>'+
-    '<div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">'+
-      '<button class="btn btn-s btn-sm" onclick="clearAdjustmentMonthSelection(\''+cid+'\')">🧹 Limpiar</button>'+
-      '<button class="btn btn-p btn-sm" onclick="finishEligibleMonthsSelection(\''+cid+'\')">Listo</button>'+
-    '</div>'+
-  '</div>';
-  document.body.appendChild(modal);
-}
-function openEligibleMonthsModal(cid){
-  renderEligibleMonthsModal(cid);
-}
 function monthsBetween(d1,d2){
   var start=new Date(d1+'T00:00:00');
   var end=new Date(d2+'T00:00:00');
@@ -5306,5 +5123,103 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
     </div>
   </div>
 </div>
+
+<script>
+// === PATCH: Persistencia de listas base + generación MULTI-tabla (aislado) ===
+(function(){
+  'use strict';
+
+  // --- Utilidades seguras ---
+  function findContract(cid){ return (window.DB||[]).find(c=>String(c.id)===String(cid))||null; }
+  function saveContract(c){
+    const i=(window.DB||[]).findIndex(x=>String(x.id)===String(c.id));
+    if(i>=0){ window.DB[i]=c; if(typeof save==='function') save(); }
+  }
+
+  // --- PERSISTENCIA: asegurar que TODAS las tablas importadas queden guardadas ---
+  // Hook no intrusivo: si existe importPriceListsFromFiles, la envolvemos para persistir SIEMPRE
+  if(typeof window.importPriceListsFromFiles==='function' && !window.__patchPersistWrapped){
+    const _orig = window.importPriceListsFromFiles;
+    window.importPriceListsFromFiles = async function(files){
+      const cid = window.detId;
+      const c = findContract(cid);
+      const before = (c && Array.isArray(c.tarifarios)) ? c.tarifarios.slice() : [];
+      const res = await _orig.apply(this, arguments);
+      const after = (c && Array.isArray(c.tarifarios)) ? c.tarifarios.slice() : [];
+      // Re-guardar explícitamente (defensivo)
+      if(c){ c.tarifarios = after; c.updatedAt = new Date().toISOString(); saveContract(c); }
+      return res;
+    };
+    window.__patchPersistWrapped = true;
+  }
+
+  // --- CÁLCULO: delta polinómico entre períodos (usa funciones existentes) ---
+  function computeDeltaPct(contract, refYm, targetYm){
+    if(!contract || !refYm || !targetYm || typeof compareYm!=='function' || compareYm(targetYm,refYm)<=0) return null;
+    const poly=(contract.poly||[]).filter(p=>p&&p.idx);
+    if(!poly.length) return null;
+    let ko=1, cnt=0;
+    poly.forEach(c=>{
+      const b=getIndicatorAtDate(c.idx, normalizeToMonthStart(refYm));
+      const t=getIndicatorAtDate(c.idx, normalizeToMonthStart(targetYm));
+      if(b&&t&&isFinite(+b.value)&&+b.value!==0&&isFinite(+t.value)){
+        ko*=Math.pow((+t.value)/(+b.value), (+c.inc)||0); cnt++; return;
+      }
+      const calc=computeAccumulatedVariationPct(c.idx, refYm, targetYm);
+      if(calc&&isFinite(calc.pct)){ ko*=Math.pow(1+(+calc.pct/100), (+c.inc)||0); cnt++; }
+    });
+    if(cnt!==poly.length) return null;
+    return (ko-1)*100;
+  }
+
+  // --- GENERACIÓN MULTI-TABLA: una lista por cada tabla del período base ---
+  window.generateSelectedPriceLists = function(cid){
+    const c = findContract(cid);
+    if(!c){ toast('Contrato no encontrado','er'); return; }
+    const res = (typeof getEvaluationResult==='function') ? (getEvaluationResult(cid,'')||getEvaluationResult(cid,null)) : null;
+    if(!res){ toast('Ejecutá Evaluar antes','er'); return; }
+    const selected = (function(){ try{return JSON.parse(localStorage.getItem('pol_selected_periods_'+cid)||'[]');}catch(e){return [];} })().sort();
+    if(!selected.length){ toast('Seleccioná al menos un período','er'); return; }
+
+    const all = Array.isArray(c.tarifarios) ? c.tarifarios.slice() : [];
+    let created=0;
+
+    selected.forEach((targetYm, idx)=>{
+      const baseYm = idx===0 ? res.baseMonth : selected[idx-1];
+      // TODAS las tablas del período base
+      const baseTables = all.filter(t=>String(t.period||'')===String(baseYm));
+      baseTables.forEach(bt=>{
+        const delta = computeDeltaPct(c, baseYm, targetYm);
+        if(delta==null) return;
+        const factor = 1 + (delta/100);
+        const cols = (bt.cols||[]).slice();
+        let priceIdx = cols.findIndex(x=>/precio|valor\s*unitario/i.test(String(x||'')));
+        if(priceIdx<0) priceIdx = cols.length-1;
+        const rows = (bt.rows||[]).map(r=>{
+          const rr=(r||[]).slice(); const v=+rr[priceIdx]; rr[priceIdx]=isFinite(v)?(v*factor):rr[priceIdx]; return rr;
+        });
+        all.push({
+          name: (bt.name||'Tarifario')+' · Ajuste '+targetYm,
+          cols, rows,
+          period: targetYm,
+          basePeriod: baseYm,
+          pctApplied: delta,
+          source: 'POLI_SELECT',
+          importedAt: new Date().toISOString(),
+          editable: true
+        });
+        created++;
+      });
+    });
+
+    c.tarifarios = all;
+    c.updatedAt = new Date().toISOString();
+    saveContract(c);
+    if(typeof renderTarifario==='function') renderTarifario();
+    toast(created+' lista(s) de precios generada(s)','ok');
+  };
+})();
+</script>
+
 </body>
 </html>
