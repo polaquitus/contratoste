@@ -900,7 +900,7 @@ async function loadProv() {
 
 async function save() {
   if (!SB_OK) { localStorage.setItem('cta_v7', JSON.stringify(DB)); return; }
-  const target = editId ? DB.find(x=>x.id===editId) : DB[DB.length-1];
+  const target = editId ? DB.find(x=>x.id===editId) : (detId ? DB.find(x=>x.id===detId) : DB[DB.length-1]);
   if (target) await sbUpsertItem('contratos', target);
 }
 
