@@ -2548,6 +2548,12 @@ async function guardarEnm(){
         cc.tarifarios.push({name:baseName+' (Enm.'+num+')', cols:[...(bTar.cols||[])], rows:newRows, period:newPer, enmNum:num, sourceTableName:bTar.name||''});
       });
       if(typeof recalcTarChain==='function') recalcTarChain(cc,newPer);
+      
+      // Actualizar base tarifaria y limpiar evaluación
+      cc.btar=newPer;
+      localStorage.removeItem('pol_eval_result_'+cc.id);
+      localStorage.removeItem('pol_selected_months_'+cc.id);
+      console.log('[guardarEnm] Nueva base tarifaria:', newPer);
     } else {
       cc.tarifarios.push({ name:'Lista de Precios (Enm.'+num+')', cols:['ITEM','DESCRIPCION','UNIDAD','PRECIO'], rows:[], period:newPer, enmNum:num, sourceTableName:'PENDIENTE_BASE', placeholder:true });
     }
@@ -5169,6 +5175,21 @@ function generateSelectedPriceLists(cid){
   });
   contract.tarifarios=all;
   contract.updatedAt=new Date().toISOString();
+  
+  // Actualizar base tarifario a la última lista generada
+  if(rows.length){
+    var maxPeriod=rows.map(function(r){return r.ym;}).sort().reverse()[0];
+    if(maxPeriod){
+      contract.btar=maxPeriod;
+      console.log('[generateSelectedPriceLists] Nueva base tarifaria:', maxPeriod);
+    }
+  }
+  
+  // Limpiar evaluación polinómica para forzar recálculo desde nueva base
+  localStorage.removeItem('pol_eval_result_'+cid);
+  localStorage.removeItem('pol_selected_months_'+cid);
+  console.log('[generateSelectedPriceLists] Evaluación limpiada. Recalcular desde', contract.btar);
+  
   save();
   if(typeof detId!=='undefined') detId=cid;
   if(typeof renderDet==='function') renderDet();
