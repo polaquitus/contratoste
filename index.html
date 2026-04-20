@@ -5427,178 +5427,124 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
 
 
 
-<!-- ROLLBACK_AVE_TARIFARIOS_V3 -->
+
+
+<!-- ROLLBACK_AVE_TARIFARIOS_V4 -->
 <script>
-/* === ROLLBACK AVE ↔ TARIFARIOS (INLINE) === */
+/* === ROLLBACK AVE ↔ TARIFARIOS (INLINE V4) === */
 (function(){
   'use strict';
-
-  function getCurrentContract(){
-    try { return (window.DB||[]).find(function(x){ return String(x.id)===String(window.detId); }) || null; }
-    catch(e){ return null; }
-  }
-  function normText(s){
-    return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  }
-  function log(){ try{ console.log.apply(console, ['[rollback]'].concat([].slice.call(arguments))); }catch(e){} }
-
+  function getCurrentContract(){ try { return (window.DB||[]).find(function(x){ return String(x.id)===String(window.detId); }) || null; } catch(e){ return null; } }
+  function normText(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
+  function log(){ try{ console.log.apply(console, ['[rollback-v4]'].concat([].slice.call(arguments))); }catch(e){} }
   function recalcContractAmountsSafe(cc){
-    try{
-      if(typeof recalcTarChain === 'function'){
-        var periods = (cc.tarifarios||[]).map(function(t){ return t.period; }).filter(Boolean).sort();
-        var last = periods.length ? periods[periods.length-1] : null;
-        if(last) recalcTarChain(cc,last);
-      }
-    }catch(e){ console.warn('recalcTarChain rollback', e); }
-    try{ if(typeof recalcContractTotals === 'function') recalcContractTotals(cc); }catch(e){ console.warn('recalcContractTotals rollback', e); }
-    try{ if(typeof renderDet === 'function') renderDet(); }catch(e){}
-    try{ if(typeof renderTarifario === 'function') renderTarifario(); }catch(e){}
-    try{ if(typeof renderList === 'function') renderList(); }catch(e){}
-    try{ if(typeof updNav === 'function') updNav(); }catch(e){}
+    try{ if(typeof recalcTarChain==='function'){ var periods=(cc.tarifarios||[]).map(function(t){return t.period;}).filter(Boolean).sort(); var last=periods.length?periods[periods.length-1]:null; if(last) recalcTarChain(cc,last); } }catch(e){ console.warn('recalcTarChain rollback',e); }
+    try{ if(typeof recalcContractTotals==='function') recalcContractTotals(cc); }catch(e){ console.warn('recalcContractTotals rollback',e); }
+    try{ if(typeof renderDet==='function') renderDet(); }catch(e){}
+    try{ if(typeof renderTarifario==='function') renderTarifario(); }catch(e){}
+    try{ if(typeof renderList==='function') renderList(); }catch(e){}
+    try{ if(typeof updNav==='function') updNav(); }catch(e){}
   }
-
   async function persistContractAfterRollback(cc){
-    cc.updatedAt = new Date().toISOString();
-    if(typeof save === 'function'){
-      await Promise.resolve(save());
-      return;
-    }
-    if(window.SB_OK && typeof sbUpsertItem === 'function'){
-      await sbUpsertItem('contratos', cc);
-      return;
-    }
+    cc.updatedAt=new Date().toISOString();
+    if(typeof save==='function'){ await Promise.resolve(save()); return; }
+    if(window.SB_OK && typeof sbUpsertItem==='function'){ await sbUpsertItem('contratos', cc); return; }
     try{ localStorage.setItem('cta_v7', JSON.stringify(window.DB||[])); }catch(e){}
   }
-
-  function removeAdjustmentBundleByEnm(cc, enmNum){
-    if(!cc || !enmNum) return false;
-    if(!cc.aves) cc.aves = [];
-    if(!cc.tarifarios) cc.tarifarios = [];
-    if(!cc.enmiendas) cc.enmiendas = [];
-
-    var aveCount = cc.aves.filter(function(a){ return a.enmRef === enmNum; }).length;
-    var tarCount = cc.tarifarios.filter(function(t){ return t.enmNum === enmNum; }).length;
-
-    cc.aves = cc.aves.filter(function(a){ return a.enmRef !== enmNum; });
-    cc.tarifarios = cc.tarifarios.filter(function(t){ return t.enmNum !== enmNum; });
-
-    cc.enmiendas.forEach(function(e){
-      if(e.supersededBy === enmNum){
-        e.superseded = false;
-        delete e.supersededBy;
-      }
+  function collectBundleTargets(cc, opts){
+    var periods=new Set(); var enmNums=new Set();
+    if(opts&&opts.period) periods.add(String(opts.period));
+    if(opts&&opts.enmNum) enmNums.add(Number(opts.enmNum));
+    (cc.aves||[]).forEach(function(a){
+      if(opts&&opts.period&&String(a.periodo||'')===String(opts.period)&&a.enmRef) enmNums.add(Number(a.enmRef));
+      if(opts&&opts.enmNum&&Number(a.enmRef)===Number(opts.enmNum)&&a.periodo) periods.add(String(a.periodo));
     });
-    cc.enmiendas = cc.enmiendas.filter(function(e){ return e.num !== enmNum; });
-
-    log('bundle removed', {enmNum:enmNum, aves:aveCount, tarifarios:tarCount});
+    (cc.tarifarios||[]).forEach(function(t){
+      if(opts&&opts.period&&String(t.period||'')===String(opts.period)&&t.enmNum) enmNums.add(Number(t.enmNum));
+      if(opts&&opts.enmNum&&Number(t.enmNum)===Number(opts.enmNum)&&t.period) periods.add(String(t.period));
+    });
+    (cc.enmiendas||[]).forEach(function(e){
+      if(opts&&opts.period&&String(e.nuevoPeriodo||'')===String(opts.period)&&e.tipo==='ACTUALIZACION_TARIFAS') enmNums.add(Number(e.num));
+      if(opts&&opts.enmNum&&Number(e.num)===Number(opts.enmNum)&&e.nuevoPeriodo) periods.add(String(e.nuevoPeriodo));
+    });
+    var changed=true;
+    while(changed){
+      changed=false;
+      (cc.enmiendas||[]).forEach(function(e){
+        if(e.tipo==='ACTUALIZACION_TARIFAS' && (periods.has(String(e.nuevoPeriodo||'')) || enmNums.has(Number(e.num)))){
+          if(e.nuevoPeriodo && !periods.has(String(e.nuevoPeriodo))){ periods.add(String(e.nuevoPeriodo)); changed=true; }
+          if(e.num && !enmNums.has(Number(e.num))){ enmNums.add(Number(e.num)); changed=true; }
+        }
+      });
+      (cc.tarifarios||[]).forEach(function(t){
+        if(periods.has(String(t.period||'')) || enmNums.has(Number(t.enmNum))){
+          if(t.period && !periods.has(String(t.period))){ periods.add(String(t.period)); changed=true; }
+          if(t.enmNum && !enmNums.has(Number(t.enmNum))){ enmNums.add(Number(t.enmNum)); changed=true; }
+        }
+      });
+      (cc.aves||[]).forEach(function(a){
+        if((a.tipo==='POLINOMICA') && (periods.has(String(a.periodo||'')) || enmNums.has(Number(a.enmRef)))){
+          if(a.periodo && !periods.has(String(a.periodo))){ periods.add(String(a.periodo)); changed=true; }
+          if(a.enmRef && !enmNums.has(Number(a.enmRef))){ enmNums.add(Number(a.enmRef)); changed=true; }
+        }
+      });
+    }
+    return { periods:Array.from(periods), enmNums:Array.from(enmNums) };
+  }
+  function removeAdjustmentBundle(cc, opts){
+    if(!cc) return false;
+    if(!cc.aves) cc.aves=[]; if(!cc.tarifarios) cc.tarifarios=[]; if(!cc.enmiendas) cc.enmiendas=[];
+    var targets=collectBundleTargets(cc, opts||{});
+    var periods=new Set(targets.periods.map(String)); var enmNums=new Set(targets.enmNums.map(Number));
+    if(!periods.size && !enmNums.size) return false;
+    cc.aves = cc.aves.filter(function(a){ return !(enmNums.has(Number(a.enmRef)) || ((a.tipo==='POLINOMICA' || a.autoGenerated) && periods.has(String(a.periodo||'')))); });
+    cc.tarifarios = cc.tarifarios.filter(function(t){ return !(enmNums.has(Number(t.enmNum)) || periods.has(String(t.period||''))); });
+    cc.enmiendas.forEach(function(e){ if(enmNums.has(Number(e.supersededBy))){ e.superseded=false; delete e.supersededBy; } });
+    cc.enmiendas = cc.enmiendas.filter(function(e){ return !(enmNums.has(Number(e.num)) || (e.tipo==='ACTUALIZACION_TARIFAS' && periods.has(String(e.nuevoPeriodo||'')))); });
+    log('bundle removed', {periods:Array.from(periods), enmNums:Array.from(enmNums)});
     recalcContractAmountsSafe(cc);
     return true;
   }
-
   window.deleteAveAndRollback = async function(aveId){
-    var cc = getCurrentContract();
-    if(!cc){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return false; }
-    var ave = (cc.aves||[]).find(function(a){ return String(a.id) === String(aveId); });
+    var cc=getCurrentContract(); if(!cc){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return false; }
+    var ave=(cc.aves||[]).find(function(a){ return String(a.id)===String(aveId); });
     if(!ave){ if(typeof toast==='function') toast('AVE no encontrado','er'); return false; }
-
-    if(ave.tipo === 'POLINOMICA' && ave.enmRef){
-      removeAdjustmentBundleByEnm(cc, ave.enmRef);
-      await persistContractAfterRollback(cc);
-      if(typeof toast==='function') toast('AVE eliminado y ajuste revertido','ok');
-      return true;
-    }
-
-    cc.aves = (cc.aves||[]).filter(function(a){ return String(a.id) !== String(aveId); });
-    recalcContractAmountsSafe(cc);
+    var handled = removeAdjustmentBundle(cc, { enmNum: ave.enmRef || null, period: ave.periodo || null });
+    if(!handled){ cc.aves=(cc.aves||[]).filter(function(a){ return String(a.id)!==String(aveId); }); recalcContractAmountsSafe(cc); }
     await persistContractAfterRollback(cc);
-    if(typeof toast==='function') toast('AVE eliminado','ok');
+    if(typeof toast==='function') toast(handled ? 'AVE eliminado y listas del mes revertidas' : 'AVE eliminado','ok');
     return true;
   };
-
   window.deleteTariffAdjustmentAndRollback = async function(period, enmNum){
-    var cc = getCurrentContract();
-    if(!cc){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return false; }
-
-    var targetEnm = enmNum || null;
-    if(!targetEnm){
-      var t = (cc.tarifarios||[]).find(function(x){ return String(x.period||'')===String(period) && x.enmNum; });
-      targetEnm = t ? t.enmNum : null;
-    }
-
-    if(targetEnm){
-      removeAdjustmentBundleByEnm(cc, targetEnm);
-      await persistContractAfterRollback(cc);
-      if(typeof toast==='function') toast('Listas ajustadas eliminadas y AVE asociado revertido','ok');
-      return true;
-    }
-
-    cc.tarifarios = (cc.tarifarios||[]).filter(function(t){ return String(t.period||'') !== String(period); });
-    recalcContractAmountsSafe(cc);
+    var cc=getCurrentContract(); if(!cc){ if(typeof toast==='function') toast('Contrato no encontrado','er'); return false; }
+    var handled = removeAdjustmentBundle(cc, { period: period || null, enmNum: enmNum || null });
+    if(!handled && period){ cc.tarifarios=(cc.tarifarios||[]).filter(function(t){ return String(t.period||'')!==String(period); }); recalcContractAmountsSafe(cc); }
     await persistContractAfterRollback(cc);
-    if(typeof toast==='function') toast('Listas del período eliminadas','ok');
+    if(typeof toast==='function') toast(handled ? 'Listas ajustadas y AVE(s) del mes eliminados' : 'Listas del período eliminadas','ok');
     return true;
   };
-
   function wrapFunction(name, handler){
-    var original = window[name];
-    if(typeof original !== 'function' || original.__rollbackWrapped) return false;
-    var wrapped = function(){
-      try{
-        var handled = handler.apply(this, [original].concat([].slice.call(arguments)));
-        if(handled === '__FALLBACK__') return original.apply(this, [].slice.call(arguments));
-        return handled;
-      }catch(e){
-        console.warn('rollback wrap failed for', name, e);
-        return original.apply(this, [].slice.call(arguments));
-      }
-    };
-    wrapped.__rollbackWrapped = true;
-    window[name] = wrapped;
-    log('wrapped', name);
-    return true;
+    var original=window[name]; if(typeof original!=='function' || original.__rollbackWrappedV4) return false;
+    var wrapped=function(){ try{ var handled=handler.apply(this,[original].concat([].slice.call(arguments))); if(handled==='__FALLBACK__') return original.apply(this,[].slice.call(arguments)); return handled; }catch(e){ console.warn('rollback wrap failed for',name,e); return original.apply(this,[].slice.call(arguments)); } };
+    wrapped.__rollbackWrappedV4=true; window[name]=wrapped; log('wrapped',name); return true;
   }
-
   function inferTariffTarget(arg, cc){
     if(!cc) return null;
-    if(arg && typeof arg === 'object'){
-      if(arg.enmNum || arg.period) return { enmNum: arg.enmNum || null, period: arg.period || null };
-    }
-    if(typeof arg === 'number' && cc.tarifarios && cc.tarifarios[arg]){
-      return { enmNum: cc.tarifarios[arg].enmNum || null, period: cc.tarifarios[arg].period || null };
-    }
-    if(typeof arg === 'string'){
+    if(arg && typeof arg==='object'){ if(arg.enmNum || arg.period) return { enmNum: arg.enmNum || null, period: arg.period || null }; }
+    if(typeof arg==='number' && cc.tarifarios && cc.tarifarios[arg]) return { enmNum: cc.tarifarios[arg].enmNum || null, period: cc.tarifarios[arg].period || null };
+    if(typeof arg==='string'){
       if(/^20\d{2}-\d{2}$/.test(arg)) return { enmNum:null, period:arg };
-      var byName = (cc.tarifarios||[]).find(function(t){ return normText(t.name)===normText(arg); });
+      var byName=(cc.tarifarios||[]).find(function(t){ return normText(t.name)===normText(arg); });
       if(byName) return { enmNum: byName.enmNum || null, period: byName.period || null };
     }
     return null;
   }
-
   function applyAutomaticWraps(){
-    ['delAve','deleteAve','borrarAve','removeAve'].forEach(function(fn){
-      wrapFunction(fn, function(original, arg){
-        var aveId = arg && typeof arg === 'object' ? arg.id : arg;
-        if(!aveId) return '__FALLBACK__';
-        return window.deleteAveAndRollback(aveId);
-      });
-    });
-
-    ['delTarTable','deleteTarTable','borrarTarTable','removeTarTable','delTar','deleteTarifario','deleteTarPeriod','delTarPeriod'].forEach(function(fn){
-      wrapFunction(fn, function(original, arg1, arg2){
-        var cc = getCurrentContract();
-        var target = inferTariffTarget(arg1, cc) || inferTariffTarget(arg2, cc);
-        if(!target || (!target.enmNum && !target.period)) return '__FALLBACK__';
-        return window.deleteTariffAdjustmentAndRollback(target.period, target.enmNum);
-      });
-    });
+    ['delAve','deleteAve','borrarAve','removeAve'].forEach(function(fn){ wrapFunction(fn, function(original,arg){ var aveId = arg && typeof arg==='object' ? arg.id : arg; if(!aveId) return '__FALLBACK__'; return window.deleteAveAndRollback(aveId); }); });
+    ['delTarTable','deleteTarTable','borrarTarTable','removeTarTable','delTar','deleteTarifario','deleteTarPeriod','delTarPeriod'].forEach(function(fn){ wrapFunction(fn, function(original,arg1,arg2){ var cc=getCurrentContract(); var target=inferTariffTarget(arg1,cc) || inferTariffTarget(arg2,cc); if(!target || (!target.enmNum && !target.period)) return '__FALLBACK__'; return window.deleteTariffAdjustmentAndRollback(target.period, target.enmNum); }); });
   }
-
   applyAutomaticWraps();
-  window.addEventListener('load', function(){
-    setTimeout(applyAutomaticWraps, 300);
-    setTimeout(applyAutomaticWraps, 1200);
-    setTimeout(applyAutomaticWraps, 2500);
-  });
+  window.addEventListener('load', function(){ setTimeout(applyAutomaticWraps,300); setTimeout(applyAutomaticWraps,1200); setTimeout(applyAutomaticWraps,2500); });
 })();
 /* === END ROLLBACK AVE ↔ TARIFARIOS === */
 </script>
