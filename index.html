@@ -1536,7 +1536,7 @@ function renderDet(){
     const consumed=getConsumed(c.num),hasC=consumed!==null,rem=hasC?tot-consumed:null;
     let enmOpts='<option value="">— Sin enmienda —</option>';
     enms.forEach(e=>enmOpts+=`<option value="${e.num}">Enm.N°${e.num} (${e.tipo||'?'})</option>`);
-    let aveRows='',cumTV=c.monto||0;
+    let aveRows='',cumTV=c._montoOriginal||c.monto||0;
     const sAves=[...aves].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     if(!sAves.length)aveRows='<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin AVEs registrados</td></tr>';
     sAves.forEach(a=>{
@@ -1745,7 +1745,6 @@ function renderDet(){
         <table><thead><tr><th>Tipo</th><th>Enm. Ref.</th><th>Período</th><th>Valor previo</th><th>Ajuste</th><th>Nuevo valor</th><th>Concepto</th><th></th></tr></thead><tbody>${aveRows}</tbody></table>
         <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-p btn-sm" onclick="openAveOwnerPanel()">🔵 + AVE Owner Manual</button>
-          <button class="btn btn-a btn-sm" onclick="sanearContrato('${c.id}')">🔧 Sanear valores base</button>
           <button class="btn btn-d btn-sm" onclick="resetSection('aves')">🗑 Reset AVEs</button>
         </div>
         <div class="ave-owner-panel" id="aveOwnerPanel">
@@ -2579,22 +2578,18 @@ async function guardarEnm(){
       // Actualizar base tarifaria
       cc.btar=newPer;
       
-      // Calcular AVE sobre monto restante según meses
-      const montoBase=cc.monto||0;
-      const plazo=cc.plazo_meses||cc.plazo||36;
-      const fechaInicio=cc.fechaInicio||cc.fechaIni||'';
-      const baseMo=dateToMo(fechaInicio)||'';
-      const ajusteMo=newPer||baseMo;
-      const mesesTranscurridos=Math.max(0,monthDiff(parseYM(baseMo),parseYM(ajusteMo)));
-      const mensualBase=montoBase/plazo;
-      const consumido=mensualBase*mesesTranscurridos;
-      const montoRestante=montoBase-consumido;
-      const incrementoMonto=Math.round(montoRestante*(pct)*100)/100;
+      // Actualizar monto del contrato aplicando ajuste polinómico
+      const montoAnterior=cc.monto||0;
+      if(!cc._montoOriginal) cc._montoOriginal=montoAnterior;
+      const montoOriginal=cc._montoOriginal;
+      const nuevoMonto=Math.round(montoOriginal*adj*100)/100;
+      const incrementoMonto=nuevoMonto-montoAnterior;
+      cc.monto=nuevoMonto;
       
-      console.log('[guardarEnm] AVE sobre monto restante:', montoRestante.toFixed(2), '× '+(pct*100).toFixed(2)+'% = +'+incrementoMonto.toFixed(2));
+      console.log('[guardarEnm] Monto actualizado:', montoAnterior.toFixed(2), '→', nuevoMonto.toFixed(2), '(+', (pct*100).toFixed(2)+'%)');
       
-      // El AVE ya se genera más abajo con la lógica existente
-      const aveMonto=incrementoMonto;
+      // El AVE ya se genera más abajo con la lógica existente, pero actualizamos su monto
+      // para reflejar el incremento real del contrato
       
       localStorage.removeItem('pol_eval_result_'+cc.id);
       localStorage.removeItem('pol_selected_months_'+cc.id);
@@ -2658,7 +2653,7 @@ async function saveAveOwner(){
   if(!sub){toast('Seleccioná el concepto','er');return;}
   
   const plazo = cc.plazo_meses || cc.plazo || 36;
-  const totalActual = cc.monto || 0;
+  const totalActual = cc.tot || cc.monto || 0;
   const nuevoTotal = totalActual + aveMonto;
   const nuevoMensual = round2(nuevoTotal / plazo);
   
@@ -2684,7 +2679,7 @@ async function saveAveOwner(){
     fecha:new Date().toISOString()
   });
   
-  cc.monto = nuevoTotal;
+  cc.tot = nuevoTotal;
   cc.montoMensualEst = nuevoMensual;
   
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
@@ -2703,24 +2698,6 @@ async function setAveLimit(id,val){
   cc.updatedAt=new Date().toISOString();
   if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
   else await sbUpsertItem('contratos',cc);
-  renderDet();
-}
-
-async function sanearContrato(cid){
-  const c=DB.find(x=>x.id===cid);
-  if(!c)return;
-  
-  // Guardar base contractual original si no existe
-  if(!c._baseContractual){
-    c._baseContractual = c.monto;
-    toast('Base contractual guardada: '+fN(c.monto),'ok');
-  }else{
-    toast('Base contractual ya existe: '+fN(c._baseContractual),'ok');
-  }
-  
-  c.updatedAt=new Date().toISOString();
-  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
-  else await sbUpsertItem('contratos',c);
   renderDet();
 }
 
@@ -4530,15 +4507,18 @@ async function delAveById(aveId) {
   if (!cc) return;
   if (!confirm('¿Eliminar este AVE?')) return;
   
-  const ave = cc.aves.find(a => a.id === aveId);
-  if(!ave) return;
-  
-  // Restar AVE del monto actual
-  cc.monto = (cc.monto || 0) - (ave.monto || 0);
   cc.aves = cc.aves.filter(a => a.id !== aveId);
   
+  // Recalcular tot desde cero
+  const montoBase = cc._montoOriginal || cc.monto || 0;
+  const avePoly = cc.aves.filter(a => a.tipo === 'POLINOMICA').reduce((s, a) => s + (a.monto || 0), 0);
+  const aveOwner = cc.aves.filter(a => a.tipo === 'OWNER').reduce((s, a) => s + (a.monto || 0), 0);
+  
+  cc.monto = montoBase;
+  cc.tot = montoBase + avePoly + aveOwner;
+  
   const plazo = cc.plazo_meses || cc.plazo || 36;
-  cc.montoMensualEst = round2(cc.monto / plazo);
+  cc.montoMensualEst = round2(cc.tot / plazo);
   
   cc.updatedAt = new Date().toISOString();
   await sbUpsertItem('contratos', cc);
@@ -4861,8 +4841,13 @@ var PolUpdate = (function(){
     var newAve={id:Date.now()+'',tipo:'POLINOMICA',enmRef:newEnm.num,fecha:updateDate,periodo:updateDate,monto:state.aveAmount,concepto:'AVE por actualización polinómica',autoGenerated:true};
     aves.push(newAve); contract.aves=aves;
     
-    // Sumar AVE a monto actual
-    contract.monto = (contract.monto || 0) + state.aveAmount;
+    // Guardar monto base original si no existe
+    if(!contract._montoOriginal){
+      contract._montoOriginal = contract.monto;
+    }
+    
+    // Sumar AVE a tot, NO a monto
+    contract.tot = (contract.tot || contract.monto || 0) + state.aveAmount;
     
     var idx=DB.findIndex(function(c){return c.id===contract.id;}); if(idx!==-1)DB[idx]=contract;
     save();
@@ -5233,6 +5218,15 @@ function generateSelectedPriceLists(cid){
     });
   }
   
+  // Asegurar que contract.monto sea el valor base original
+  if(contract._montoOriginal){
+    contract.monto = contract._montoOriginal;
+  }
+  
+  // Resetear contract.tot a valor base + solo AVEs Owner
+  var avesOwner = (contract.aves||[]).filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
+  contract.tot = (contract.monto||0) + avesOwner;
+  
   var all=(contract.tarifarios||[]).slice();
   var created=0;
   rows.forEach(function(sel){
@@ -5298,9 +5292,13 @@ function generateSelectedPriceLists(cid){
     
     // Actualizar monto del contrato aplicando el ajuste acumulado
     if(totalPctApplied!==0){
-      // Obtener monto base ORIGINAL (sin AVEs aplicados)
-      var montoOriginalContrato = contract._baseContractual || contract.monto || 0;
-      if(!contract._baseContractual) contract._baseContractual = montoOriginalContrato;
+      // Guardar monto base original la PRIMERA vez
+      if(!contract._baseContractual){
+        contract._baseContractual = contract.monto;
+      }
+      
+      var montoBaseOriginal = contract._baseContractual;
+      var montoActual = contract.monto || 0;
       
       // Calcular meses transcurridos y restantes
       var plazo=contract.plazo_meses||contract.plazo||36;
@@ -5310,21 +5308,20 @@ function generateSelectedPriceLists(cid){
       var mesesTranscurridos=Math.max(0,monthDiff(parseYM(baseMo),parseYM(ajusteMo)));
       var mesesRestantes=Math.max(0,plazo-mesesTranscurridos);
       
-      // Calcular AVE sobre monto restante del contrato ORIGINAL
-      var mensualBase=montoOriginalContrato/plazo;
+      // Calcular AVE sobre monto restante de la BASE ORIGINAL
+      var mensualBase=montoBaseOriginal/plazo;
       var consumido=mensualBase*mesesTranscurridos;
-      var montoRestante=montoOriginalContrato-consumido;
+      var montoRestante=montoBaseOriginal-consumido;
       var incrementoMonto=Math.round(montoRestante*(totalPctApplied/100)*100)/100;
       
-      // El nuevo monto del contrato es el ACTUAL + este AVE
-      var montoAnterior = contract.monto || montoOriginalContrato;
-      var nuevoMonto = montoAnterior + incrementoMonto;
+      // Sumar AVE al monto actual
+      var nuevoMonto = montoActual + incrementoMonto;
       
       contract.monto = nuevoMonto;
       contract.montoMensualEst=Math.round(mensualBase*(1+totalPctApplied/100)*100)/100;
       
-      console.log('[generateSelectedPriceLists] Base contractual:', montoOriginalContrato.toFixed(2));
-      console.log('[generateSelectedPriceLists] Monto anterior:', montoAnterior.toFixed(2), '→ Nuevo:', nuevoMonto.toFixed(2), '(AVE:+'+incrementoMonto.toFixed(2)+')');
+      console.log('[generateSelectedPriceLists] Base original:', montoBaseOriginal.toFixed(2));
+      console.log('[generateSelectedPriceLists] Monto anterior:', montoActual.toFixed(2), '→ Nuevo:', nuevoMonto.toFixed(2), '(AVE:+'+incrementoMonto.toFixed(2)+')');
       console.log('[generateSelectedPriceLists] Meses transcurridos:', mesesTranscurridos, '/ Restantes:', mesesRestantes, '/ Consumido:', consumido.toFixed(2));
       
       // Generar AVE por aplicación polinómica
@@ -5340,7 +5337,7 @@ function generateSelectedPriceLists(cid){
         mesesTranscurridos:mesesTranscurridos,
         mesesRestantes:mesesRestantes,
         montoRestante:montoRestante,
-        baseContract:montoBase,
+        baseContract:montoOriginal,
         periodo:maxPeriod,
         autoGenerated:true,
         fecha:new Date().toISOString()
