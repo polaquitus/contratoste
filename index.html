@@ -1269,6 +1269,7 @@ function resetForm(){
   document.getElementById('f_trigB').checked=false;document.getElementById('l_trigB').textContent='No';document.getElementById('trigB_pct').style.display='none';
   document.getElementById('f_trigC').checked=false;document.getElementById('l_trigC').textContent='No';document.getElementById('trigC_mes').style.display='none';
   buildPoly();files=[];renderFL();
+  populateProvSelect();
 }
 function populateProvSelect(){
   const sel=document.getElementById('f_cont');
@@ -1769,8 +1770,8 @@ function renderDet(){
               </select>
             </div>
             <div class="fgrp">
-              <label>% Ajuste <span class="req">*</span></label>
-              <input type="number" id="avo_monto" step="0.01" min="0" placeholder="10 = 10%">
+              <label>Monto AVE <span class="req">*</span></label>
+              <input type="number" id="avo_monto" step="0.01" min="0" placeholder="Monto en pesos">
             </div>
             <div class="fgrp">
               <label>Período (YYYY-MM)</label>
@@ -2643,29 +2644,15 @@ function onAvoSubChange(){
 }
 async function saveAveOwner(){
   const cc=DB.find(x=>x.id===detId);if(!cc)return;
-  const pctAjuste=parseFloat(document.getElementById('avo_monto')?.value)||0;
-  if(!pctAjuste){toast('Ingresá el % de ajuste','er');return;}
+  const aveMonto=parseFloat(document.getElementById('avo_monto')?.value)||0;
+  if(!aveMonto){toast('Ingresá el monto del AVE','er');return;}
   const sub=document.getElementById('avo_sub')?.value||'';
   if(!sub){toast('Seleccioná el concepto','er');return;}
   
   const plazo = cc.plazo_meses || cc.plazo || 36;
-  const fI = cc.fechaInicio || cc.fechaIni || '';
-  const baseMo = dateToMo(fI) || '';
-  const avePer = document.getElementById('avo_per')?.value || baseMo;
-  const baseM = parseYM(baseMo);
-  const aveM = parseYM(avePer);
-  const elapsedMonths = Math.max(0, monthDiff(baseM, aveM));
-  const remainingMonths = Math.max(0, plazo - elapsedMonths);
-  
-  if(remainingMonths <= 0){toast('Contrato ya vencido en período seleccionado','er');return;}
-  
-  const totalOriginal = cc.monto || 0;
-  const mensualBase = totalOriginal / plazo;
-  const consumidoHastaAjuste = mensualBase * elapsedMonths;
-  const montoAjustar = totalOriginal - consumidoHastaAjuste;
-  const aveMonto = round2(montoAjustar * (pctAjuste / 100));
-  const nuevoTotal = totalOriginal + aveMonto;
-  const nuevoMensual = round2(mensualBase * (1 + pctAjuste/100));
+  const totalActual = cc.tot || cc.monto || 0;
+  const nuevoTotal = totalActual + aveMonto;
+  const nuevoMensual = round2(nuevoTotal / plazo);
   
   let ffin=null;
   if(sub==='EXTENSION PLAZO'){
@@ -2683,13 +2670,8 @@ async function saveAveOwner(){
     subtipo:sub,
     concepto:sub==='OTRO'?(document.getElementById('avo_otro')?.value.trim()||null):null,
     monto:aveMonto,
-    pct:pctAjuste,
     enmRef:enmRefRaw?parseInt(enmRefRaw):null,
-    periodo:avePer,
-    mesesTranscurridos:elapsedMonths,
-    mesesRestantes:remainingMonths,
-    montoAjustado:montoAjustar,
-    baseContract:totalOriginal,
+    periodo:document.getElementById('avo_per')?.value||null,
     fechaFinNueva:ffin,
     fecha:new Date().toISOString()
   });
