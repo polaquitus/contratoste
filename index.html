@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.215</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.216</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1842,71 +1842,61 @@ function renderDet(){
         </div>
       </div>
       
-      ${c.tipo==='OBRA'?`
-      <div class="sec" style="margin-top:24px">
-        <div class="sh"><span class="ico">📋</span>Certificaciones<span class="ct">${(c.certificaciones||[]).length} registradas · Avance: ${round2(((c.certificaciones||[]).reduce((s,cert)=>s+(cert.monto||0),0)/montoBase)*100)}%</span></div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:40px">
-                <input type="checkbox" id="cert_selectAll" onchange="toggleAllCerts()" style="cursor:pointer">
-              </th>
-              <th>N° Cert.</th>
-              <th>Fecha</th>
-              <th>Monto</th>
-              <th>Avance %</th>
-              <th>Ajustado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(c.certificaciones||[]).length===0?'<tr><td colspan="7" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin certificaciones registradas</td></tr>':
-              (c.certificaciones||[]).map((cert,idx)=>{
-                const avancePct=round2((cert.monto||0)/montoBase*100);
-                return `<tr>
-                  <td><input type="checkbox" class="cert-check" data-certid="${cert.id}" style="cursor:pointer"></td>
-                  <td>${cert.num||idx+1}</td>
-                  <td>${fD(cert.fecha||'')}</td>
-                  <td class="mono">${c.mon||''} ${fN(cert.monto||0)}</td>
-                  <td>${avancePct}%</td>
-                  <td>${cert.ajustado?'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓ Ajustado</span>':'—'}</td>
-                  <td><button class="btn btn-d btn-sm" onclick="delCert('${cert.id}')">🗑️</button></td>
-                </tr>`;
-              }).join('')
-            }
-          </tbody>
-        </table>
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-p btn-sm" onclick="openCertPanel()">➕ Nueva Certificación</button>
-          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g700)">
-            <input type="checkbox" id="ajustarRemanente" style="cursor:pointer">
-            <span>Incluir remanente en ajuste (${c.mon||''} ${fN(Math.max(0,montoBase-((c.certificaciones||[]).reduce((s,cert)=>s+(cert.monto||0),0))))})</span>
-          </label>
-        </div>
+      ${c.tipo==='OBRA'?(()=>{
+        // Obtener POs asociadas a este contrato desde ME2N
+        const poData=ME2N[c.num];
+        const pos=poData&&Array.isArray(poData)&&Array.isArray(poData[2])?poData[2]:[];
+        const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0); // p[3] = Net Order Value
+        const avancePct=montoBase>0?round2((totalCerts/montoBase)*100):0;
         
-        <div class="cert-panel" id="certPanel" style="display:none;margin-top:16px;background:var(--g50);border:1px solid var(--g300);border-radius:8px;padding:16px">
-          <h4>📋 Registrar Certificación</h4>
-          <div class="fg2" style="gap:14px 18px;margin-top:12px">
-            <div class="fgrp">
-              <label>N° Certificación <span class="req">*</span></label>
-              <input type="number" id="cert_num" min="1" placeholder="1">
-            </div>
-            <div class="fgrp">
-              <label>Fecha <span class="req">*</span></label>
-              <input type="date" id="cert_fecha">
-            </div>
-            <div class="fgrp">
-              <label>Monto <span class="req">*</span></label>
-              <input type="number" id="cert_monto" step="0.01" min="0" placeholder="0">
-            </div>
+        return `
+        <div class="sec" style="margin-top:24px">
+          <div class="sh"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance: ${avancePct}%</span></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:40px">
+                  <input type="checkbox" id="cert_selectAll" onchange="toggleAllCerts()" style="cursor:pointer">
+                </th>
+                <th>N° PO</th>
+                <th>Plant</th>
+                <th>Net Order Value</th>
+                <th>Pend. Fact.</th>
+                <th>Avance %</th>
+                <th>Ajustado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pos.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
+                pos.map((p,idx)=>{
+                  const poNum=p[0]||'—';
+                  const plant=p[2]||'—';
+                  const nov=p[3]||0;
+                  const still=p[4]||0;
+                  const avancePct=montoBase>0?round2((nov/montoBase)*100):0;
+                  const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
+                  
+                  return `<tr>
+                    <td><input type="checkbox" class="cert-check" data-po="${esc(poNum)}" style="cursor:pointer"></td>
+                    <td class="mono" style="font-weight:600">${esc(poNum)}</td>
+                    <td>${esc(plant)}</td>
+                    <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
+                    <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
+                    <td>${avancePct}%</td>
+                    <td>${ajustado?'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span>':'—'}</td>
+                  </tr>`;
+                }).join('')
+              }
+            </tbody>
+          </table>
+          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g700)">
+              <input type="checkbox" id="ajustarRemanente" style="cursor:pointer">
+              <span>Incluir remanente en ajuste (${c.mon||'ARS'} ${fN(Math.max(0,montoBase-totalCerts))})</span>
+            </label>
           </div>
-          <div style="display:flex;gap:8px;margin-top:16px">
-            <button class="btn btn-p" onclick="saveCert()">💾 Guardar Certificación</button>
-            <button class="btn btn-s" onclick="closeCertPanel()">Cancelar</button>
-          </div>
-        </div>
-      </div>
-      `:''}
+        </div>`;
+      })():''}
     </div>`;
   } catch(err) {
     console.error('renderDet error', err);
@@ -2416,13 +2406,19 @@ function renderMe2n(){
   const fPlant=document.getElementById('poPlant')?.value||'';
   let rows=[];
   for(const[oa,d]of Object.entries(ME2N)){
-    if(!oa||oa==='SIN_CTTO')continue;const curr=d[1];
+    if(!oa||oa==='SIN_CTTO')continue;
+    if(!d||!Array.isArray(d)||!Array.isArray(d[2]))continue; // Validar estructura
+    const curr=d[1];
     for(const p of d[2])rows.push({oa,poNum:p[0],plant:p[2]||'',nov:p[3],still:p[4],curr});
   }
   if(srch) rows=rows.filter(r=>r.oa.includes(srch)||r.poNum.toLowerCase().includes(srch));
   if(fPlant) rows=rows.filter(r=>r.plant===fPlant);
   rows.sort((a,b)=>b.nov-a.nov);
-  const totalAll=Object.values(ME2N).reduce((s,[,,pos])=>s+pos.length,0);document.getElementById('poLcnt').textContent=rows.length+'/'+totalAll;
+  const totalAll=Object.values(ME2N).reduce((s,d)=>{
+    if(!d||!Array.isArray(d)||!Array.isArray(d[2]))return s;
+    return s+d[2].length;
+  },0);
+  document.getElementById('poLcnt').textContent=rows.length+'/'+totalAll;
   if(!rows.length){box.innerHTML=totalAll?'<div class="empty"><div class="ei">🔍</div><p>Sin resultados.</p></div>':'<div class="empty"><div class="ei">🛒</div><p>Sin datos ME2N. Subí un archivo Excel con la bajada de SAP.</p></div>';return;}
   let h='<div style="overflow-x:auto"><table><thead><tr><th>N° PO</th><th>N° Contrato</th><th>Net Order Value</th><th>Pend. Facturación</th><th>Mon.</th><th>Lugar</th></tr></thead><tbody>';
   for(const r of rows){const hasPend=r.still>0;const lugar=plantLabel(r.plant);h+=`<tr><td class="mono" style="font-size:11.5px;font-weight:700;color:var(--p700)">${esc(r.poNum)}</td><td class="mono" style="font-size:11.5px;font-weight:600;cursor:pointer;color:var(--p600);text-decoration:underline" onclick="verMe2nDet('${esc(r.oa)}')" title="Ver detalle contrato">${esc(r.oa)}</td><td class="mono" style="font-size:12px;font-weight:600">${fN(r.nov)}</td><td class="mono" style="font-size:12px">${hasPend?'<span class="bdg noinv">'+fN(r.still)+'</span>':'<span style="color:var(--g500)">—</span>'}</td><td style="font-size:12px;font-weight:600">${esc(r.curr)}</td><td style="font-size:11.5px;white-space:nowrap">${esc(lugar)}</td></tr>`;}
@@ -2825,76 +2821,8 @@ async function setAveLimit(id,val){
 }
 
 // ═══════════ CERTIFICACIONES (OBRA) ══════════════════
-function openCertPanel(){
-  document.getElementById('certPanel').style.display='block';
-  const cc=DB.find(x=>x.id===detId);
-  const nextNum=(cc.certificaciones||[]).length+1;
-  document.getElementById('cert_num').value=nextNum;
-  document.getElementById('cert_fecha').value='';
-  document.getElementById('cert_monto').value='';
-}
-
-function closeCertPanel(){
-  document.getElementById('certPanel').style.display='none';
-}
-
-async function saveCert(){
-  const cc=DB.find(x=>x.id===detId);
-  if(!cc)return;
-  
-  const num=parseInt(document.getElementById('cert_num').value)||0;
-  const fecha=document.getElementById('cert_fecha').value;
-  const monto=parseFloat(document.getElementById('cert_monto').value)||0;
-  
-  if(!num||!fecha||!monto){
-    toast('Completá todos los campos requeridos','er');
-    return;
-  }
-  
-  if(!cc.certificaciones)cc.certificaciones=[];
-  
-  const cert={
-    id:Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-    num:num,
-    fecha:fecha,
-    monto:monto,
-    ajustado:false
-  };
-  
-  cc.certificaciones.push(cert);
-  cc.updatedAt=new Date().toISOString();
-  
-  const idx=DB.findIndex(x=>x.id===detId);
-  if(idx!==-1)DB[idx]=cc;
-  
-  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
-  else await sbUpsertItem('contratos',cc);
-  
-  closeCertPanel();
-  renderDet();
-  toast('Certificación guardada','ok');
-}
-
-async function delCert(certId){
-  const cc=DB.find(x=>x.id===detId);
-  if(!cc||!cc.certificaciones)return;
-  if(!confirm('¿Eliminar esta certificación?'))return;
-  
-  cc.certificaciones=cc.certificaciones.filter(c=>c.id!==certId);
-  cc.updatedAt=new Date().toISOString();
-  
-  const idx=DB.findIndex(x=>x.id===detId);
-  if(idx!==-1)DB[idx]=cc;
-  
-  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(DB));
-  else await sbUpsertItem('contratos',cc);
-  
-  renderDet();
-  toast('Certificación eliminada','ok');
-}
-
 function toggleAllCerts(){
-  const checked=document.getElementById('cert_selectAll').checked;
+  const checked=document.getElementById('cert_selectAll')?.checked||false;
   document.querySelectorAll('.cert-check').forEach(cb=>cb.checked=checked);
 }
 
