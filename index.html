@@ -1222,10 +1222,10 @@ async function guardar(){
     updatedAt:new Date().toISOString()
   };
   
-  // Si el monto fue editado manualmente, borrar _montoOriginal para que se recalcule
+  // Si el monto fue editado manualmente, actualizar _montoOriginal
   if(old && old.monto !== c.monto){
-    delete c._montoOriginal;
-    console.log('[saveCont] Monto editado manualmente. Borrando _montoOriginal para recalcular.');
+    c._montoOriginal = c.monto;
+    console.log('[saveCont] Monto editado manualmente. Actualizando _montoOriginal a:', c.monto.toFixed(2));
   }
   
   c.plazo_meses = monthDiffInclusive(c.fechaIni,c.fechaFin);
