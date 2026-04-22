@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.213</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.214</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -470,9 +470,14 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div class="fgrp"><label>N° Contrato <span class="req">*</span></label><input type="text" id="f_num" placeholder="4600012345"></div>
       <div class="fgrp"><label>Contratista <span class="req">*</span></label><select id="f_cont"><option value="">Seleccionar contratista</option></select></div>
       <div class="fgrp"><label>Tipo Actualización</label><input type="text" value="CONTRATO INICIAL" disabled></div>
-      <div class="fgrp"><label>Tipo Contrato <span class="req">*</span></label><select id="f_tipo"><option value="">—</option><option>OBRA</option><option>SERVICIO</option></select></div>
+      <div class="fgrp"><label>Tipo Contrato <span class="req">*</span></label><select id="f_tipo" onchange="onTipoContratoChange()"><option value="">—</option><option>SERVICIO</option><option>OBRA</option></select></div>
       <div class="fgrp"><label>Moneda <span class="req">*</span></label><select id="f_mon"><option value="">—</option><option>ARS</option><option>USD</option><option>EUR</option></select></div>
-      <div class="fgrp"><label>Monto Inicial <span class="req">*</span></label><input type="number" id="f_monto" step="0.01" min="0" placeholder="0"></div>
+      <div class="fgrp"><label>Monto Inicial <span class="req">*</span></label><input type="number" id="f_monto" step="0.01" min="0" placeholder="0" oninput="calcAnticipo()"></div>
+      
+      <!-- Campos OBRA: Anticipo -->
+      <div class="fgrp" id="fg_anticipo" style="display:none"><label>Anticipo (%)</label><input type="number" id="f_anticipoPct" step="0.01" min="0" max="100" placeholder="0" oninput="calcAnticipo()"></div>
+      <div class="fgrp" id="fg_anticipoMonto" style="display:none"><label>Anticipo (Monto)</label><input type="number" id="f_anticipoMonto" step="0.01" min="0" placeholder="0" disabled style="background:#f5f5f5"></div>
+      
       <div class="fgrp"><label>Inicio <span class="req">*</span></label><input type="date" id="f_ini"></div>
       <div class="fgrp"><label>Fin <span class="req">*</span></label><input type="date" id="f_fin"></div>
       <div class="fgrp"><label>Responsable <span class="req">*</span></label><select id="f_resp"><option value="">—</option><option>Adrian OBINO</option><option>Alejo Nicolas CORDOBA</option><option>Ana Chiquinquira LEAÑEZ PERNALETE</option><option>Astrid Belen TERRIZZANO</option><option>Barbara Camila ALVAREZ OYARZO</option><option>Emilio Sebastian SAPORITO</option><option>Eugenia FERNANDEZ BOTTARO</option><option>Eugenia FERNANDEZ PUENTE</option><option>Fabiana Alejandra DI TATA</option><option>Federico Claudio VAZQUEZ FERNANDEZ</option><option>Fernando Javier PUENTES GALLY</option><option>Flavia SEGOVIA</option><option>Francisco Javier CACERES DIAZ</option><option>Gaston CORSO</option><option>Joaquin DELLA VEDOVA</option><option>Maria Silvia TRAVERSO</option><option>Maria Sol LEONARDIS</option><option>Martín ZALAZAR</option><option>Mauro ELIAS</option><option>Mauro Ivo DI CALOGERO</option><option>SEBASTIAN PEREZ PERUGORRIA</option><option>SERGIO CAPECE</option><option>Santiago Hernan SOTO</option><option>Sebastian Matias PARODI</option><option>Tamara Denise MADERA</option><option>Yanel DOMINGUEZ</option></select></div>
@@ -949,6 +954,25 @@ function updNav(){document.getElementById('cnt').textContent=DB.length;document.
 
 // POLY TOGGLE & TRIGGERS
 function onPolyToggle(){const on=document.getElementById('f_hasPoly').checked;document.getElementById('polyWrap').style.display=on?'':'none';document.getElementById('l_hasPoly').textContent=on?'Sí':'No';}
+
+function onTipoContratoChange(){
+  const tipo=document.getElementById('f_tipo').value;
+  const isObra=tipo==='OBRA';
+  document.getElementById('fg_anticipo').style.display=isObra?'':'none';
+  document.getElementById('fg_anticipoMonto').style.display=isObra?'':'none';
+  if(!isObra){
+    document.getElementById('f_anticipoPct').value='';
+    document.getElementById('f_anticipoMonto').value='';
+  }
+}
+
+function calcAnticipo(){
+  const monto=parseFloat(document.getElementById('f_monto').value)||0;
+  const pct=parseFloat(document.getElementById('f_anticipoPct').value)||0;
+  const anticipo=Math.round(monto*(pct/100)*100)/100;
+  document.getElementById('f_anticipoMonto').value=anticipo||'';
+}
+
 function onTrigBToggle(){const on=document.getElementById('f_trigB').checked;document.getElementById('l_trigB').textContent=on?'Sí':'No';document.getElementById('trigB_pct').style.display=on?'flex':'none';if(!on)document.getElementById('f_trigBpct').value='';}
 function onTrigCToggle(){const on=document.getElementById('f_trigC').checked;document.getElementById('l_trigC').textContent=on?'Sí':'No';document.getElementById('trigC_mes').style.display=on?'flex':'none';if(!on)document.getElementById('f_trigCmes').value='';}
 
@@ -1207,6 +1231,9 @@ async function guardar(){
     cprov:gv('f_cprov'),vend:gv('f_vend')||null,fax:gv('f_fax')||null,
     adj:files.map(f=>({name:f.name,size:f.size,data:f.data})),
     com:gv('f_com')||null,
+    // Anticipo (solo para OBRA)
+    anticipoPct:gv('f_tipo')==='OBRA'?(parseFloat(gv('f_anticipoPct'))||0):0,
+    anticipo:gv('f_tipo')==='OBRA'?(parseFloat(gv('f_anticipoMonto'))||0):0,
     // Redeterminacion
     hasPoly:document.getElementById('f_hasPoly').checked,
     trigA:document.getElementById('f_trigA').checked,
@@ -1596,6 +1623,8 @@ function renderDet(){
         <div class="dossier-grid top">
           <div>
             <div class="dr"><span>Monto inicial</span><span class="dv">${c.mon||''} ${fN(montoBase)}</span></div>
+            ${c.tipo==='OBRA' && c.anticipo?`<div class="dr" style="background:var(--y50);border:1px solid var(--y200);padding:8px 12px;border-radius:4px"><span>💼 Anticipo (${c.anticipoPct||0}%)</span><span class="dv" style="color:var(--y900)">${c.mon||''} ${fN(c.anticipo||0)}</span></div>
+            <div class="dr" style="background:var(--g50);border:1px solid var(--g200);padding:8px 12px;border-radius:4px"><span>🔧 Monto neto ajuste</span><span class="dv" style="color:var(--g900)">${c.mon||''} ${fN(montoBase-(c.anticipo||0))}</span></div>`:''}
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
@@ -2187,8 +2216,16 @@ function editCont(id){const c=DB.find(x=>x.id===id);if(!c)return;editId=id;
     document.getElementById('f_cont').value=c.cont||'';
   },10);
   document.getElementById('f_num').value=c.num;
-  document.getElementById('f_tipo').value=c.tipo||'';document.getElementById('f_mon').value=c.mon||'';
-  document.getElementById('f_monto').value=c.monto||'';document.getElementById('f_ini').value=c.fechaIni;
+  document.getElementById('f_tipo').value=c.tipo||'';
+  document.getElementById('f_mon').value=c.mon||'';
+  document.getElementById('f_monto').value=c.monto||'';
+  
+  // Anticipo (OBRA)
+  document.getElementById('f_anticipoPct').value=c.anticipoPct||'';
+  document.getElementById('f_anticipoMonto').value=c.anticipo||'';
+  onTipoContratoChange();  // Mostrar/ocultar campos según tipo
+  
+  document.getElementById('f_ini').value=c.fechaIni;
   document.getElementById('f_fin').value=c.fechaFin;document.getElementById('f_resp').value=c.resp||'';
   document.getElementById('f_btar').value=c.btar||'';document.getElementById('f_det').value=c.det||'';
   calcPlazo();setPoly(c.poly);
