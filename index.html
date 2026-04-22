@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.210</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.211</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1222,10 +1222,18 @@ async function guardar(){
     updatedAt:new Date().toISOString()
   };
   
-  // Si el monto fue editado manualmente, actualizar _montoOriginal
-  if(old && old.monto !== c.monto){
-    c._montoOriginal = c.monto;
-    console.log('[saveCont] Monto editado manualmente. Actualizando _montoOriginal a:', c.monto.toFixed(2));
+  // Guardar monto base original si no existe (primera vez)
+  if(!old || !old.montoBase){
+    c.montoBase = c.monto;
+    console.log('[saveCont] Guardando monto base original:', c.montoBase.toFixed(2));
+  } else {
+    c.montoBase = old.montoBase; // Preservar el monto base original
+  }
+  
+  // Si el monto fue editado manualmente Y no hay AVEs, actualizar montoBase
+  if(old && old.monto !== c.monto && (!c.aves || c.aves.length === 0)){
+    c.montoBase = c.monto;
+    console.log('[saveCont] Monto editado sin AVEs. Actualizando montoBase a:', c.monto.toFixed(2));
   }
   
   c.plazo_meses = monthDiffInclusive(c.fechaIni,c.fechaFin);
@@ -1540,9 +1548,8 @@ function renderDet(){
     const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
     const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
     
-    // Calcular monto base: monto actual menos todos los AVEs
-    const totalAves = avePoly + aveOwner;
-    const montoBase = (c.monto||0) - totalAves;
+    // Usar montoBase guardado, o calcularlo si no existe (contratos viejos)
+    const montoBase = c.montoBase || ((c.monto||0) - avePoly - aveOwner);
     const tot = montoBase + avePoly + aveOwner;
     
     const consumed=getConsumed(c.num),hasC=consumed!==null,rem=hasC?tot-consumed:null;
@@ -5231,13 +5238,12 @@ function generateSelectedPriceLists(cid){
     });
   }
   
-  // Calcular monto base: monto actual MENOS todos los AVEs (poly + owner)
+  // Usar montoBase guardado, o calcularlo si no existe (contratos viejos)
   var totalAves = (contract.aves||[]).reduce(function(s,a){return s+(a.monto||0);},0);
-  var montoBase = (contract.monto || 0) - totalAves;
+  var montoBase = contract.montoBase || ((contract.monto || 0) - totalAves);
   
-  console.log('[generateSelectedPriceLists] Monto actual:', (contract.monto||0).toFixed(2));
+  console.log('[generateSelectedPriceLists] Monto base:', montoBase.toFixed(2));
   console.log('[generateSelectedPriceLists] Total AVEs actuales:', totalAves.toFixed(2));
-  console.log('[generateSelectedPriceLists] Monto base calculado:', montoBase.toFixed(2));
   
   var all=(contract.tarifarios||[]).slice();
   var created=0;
