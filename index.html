@@ -4419,11 +4419,20 @@ async function resetSection(section){
   }
   if(section==='aves'){
     if(!confirm('¿Eliminar todos los AVEs de este contrato?')) return;
+    
+    // Calcular total de AVEs a restar
+    const totalAves = (c.aves||[]).reduce((s,a)=>s+(a.monto||0),0);
+    c.monto = (c.monto || 0) - totalAves;
     c.aves=[];
+    
+    // El monto actual es ahora la base contractual
+    c._montoOriginal = c.monto;
+    console.log('[resetSection] AVEs eliminados. _montoOriginal actualizado a:', c.monto.toFixed(2));
+    
     c.updatedAt=new Date().toISOString();
     if(!SB_OK) localStorage.setItem('cta_v7', JSON.stringify(DB));
     else await sbUpsertItem('contratos', c);
-    renderDet(); toast('AVEs reiniciados','ok');
+    renderDet(); toast('AVEs reiniciados. Monto base: '+fN(c.monto),'ok');
     return;
   }
   if(section==='tarifarios'){
@@ -4520,6 +4529,12 @@ async function delAveById(aveId) {
   // Restar el AVE del monto actual
   cc.monto = (cc.monto || 0) - (ave.monto || 0);
   cc.aves = cc.aves.filter(a => a.id !== aveId);
+  
+  // Si no quedan AVEs, el monto actual es la base contractual
+  if(cc.aves.length === 0){
+    cc._montoOriginal = cc.monto;
+    console.log('[delAveById] No quedan AVEs. Actualizando _montoOriginal a:', cc.monto.toFixed(2));
+  }
   
   const plazo = cc.plazo_meses || cc.plazo || 36;
   cc.montoMensualEst = round2(cc.monto / plazo);
