@@ -4507,18 +4507,15 @@ async function delAveById(aveId) {
   if (!cc) return;
   if (!confirm('¿Eliminar este AVE?')) return;
   
+  const ave = cc.aves.find(a => a.id === aveId);
+  if(!ave) return;
+  
+  // Restar el AVE del monto actual
+  cc.monto = (cc.monto || 0) - (ave.monto || 0);
   cc.aves = cc.aves.filter(a => a.id !== aveId);
   
-  // Recalcular tot desde cero
-  const montoBase = cc._montoOriginal || cc.monto || 0;
-  const avePoly = cc.aves.filter(a => a.tipo === 'POLINOMICA').reduce((s, a) => s + (a.monto || 0), 0);
-  const aveOwner = cc.aves.filter(a => a.tipo === 'OWNER').reduce((s, a) => s + (a.monto || 0), 0);
-  
-  cc.monto = montoBase;
-  cc.tot = montoBase + avePoly + aveOwner;
-  
   const plazo = cc.plazo_meses || cc.plazo || 36;
-  cc.montoMensualEst = round2(cc.tot / plazo);
+  cc.montoMensualEst = round2(cc.monto / plazo);
   
   cc.updatedAt = new Date().toISOString();
   await sbUpsertItem('contratos', cc);
@@ -5307,14 +5304,12 @@ function generateSelectedPriceLists(cid){
       var montoRestante=montoOriginal-consumido;
       var incrementoMonto=Math.round(montoRestante*(totalPctApplied/100)*100)/100;
       
-      var montoAnterior=contract.tot||contract.monto||0;
-      var nuevoMonto=montoAnterior+incrementoMonto;
-      
-      contract.tot=nuevoMonto;
-      contract.monto=montoOriginal;
+      // Sumar AVE al monto actual del contrato
+      contract.monto = (contract.monto || 0) + incrementoMonto;
       contract.montoMensualEst=Math.round(mensualBase*(1+totalPctApplied/100)*100)/100;
       
-      console.log('[generateSelectedPriceLists] Monto actualizado:', montoAnterior.toFixed(2), '→', nuevoMonto.toFixed(2), '(+'+incrementoMonto.toFixed(2)+')');
+      console.log('[generateSelectedPriceLists] Base original:', montoOriginal.toFixed(2));
+      console.log('[generateSelectedPriceLists] AVE calculado:', incrementoMonto.toFixed(2), '→ Nuevo monto:', contract.monto.toFixed(2));
       console.log('[generateSelectedPriceLists] Meses transcurridos:', mesesTranscurridos, '/ Restantes:', mesesRestantes, '/ Consumido:', consumido.toFixed(2));
       
       // Generar AVE por aplicación polinómica
