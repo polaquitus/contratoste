@@ -5218,15 +5218,6 @@ function generateSelectedPriceLists(cid){
     });
   }
   
-  // Asegurar que contract.monto sea el valor base original
-  if(contract._montoOriginal){
-    contract.monto = contract._montoOriginal;
-  }
-  
-  // Resetear contract.tot a valor base + solo AVEs Owner
-  var avesOwner = (contract.aves||[]).filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
-  contract.tot = (contract.monto||0) + avesOwner;
-  
   var all=(contract.tarifarios||[]).slice();
   var created=0;
   rows.forEach(function(sel){
