@@ -4,14 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestión de Contratos TA</title>
-<link rel="icon" href="data:,">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>⚡</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--p900:#14303a;--p800:#1c4252;--p700:#24566c;--p600:#3E8095;--p500:#4c96ad;--p400:#6db1c4;--p300:#92c8d6;--p200:#AED0DD;--p100:#d6e9f0;--p50:#eef6f9;--r500:#dc3545;--r100:#fde8ea;--g600:#198754;--g100d:#d1f5e0;--a500:#f59e0b;--a100:#fef3cd;--b500:#3b82f6;--b100:#dbeafe;--w:#fff;--g50:#f8f9fa;--g100:#f1f3f5;--g200:#e9ecef;--g300:#dee2e6;--g400:#ced4da;--g500:#adb5bd;--g600c:#6c757d;--g700:#495057;--g800:#343a40;--g900:#212529;--rad:8px;--radl:14px;--sh:0 2px 8px rgba(0,0,0,.06);--shm:0 4px 16px rgba(0,0,0,.08)}
+:root{
+  /* TotalEnergies palette */
+  --te-red:#EE3124;--te-blue:#005EB8;--te-orange:#FF6900;--te-green:#00A88F;--te-gray:#3C3C3B;--te-light:#F5F5F5;
+  /* Primary (azul TE) */
+  --p900:#003875;--p800:#004a94;--p700:#005EB8;--p600:#0071d9;--p500:#3399ff;--p400:#66b3ff;--p300:#99ccff;--p200:#cce5ff;--p100:#e6f2ff;--p50:#f0f7ff;
+  /* Accent (rojo TE) */
+  --r500:#EE3124;--r400:#f15449;--r300:#f47770;--r200:#f79a96;--r100:#fabdbb;--r50:#fde8e7;
+  /* Success (verde TE) */
+  --g600:#008770;--g500:#00A88F;--g100d:#ccf2ec;
+  /* Warning (naranja TE) */
+  --a500:#FF6900;--a400:#ff8533;--a300:#ffa166;--a100:#ffe6cc;
+  /* Info (azul claro) */
+  --b500:#3399ff;--b100:#e6f2ff;
+  /* Neutrals */
+  --w:#fff;--g50:#fafafa;--g100:#f5f5f5;--g200:#eeeeee;--g300:#e0e0e0;--g400:#bdbdbd;--g500:#9e9e9e;--g600c:#757575;--g700:#3C3C3B;--g800:#2a2a2a;--g900:#1a1a1a;
+  /* Orange variants */
+  --o700:#cc5400;--o500:#FF6900;--o200:#ffb380;
+  /* Yellow variants */
+  --y900:#b8860b;--y800:#daa520;--y700:#edb92e;--y500:#f4d03f;--y200:#f9e79f;--y50:#fef9e7;
+  /* Otros */
+  --rad:8px;--radl:14px;--sh:0 2px 8px rgba(0,0,0,.06);--shm:0 4px 16px rgba(0,0,0,.08)
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;background:var(--g100);color:var(--g900);min-height:100vh}
+body{font-family:'Roboto',sans-serif;background:var(--g100);color:var(--g900);min-height:100vh}
 .app{display:flex;min-height:100vh}
-.sb{width:250px;background:linear-gradient(175deg,var(--p900),var(--p800) 60%,var(--p700));color:var(--w);position:fixed;top:0;left:0;bottom:0;z-index:100;display:flex;flex-direction:column;box-shadow:3px 0 20px rgba(0,0,0,.18)}
+.sb{width:250px;background:linear-gradient(175deg,var(--te-blue),#004a94 60%,#003875);color:var(--w);position:fixed;top:0;left:0;bottom:0;z-index:100;display:flex;flex-direction:column;box-shadow:3px 0 20px rgba(0,0,0,.18)}
 .sb-logo{padding:20px 18px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:11px}
 .sb-logo .ico{width:38px;height:38px;background:var(--p500);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0}
 .sb-logo .txt{font-size:14px;font-weight:600;line-height:1.2}.sb-logo .txt span{font-size:11px;font-weight:400;opacity:.5;display:block;margin-top:1px}
@@ -426,7 +447,22 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <body>
 <div class="app">
 <aside class="sb">
-  <div class="sb-logo"><div class="ico">C</div><div class="txt">Contratos TA<span>Gestión Contractual</span></div></div>
+  <div class="sb-logo">
+    <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="te-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#EE3124;stop-opacity:1" />
+          <stop offset="30%" style="stop-color:#FF6900;stop-opacity:1" />
+          <stop offset="60%" style="stop-color:#00A88F;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#005EB8;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="45" fill="url(#te-grad)" opacity="0.15"/>
+      <path d="M30,40 Q50,20 70,40 T90,60" stroke="url(#te-grad)" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="8" fill="#fff"/>
+    </svg>
+    <div class="txt">Contratos TA<span>Gestión Contractual</span></div>
+  </div>
   <nav class="sb-nav">
     <div class="sb-sec">Módulos</div>
     <a class="nv act" data-mod="list" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
@@ -440,7 +476,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.216</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.217</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
