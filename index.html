@@ -1549,10 +1549,6 @@ function renderDet(){
     let enmOpts='<option value="">— Sin enmienda —</option>';
     enms.forEach(e=>enmOpts+=`<option value="${e.num}">Enm.N°${e.num} (${e.tipo||'?'})</option>`);
     
-    // Calcular monto base: monto actual menos todos los AVEs
-    const totalAves = aves.reduce((s,a)=>s+(a.monto||0),0);
-    const montoBase = (c.monto||0) - totalAves;
-    
     let aveRows='',cumTV=montoBase;
     const sAves=[...aves].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     if(!sAves.length)aveRows='<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin AVEs registrados</td></tr>';
