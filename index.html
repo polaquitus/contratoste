@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.208</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.209</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -4545,7 +4545,16 @@ async function delAveById(aveId) {
   cc.montoMensualEst = round2(cc.monto / plazo);
   
   cc.updatedAt = new Date().toISOString();
-  await sbUpsertItem('contratos', cc);
+  
+  // Actualizar DB array
+  const idx = DB.findIndex(x => x.id === detId);
+  if(idx !== -1) DB[idx] = cc;
+  
+  // Guardar en Supabase
+  if(!SB_OK) localStorage.setItem('cta_v7', JSON.stringify(DB));
+  else await sbUpsertItem('contratos', cc);
+  
+  console.log('[delAveById] Monto actualizado a:', cc.monto.toFixed(2));
   renderDet();
   toast('AVE eliminado', 'ok');
 }
