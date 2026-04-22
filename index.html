@@ -5315,8 +5315,11 @@ function generateSelectedPriceLists(cid){
       var montoRestante=montoOriginal-consumido;
       var incrementoMonto=Math.round(montoRestante*(totalPctApplied/100)*100)/100;
       
-      var montoAnterior=contract.tot||contract.monto||0;
-      var nuevoMonto=montoAnterior+incrementoMonto;
+      // montoAnterior para mostrar en tabla debe ser solo la base limpia
+      var montoAnterior=montoOriginal;
+      // nuevoMonto para contract.tot incluye AVEs Owner ya calculados antes
+      var avesOwner=(contract.aves||[]).filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
+      var nuevoMonto=montoOriginal+incrementoMonto+avesOwner;
       
       contract.tot=nuevoMonto;
       contract.monto=montoOriginal;
