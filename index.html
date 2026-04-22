@@ -4507,22 +4507,19 @@ async function delAveById(aveId) {
   if (!cc) return;
   if (!confirm('¿Eliminar este AVE?')) return;
   
-  const ave = cc.aves.find(a => a.id === aveId);
-  if (!ave) return;
-  
-  const aveMonto = ave.monto || 0;
-  const plazo = cc.plazo_meses || cc.plazo || 36;
-  const fI = cc.fechaInicio || cc.fechaIni || '';
-  const baseMo = dateToMo(fI) || '';
-  const baseM = parseYM(baseMo);
-  const aveM = parseYM(ave.periodo || ave.fecha || baseMo);
-  const elapsedMonths = Math.max(0, monthDiff(baseM, aveM));
-  const remainingMonths = Math.max(0, plazo - elapsedMonths);
-  
-  cc.tot = (cc.tot || cc.monto || 0) - aveMonto;
-  cc.montoMensualEst = remainingMonths > 0 ? round2(cc.tot / remainingMonths) : 0;
-  
   cc.aves = cc.aves.filter(a => a.id !== aveId);
+  
+  // Recalcular tot desde cero
+  const montoBase = cc._montoOriginal || cc.monto || 0;
+  const avePoly = cc.aves.filter(a => a.tipo === 'POLINOMICA').reduce((s, a) => s + (a.monto || 0), 0);
+  const aveOwner = cc.aves.filter(a => a.tipo === 'OWNER').reduce((s, a) => s + (a.monto || 0), 0);
+  
+  cc.monto = montoBase;
+  cc.tot = montoBase + avePoly + aveOwner;
+  
+  const plazo = cc.plazo_meses || cc.plazo || 36;
+  cc.montoMensualEst = round2(cc.tot / plazo);
+  
   cc.updatedAt = new Date().toISOString();
   await sbUpsertItem('contratos', cc);
   renderDet();
@@ -5213,7 +5210,12 @@ function generateSelectedPriceLists(cid){
     });
   }
   
-  // Resetear contract.tot a valor base sin AVEs automáticos
+  // Asegurar que contract.monto sea el valor base original
+  if(contract._montoOriginal){
+    contract.monto = contract._montoOriginal;
+  }
+  
+  // Resetear contract.tot a valor base + solo AVEs Owner
   var avesOwner = (contract.aves||[]).filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
   contract.tot = (contract.monto||0) + avesOwner;
   
