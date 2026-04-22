@@ -1769,8 +1769,8 @@ function renderDet(){
               </select>
             </div>
             <div class="fgrp">
-              <label>Monto AVE <span class="req">*</span></label>
-              <input type="number" id="avo_monto" step="0.01" min="0" placeholder="0.00">
+              <label>% Ajuste <span class="req">*</span></label>
+              <input type="number" id="avo_monto" step="0.01" min="0" placeholder="10 = 10%">
             </div>
             <div class="fgrp">
               <label>Período (YYYY-MM)</label>
@@ -2658,6 +2658,12 @@ async function saveAveOwner(){
   
   if(remainingMonths <= 0){toast('Contrato ya vencido en período seleccionado','er');return;}
   
+  const baseTotal = cc.monto || 0;
+  const monthlyBase = baseTotal / plazo;
+  const monthlyAdjusted = monthlyBase * (1 + monto/100);
+  const monthlyIncrease = monthlyAdjusted - monthlyBase;
+  const aveTotalMonto = round2(monthlyIncrease * remainingMonths);
+  
   let ffin=null;
   if(sub==='EXTENSION PLAZO'){
     ffin=document.getElementById('avo_ffin')?.value||'';
@@ -2673,17 +2679,18 @@ async function saveAveOwner(){
     tipo:'OWNER',
     subtipo:sub,
     concepto:sub==='OTRO'?(document.getElementById('avo_otro')?.value.trim()||null):null,
-    monto,
+    monto:aveTotalMonto,
+    pct:monto,
     enmRef:enmRefRaw?parseInt(enmRefRaw):null,
     periodo:avePer,
     ajusteRestante:remainingMonths,
-    baseContract:cc.tot||cc.monto||0,
+    baseContract:baseTotal,
     fechaFinNueva:ffin,
     fecha:new Date().toISOString()
   });
   
-  cc.tot = (cc.tot || cc.monto || 0) + monto;
-  cc.montoMensualEst = round2(cc.tot / remainingMonths);
+  cc.tot = baseTotal + aveTotalMonto;
+  cc.montoMensualEst = round2(cc.tot / plazo);
   
   // Warning check
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
@@ -2694,7 +2701,7 @@ async function saveAveOwner(){
   closeAveOwnerPanel();
   renderDet();renderList();updNav();
   if(ownerSum>limit) toast(`⛔ AVE Owner acumulado (${fN(ownerSum)}) supera límite ${fN(limit)}`,'er');
-  else toast('AVE Owner registrado — '+cc.mon+' '+fN(monto),'ok');
+  else toast('AVE Owner registrado — '+cc.mon+' '+fN(aveTotalMonto),'ok');
 }
 async function setAveLimit(id,val){
   const cc=DB.find(x=>x.id===id);if(!cc)return;
@@ -2709,6 +2716,11 @@ async function setAveLimit(id,val){
 // ═══════════ TARIFARIO ENHANCED ══════════════════════════
 let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};
 function getTarPeriodValue(cc,t){return t?.period||cc?.btar||cc?.fechaIni?.substring(0,7)||'';}
+function getLastTariffPeriod(cc){
+  if(!cc||!cc.tarifarios||!cc.tarifarios.length)return null;
+  const periods=cc.tarifarios.map(t=>getTarPeriodValue(cc,t)).filter(Boolean).sort();
+  return periods.length?periods[periods.length-1]:null;
+}
 function getTarEnmLabel(cc,enmNum){if(!enmNum)return 'Base contractual';const enm=(cc.enmiendas||[]).find(e=>e.num===enmNum);if(!enm)return 'Enm.N°'+enmNum;const tipo=enm.tipo==='ACTUALIZACION_TARIFAS'?'Actualización de Tarifas':enm.tipo==='EXTENSION'?'Extensión':enm.tipo==='SCOPE'?'Scope':enm.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return 'Enm.N°'+enmNum+' · '+tipo;}
 function setTarPeriod(period){_tarPeriod=period;_tarTab=0;renderTarifario();}
 function renderTarifario(){
@@ -4947,7 +4959,8 @@ function renderUpdateSection(contract){
   auditDiv.style.border='1px solid var(--g300)';
   
   var mesEval=localStorage.getItem('pol_eval_month_'+contract.id)||ymToday();
-  var baseEval=ymOf((PolUpdate.getConditions(contract.id)||{}).baseDate)||ymOf(contract.btar)||ymOf(contract.fechaIni)||mesEval;
+  var lastTarPeriod=getLastTariffPeriod(contract);
+  var baseEval=lastTarPeriod||ymOf((PolUpdate.getConditions(contract.id)||{}).baseDate)||ymOf(contract.btar)||ymOf(contract.fechaIni)||mesEval;
   var auditHtml='<div style="font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">📊 Auditoría - Cumplimiento de condiciones</div>';
   auditHtml+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'+
     '<label style="font-size:12px;font-weight:600;color:var(--g700);white-space:nowrap">Base comparación:</label>'+
