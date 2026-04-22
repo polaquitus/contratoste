@@ -2161,6 +2161,7 @@ function delAve(aid){
 }
 
 function editCont(id){const c=DB.find(x=>x.id===id);if(!c)return;editId=id;
+  populateProvSelect();
   document.getElementById('f_num').value=c.num;document.getElementById('f_cont').value=c.cont;
   document.getElementById('f_tipo').value=c.tipo||'';document.getElementById('f_mon').value=c.mon||'';
   document.getElementById('f_monto').value=c.monto||'';document.getElementById('f_ini').value=c.fechaIni;
@@ -2642,8 +2643,8 @@ function onAvoSubChange(){
 }
 async function saveAveOwner(){
   const cc=DB.find(x=>x.id===detId);if(!cc)return;
-  const monto=parseFloat(document.getElementById('avo_monto')?.value)||0;
-  if(!monto){toast('Ingresá el monto','er');return;}
+  const pctAjuste=parseFloat(document.getElementById('avo_monto')?.value)||0;
+  if(!pctAjuste){toast('Ingresá el % de ajuste','er');return;}
   const sub=document.getElementById('avo_sub')?.value||'';
   if(!sub){toast('Seleccioná el concepto','er');return;}
   
@@ -2658,11 +2659,13 @@ async function saveAveOwner(){
   
   if(remainingMonths <= 0){toast('Contrato ya vencido en período seleccionado','er');return;}
   
-  const baseTotal = cc.monto || 0;
-  const monthlyBase = baseTotal / plazo;
-  const monthlyAdjusted = monthlyBase * (1 + monto/100);
-  const monthlyIncrease = monthlyAdjusted - monthlyBase;
-  const aveTotalMonto = round2(monthlyIncrease * remainingMonths);
+  const totalOriginal = cc.monto || 0;
+  const mensualBase = totalOriginal / plazo;
+  const consumidoHastaAjuste = mensualBase * elapsedMonths;
+  const montoAjustar = totalOriginal - consumidoHastaAjuste;
+  const aveMonto = round2(montoAjustar * (pctAjuste / 100));
+  const nuevoTotal = totalOriginal + aveMonto;
+  const nuevoMensual = round2(mensualBase * (1 + pctAjuste/100));
   
   let ffin=null;
   if(sub==='EXTENSION PLAZO'){
@@ -2679,20 +2682,21 @@ async function saveAveOwner(){
     tipo:'OWNER',
     subtipo:sub,
     concepto:sub==='OTRO'?(document.getElementById('avo_otro')?.value.trim()||null):null,
-    monto:aveTotalMonto,
-    pct:monto,
+    monto:aveMonto,
+    pct:pctAjuste,
     enmRef:enmRefRaw?parseInt(enmRefRaw):null,
     periodo:avePer,
-    ajusteRestante:remainingMonths,
-    baseContract:baseTotal,
+    mesesTranscurridos:elapsedMonths,
+    mesesRestantes:remainingMonths,
+    montoAjustado:montoAjustar,
+    baseContract:totalOriginal,
     fechaFinNueva:ffin,
     fecha:new Date().toISOString()
   });
   
-  cc.tot = baseTotal + aveTotalMonto;
-  cc.montoMensualEst = round2(cc.tot / plazo);
+  cc.tot = nuevoTotal;
+  cc.montoMensualEst = nuevoMensual;
   
-  // Warning check
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
   const limit=cc._aveOwnerLimit||250000;
   cc.updatedAt=new Date().toISOString();
@@ -2701,7 +2705,7 @@ async function saveAveOwner(){
   closeAveOwnerPanel();
   renderDet();renderList();updNav();
   if(ownerSum>limit) toast(`⛔ AVE Owner acumulado (${fN(ownerSum)}) supera límite ${fN(limit)}`,'er');
-  else toast('AVE Owner registrado — '+cc.mon+' '+fN(aveTotalMonto),'ok');
+  else toast('AVE Owner registrado — '+cc.mon+' '+fN(aveMonto),'ok');
 }
 async function setAveLimit(id,val){
   const cc=DB.find(x=>x.id===id);if(!cc)return;
