@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46.4-multi-estable</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.208</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1543,7 +1543,12 @@ function renderDet(){
     const consumed=getConsumed(c.num),hasC=consumed!==null,rem=hasC?tot-consumed:null;
     let enmOpts='<option value="">— Sin enmienda —</option>';
     enms.forEach(e=>enmOpts+=`<option value="${e.num}">Enm.N°${e.num} (${e.tipo||'?'})</option>`);
-    let aveRows='',cumTV=c.monto||0;
+    
+    // Calcular monto base: monto actual menos todos los AVEs
+    const totalAves = aves.reduce((s,a)=>s+(a.monto||0),0);
+    const montoBase = (c.monto||0) - totalAves;
+    
+    let aveRows='',cumTV=montoBase;
     const sAves=[...aves].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     if(!sAves.length)aveRows='<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin AVEs registrados</td></tr>';
     sAves.forEach(a=>{
