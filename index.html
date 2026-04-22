@@ -440,7 +440,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.209</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.210</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -1539,7 +1539,12 @@ function renderDet(){
     const aves=c.aves||[],enms=c.enmiendas||[];
     const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
     const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
-    const tot=(c.monto||0)+avePoly+aveOwner;
+    
+    // Calcular monto base: monto actual menos todos los AVEs
+    const totalAves = avePoly + aveOwner;
+    const montoBase = (c.monto||0) - totalAves;
+    const tot = montoBase + avePoly + aveOwner;
+    
     const consumed=getConsumed(c.num),hasC=consumed!==null,rem=hasC?tot-consumed:null;
     let enmOpts='<option value="">— Sin enmienda —</option>';
     enms.forEach(e=>enmOpts+=`<option value="${e.num}">Enm.N°${e.num} (${e.tipo||'?'})</option>`);
@@ -1587,7 +1592,7 @@ function renderDet(){
       <div class="dossier">
         <div class="dossier-grid top">
           <div>
-            <div class="dr"><span>Monto inicial</span><span class="dv">${c.mon||''} ${fN(c.monto||0)}</span></div>
+            <div class="dr"><span>Monto inicial</span><span class="dv">${c.mon||''} ${fN(montoBase)}</span></div>
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
@@ -4528,22 +4533,8 @@ async function delAveById(aveId) {
   if (!cc) return;
   if (!confirm('¿Eliminar este AVE?')) return;
   
-  const ave = cc.aves.find(a => a.id === aveId);
-  if(!ave) return;
-  
-  // Restar el AVE del monto actual
-  cc.monto = (cc.monto || 0) - (ave.monto || 0);
+  // Solo eliminar del array - el renderizado calculará todo desde cero
   cc.aves = cc.aves.filter(a => a.id !== aveId);
-  
-  // Si no quedan AVEs, el monto actual es la base contractual
-  if(cc.aves.length === 0){
-    cc._montoOriginal = cc.monto;
-    console.log('[delAveById] No quedan AVEs. Actualizando _montoOriginal a:', cc.monto.toFixed(2));
-  }
-  
-  const plazo = cc.plazo_meses || cc.plazo || 36;
-  cc.montoMensualEst = round2(cc.monto / plazo);
-  
   cc.updatedAt = new Date().toISOString();
   
   // Actualizar DB array
@@ -4554,7 +4545,6 @@ async function delAveById(aveId) {
   if(!SB_OK) localStorage.setItem('cta_v7', JSON.stringify(DB));
   else await sbUpsertItem('contratos', cc);
   
-  console.log('[delAveById] Monto actualizado a:', cc.monto.toFixed(2));
   renderDet();
   toast('AVE eliminado', 'ok');
 }
@@ -5334,12 +5324,11 @@ function generateSelectedPriceLists(cid){
       var montoRestante=montoBase-consumido;
       var incrementoMonto=Math.round(montoRestante*(totalPctApplied/100)*100)/100;
       
-      // Sumar AVE al monto actual del contrato
-      contract.monto = (contract.monto || 0) + incrementoMonto;
+      // NO modificar contract.monto - solo agregar AVE al array
       contract.montoMensualEst=Math.round(mensualBase*(1+totalPctApplied/100)*100)/100;
       
       console.log('[generateSelectedPriceLists] Base sin AVEs:', montoBase.toFixed(2));
-      console.log('[generateSelectedPriceLists] AVE calculado:', incrementoMonto.toFixed(2), '→ Nuevo monto:', contract.monto.toFixed(2));
+      console.log('[generateSelectedPriceLists] AVE calculado:', incrementoMonto.toFixed(2));
       console.log('[generateSelectedPriceLists] Meses transcurridos:', mesesTranscurridos, '/ Restantes:', mesesRestantes, '/ Consumido:', consumido.toFixed(2));
       
       // Generar AVE por aplicación polinómica
