@@ -515,7 +515,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div class="fgrp"><label>Tipo Cambio <span class="req">*</span></label><input type="number" id="f_tc" step="0.01" min="1" placeholder="1.00" value="1"></div>
       <div class="fgrp"><label>Contract Owner</label><select id="f_own"><option value="">—</option><option>Adrian Alberto ANGELONI</option><option>Adrian Gustavo RAMIREZ</option><option>Adriano D'AGOSTINO</option><option>Aldo Claudio FIORINI</option><option>Alejandro Angel PIGNATELLI</option><option>Alejandro LAGUTO</option><option>Alejandro Martin CADOCHE WOLF</option><option>Anahi Del Valle MARIN MORAN</option><option>Andrea SANCHEZ</option><option>Andres PRUSCINO</option><option>Angelica STEINBACH</option><option>Bernardo COLLAZO BENITEZ</option><option>Bruno GIGLI</option><option>Carlos ALVAREZ LUGANO</option><option>Carlos GALLARDO</option><option>Carlos Gabriel LIZARZUAY</option><option>David Sidney ARMSTRONG</option><option>Diego Hernan FEIJOO</option><option>Diego Luis SERVIERES</option><option>EDITH BASILICO</option><option>Edgar DOUMA</option><option>Emiliano Martin BODNARIN</option><option>Eva Maria Rosa CESPEDES</option><option>Facundo ALANIZ</option><option>Facundo Gabriel ALRIC</option><option>Facundo Nicolas MAHONA</option><option>Federico LOPEZ KUPERMAN</option><option>Fernando Martin GRANDOLI</option><option>Fernando Oscar BENITEZ</option><option>Florencia Melina CALVET</option><option>Francisco BOGADO</option><option>Francisco GOYENECHEA</option><option>GABRIELA GARCIA</option><option>Gabriela ROSELLO</option><option>Gaston CORSO</option><option>Gaston Christian ORDEN VILLALBA</option><option>Gonzalo Lorenzo ARUFE</option><option>Gonzalo Martin LOPEZ</option><option>Hector Pablo COGGIOLA</option><option>Hernan RIZZA</option><option>J0123952</option><option>Jessica Elizabeth DE</option><option>Jesús Oscar GUILARTE ZABALA</option><option>Jorge Luis MILLER</option><option>Jorge Nicolas SANTANDER</option><option>Jose Gabriel AZNAREZ</option><option>L1006741</option><option>Laura REY</option><option>Leandro Alberto MARZENIUK</option><option>Leandro KOLTON</option><option>Leonardo Alfredo GOMEZ</option><option>Lorena FAVALE</option><option>Lucas Julian MARTIN</option><option>Luciano VIOTTO</option><option>Luis Atilio RIOLFO</option><option>Luis Emilio UBERTI</option><option>Luis Sebastian CORREGIDOR</option><option>Marcelo Gustavo REINO</option><option>Marcelo Javier RIOS</option><option>Maria Cecilia IRIGOITIA</option><option>Maria Claudia BORBOLLA</option><option>Maria Giselle PEREZ</option><option>Maria Ines AVILA</option><option>Maria Laura GERMANIER</option><option>Maria-Soledad DE GRAZIA</option><option>Mariana SAINZ TRAPAGA</option><option>Martin Cesar FERRANDO VILLOSLADA</option><option>Martin SOUCARROS</option><option>Matias BERTOLA</option><option>Maximiliano Pedro PAPONI</option><option>Micaela CAMINO</option><option>Miguel Angel ARAÑO</option><option>Myriam MACCIERATESSI</option><option>Natalia SCARICABAROZZI</option><option>Nicolas TORRES CABRERA</option><option>Pablo Ariel CHILLEMI</option><option>Philippe JEANNET</option><option>Pierre LECLERC</option><option>Ramiro SAAVEDRA</option><option>Ricardo Jose SERAFIN</option><option>Rodrigo Daniel BIANCHI</option><option>Rodrigo E DUARTE</option><option>SEBASTIAN PEREZ PERUGORRIA</option><option>SILVIA CRISTINA DOMINGUEZ</option><option>Salvador CERVERA NOVO</option><option>Salvador Emanuel GRIFFO</option><option>Samuel Eduardo BECKMANN GLARDON</option><option>Santiago DE WAVRIN</option><option>Sebastian Matias PARODI</option><option>Sergio POZZONI</option><option>Sébastien FOURNEL</option><option>Walter FERNANDEZ FERNANDEZ</option><option>Walter Ruben SCHMIDT</option><option>Yamil Aron GULMAN</option></select></div>
       <div class="fgrp"><label>Asset</label><select id="f_asset"><option value="">—</option><option>NQN</option><option>TDF</option><option>NQN + TDF</option></select></div>
-      <div class="fgrp"><label>Contacto Proveedor <span class="req">*</span></label><input type="text" id="f_cprov"></div>
+      <div class="fgrp"><label>Contacto Proveedor <span class="req">*</span></label><select id="f_cprov"><option value="">Seleccionar proveedor</option></select></div>
       <div class="fgrp"><label>N° Vendor</label><input type="text" id="f_vend"></div>
       <div class="fgrp"><label>FAX</label><input type="text" id="f_fax"></div>
     </div>
@@ -1089,6 +1089,7 @@ function go(v){
     _navAct('form');
     t.innerHTML=(editId?'✏️ Editar':'➕ Nuevo')+' Contrato';
     a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver</button>`;
+    populateProvSelect();
     window.scrollTo({top:0,behavior:'smooth'});
   }
   else if(v==='detail'){
@@ -1269,6 +1270,17 @@ function resetForm(){
   document.getElementById('f_trigC').checked=false;document.getElementById('l_trigC').textContent='No';document.getElementById('trigC_mes').style.display='none';
   buildPoly();files=[];renderFL();
 }
+function populateProvSelect(){
+  const sel=document.getElementById('f_cprov');
+  if(!sel)return;
+  sel.innerHTML='<option value="">Seleccionar proveedor</option>';
+  PROV_DB.forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p.name||p.nombre||p.id;
+    opt.textContent=p.name||p.nombre||'Sin nombre';
+    sel.appendChild(opt);
+  });
+}
 function cancelForm(){
   editId=null;
   document.getElementById('formErrBanner')?.remove();
@@ -1277,6 +1289,10 @@ function cancelForm(){
 }
 
 // HELPERS
+function dateToMo(d){if(!d)return'';const s=String(d);if(/^\d{4}-\d{2}/.test(s))return s.substring(0,7);try{const dt=new Date(s);return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');}catch(e){return'';}}
+function parseYM(ym){if(!ym)return'';const m=/^(\d{4})-(\d{2})/.exec(String(ym));return m?m[0]:'';}
+function monthDiff(ym1,ym2){if(!ym1||!ym2)return 0;const[y1,m1]=ym1.split('-').map(Number);const[y2,m2]=ym2.split('-').map(Number);return(y2-y1)*12+(m2-m1);}
+function round2(n){return Math.round(n*100)/100;}
 function isContractComplete(cc){
   if(!cc.fromSAP)return true;
   return !!(cc.tipo&&cc.resp&&cc.btar&&cc.tcontr&&cc.rtec&&cc.cprov);
@@ -2625,6 +2641,18 @@ async function saveAveOwner(){
   if(!monto){toast('Ingresá el monto','er');return;}
   const sub=document.getElementById('avo_sub')?.value||'';
   if(!sub){toast('Seleccioná el concepto','er');return;}
+  
+  const plazo = cc.plazo_meses || cc.plazo || 36;
+  const fI = cc.fechaInicio || cc.fechaIni || '';
+  const baseMo = dateToMo(fI) || '';
+  const avePer = document.getElementById('avo_per')?.value || baseMo;
+  const baseM = parseYM(baseMo);
+  const aveM = parseYM(avePer);
+  const elapsedMonths = Math.max(0, monthDiff(baseM, aveM));
+  const remainingMonths = Math.max(0, plazo - elapsedMonths);
+  
+  if(remainingMonths <= 0){toast('Contrato ya vencido en período seleccionado','er');return;}
+  
   let ffin=null;
   if(sub==='EXTENSION PLAZO'){
     ffin=document.getElementById('avo_ffin')?.value||'';
@@ -2632,6 +2660,7 @@ async function saveAveOwner(){
     cc.fechaFin=ffin;
     cc.plazo=Math.max(((new Date(ffin).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ffin).getMonth()-new Date(cc.fechaIni).getMonth())),0);
   }
+  
   if(!cc.aves)cc.aves=[];
   const enmRefRaw=document.getElementById('avo_enm')?.value||'';
   cc.aves.push({
@@ -2641,10 +2670,16 @@ async function saveAveOwner(){
     concepto:sub==='OTRO'?(document.getElementById('avo_otro')?.value.trim()||null):null,
     monto,
     enmRef:enmRefRaw?parseInt(enmRefRaw):null,
-    periodo:document.getElementById('avo_per')?.value||null,
+    periodo:avePer,
+    ajusteRestante:remainingMonths,
+    baseContract:cc.tot||cc.monto||0,
     fechaFinNueva:ffin,
     fecha:new Date().toISOString()
   });
+  
+  cc.tot = (cc.tot || cc.monto || 0) + monto;
+  cc.montoMensualEst = round2(cc.tot / remainingMonths);
+  
   // Warning check
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
   const limit=cc._aveOwnerLimit||250000;
@@ -4465,6 +4500,22 @@ async function delAveById(aveId) {
   const cc = DB.find(x => x.id === detId);
   if (!cc) return;
   if (!confirm('¿Eliminar este AVE?')) return;
+  
+  const ave = cc.aves.find(a => a.id === aveId);
+  if (!ave) return;
+  
+  const aveMonto = ave.monto || 0;
+  const plazo = cc.plazo_meses || cc.plazo || 36;
+  const fI = cc.fechaInicio || cc.fechaIni || '';
+  const baseMo = dateToMo(fI) || '';
+  const baseM = parseYM(baseMo);
+  const aveM = parseYM(ave.periodo || ave.fecha || baseMo);
+  const elapsedMonths = Math.max(0, monthDiff(baseM, aveM));
+  const remainingMonths = Math.max(0, plazo - elapsedMonths);
+  
+  cc.tot = (cc.tot || cc.monto || 0) - aveMonto;
+  cc.montoMensualEst = remainingMonths > 0 ? round2(cc.tot / remainingMonths) : 0;
+  
   cc.aves = cc.aves.filter(a => a.id !== aveId);
   cc.updatedAt = new Date().toISOString();
   await sbUpsertItem('contratos', cc);
@@ -5793,33 +5844,6 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
   }
   window.deleteAdjustedPeriod = promptDeletePeriod;
 
-  function ensureDeletePeriodButton(){
-    let btn = document.getElementById('btnDeleteAdjustedPeriod');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'btnDeleteAdjustedPeriod';
-      btn.type = 'button';
-      btn.textContent = '🗑️ Borrar período ajustado';
-      btn.style.cssText = [
-        'position:fixed',
-        'right:16px',
-        'bottom:16px',
-        'z-index:9999',
-        'background:#991b1b',
-        'color:#fff',
-        'border:none',
-        'border-radius:10px',
-        'padding:10px 14px',
-        'font-weight:700',
-        'box-shadow:0 6px 18px rgba(0,0,0,.25)',
-        'cursor:pointer'
-      ].join(';');
-      btn.onclick = function(){ promptDeletePeriod(); };
-      document.body.appendChild(btn);
-    }
-    btn.style.display = 'inline-flex';
-  }
-
   function patchVersionBadge(){
     try {
       const el = document.getElementById('buildTag');
@@ -5828,7 +5852,6 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
   }
 
   function boot(){
-    ensureDeletePeriodButton();
     patchVersionBadge();
   }
 
@@ -5840,7 +5863,6 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
   window.addEventListener('load', boot);
   setTimeout(boot, 300);
   setTimeout(boot, 1200);
-  setInterval(ensureDeletePeriodButton, 1500);
 })();
 
 </script>
