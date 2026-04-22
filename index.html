@@ -1221,6 +1221,13 @@ async function guardar(){
     createdAt:old?.createdAt||new Date().toISOString(),
     updatedAt:new Date().toISOString()
   };
+  
+  // Si el monto fue editado manualmente, borrar _montoOriginal para que se recalcule
+  if(old && old.monto !== c.monto){
+    delete c._montoOriginal;
+    console.log('[saveCont] Monto editado manualmente. Borrando _montoOriginal para recalcular.');
+  }
+  
   c.plazo_meses = monthDiffInclusive(c.fechaIni,c.fechaFin);
   c.gatillos = {
     A:{ enabled: !!c.trigA },
