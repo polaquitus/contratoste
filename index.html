@@ -5346,6 +5346,10 @@ function generateSelectedPriceLists(cid){
   localStorage.removeItem('pol_selected_months_'+cid);
   console.log('[generateSelectedPriceLists] Evaluación limpiada. Recalcular desde', contract.btar);
   
+  // Actualizar contrato en DB array
+  var idx = DB.findIndex(function(c){return c.id === cid;});
+  if(idx !== -1) DB[idx] = contract;
+  
   save();
   if(typeof detId!=='undefined') detId=cid;
   if(typeof renderDet==='function') renderDet();
