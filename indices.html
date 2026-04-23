@@ -332,9 +332,54 @@ function parseJSON(txt){
 function buildPrompt(def,ym){
   const today = new Date().toISOString().substring(0,10);
   const [y,m] = ym.split('-').map(Number);
-  const pubEst = new Date(y, m, 20); // día 20 del mes siguiente
+  const pubEst = new Date(y, m, 20);
   const probablyPublished = new Date() > pubEst;
   
+  // FADEAAC prompt específico
+  if(def.id === 'fadeaac'){
+    return `Sos experto en índices económicos argentinos.
+Hoy: ${today}.
+
+Necesito variación % mensual de FADEAAC (Equipo Vial) para ${ym} (${fmtMF(ym)}).
+
+FUENTE OFICIAL: fadeaac.org.ar publica boletines mensuales en sección "Publicaciones" → "Boletines FADEAAC".
+Buscá el boletín de ${fmtMF(ym)} (publicado ~día 15 del mes siguiente).
+
+El boletín tiene tabla "VARIACIÓN MENSUAL DE PRECIOS" con fila "EQUIPO VIAL" o "MAQUINARIA VIAL".
+Ejemplo: si dice "Equipo Vial: 3,25%" → pct = 3.25
+
+REGLAS:
+- Si encontrás el boletín oficial con dato de ${ym}: devolvé pct exacto
+- Si el boletín NO existe aún: {"pct":null,"value":null}
+- NUNCA inventes o estimes
+
+JSON únicamente:
+{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"https://fadeaac.org.ar/...","note":"FADEAAC boletín ${fmtMF(ym)}"}`;
+  }
+  
+  // IPC NQN prompt específico
+  if(def.id === 'ipc_nqn' || def.id === 'ipc_nqnab'){
+    return `Sos experto en estadísticas de Neuquén.
+Hoy: ${today}.
+
+Necesito ${def.id === 'ipc_nqn' ? 'IPC NQN Nivel General' : 'IPC NQN Alimentos y Bebidas'} para ${ym} (${fmtMF(ym)}).
+
+FUENTE OFICIAL: DPEyC Neuquén (estadisticaneuquen.gob.ar) publica informe mensual ~día 20-30 del mes siguiente.
+Buscá "Índice de Precios al Consumidor" en sección "Precios".
+
+El informe tiene tabla con variación mensual.
+Ejemplo: "Nivel General: 4,2%" → pct = 4.2
+
+REGLAS:
+- Si encontrás informe oficial de ${ym}: devolvé pct exacto
+- Si NO publicado aún: {"pct":null,"value":null}
+- NUNCA inventes
+
+JSON únicamente:
+{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url","note":"DPEyC NQN ${fmtMF(ym)}"}`;
+  }
+  
+  // Prompt genérico para otros índices
   return `Sos un asistente experto en estadísticas económicas argentinas oficiales.
 Hoy es ${today}.
 
@@ -349,7 +394,6 @@ REGLAS ESTRICTAS:
 - Si ${ym} aún NO fue publicado o no encontrás fuente oficial: devolvé null en pct y value.
 - NUNCA inventes, estimes o extrapoles datos.
 - Para IPC/IPIM: "pct" = variación % mensual, "value" = null.
-- Para FADEAAC: "pct" = variación % mensual.
 - Para combustibles: "value" = precio ARS/litro, "pct" = null.
 
 Respondé ÚNICAMENTE con JSON válido (sin markdown, sin texto extra):
@@ -357,13 +401,70 @@ Respondé ÚNICAMENTE con JSON válido (sin markdown, sin texto extra):
 }
 
 function buildPromptAggressive(def,ym){
+  // FADEAAC aggressive
+  if(def.id === 'fadeaac'){
+    return `BÚSQUEDA EXHAUSTIVA FADEAAC - ${ym} (${fmtMF(ym)}).
+
+INSTRUCCIONES PRECISAS:
+1. Andá a fadeaac.org.ar
+2. Buscá sección "Publicaciones" → "Boletines FADEAAC"
+3. Descargá boletín de ${fmtMF(ym)} (PDF)
+4. En tabla "VARIACIÓN MENSUAL", fila "EQUIPO VIAL" o "MAQUINARIA VIAL"
+5. Extraé % mensual (ej: 3,25% → pct:3.25)
+
+Si el boletín NO existe: {"pct":null,"value":null}
+Si existe pero no podés leerlo: {"pct":null,"value":null}
+
+JSON únicamente:
+{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"https://fadeaac.org.ar/publicaciones/...","note":"FADEAAC boletín oficial"}`;
+  }
+  
+  // Gas Oil aggressive
+  if(def.id === 'go_g2' || def.id === 'go_g3'){
+    const prod = def.id === 'go_g2' ? 'Gasoil Grado 2' : 'Gasoil Grado 3';
+    return `BÚSQUEDA EXHAUSTIVA GAS OIL ACA NEUQUÉN - ${ym} (${fmtMF(ym)}).
+
+INSTRUCCIONES:
+1. Buscá en datos.energia.gob.ar → "Precios en surtidor"
+2. Filtrá: Provincia=NEUQUEN, Producto="${prod}", Empresa=ACA (Automóvil Club Argentino)
+3. Rango: 01/${ym} a último día de ${ym}
+4. Extraé precio promedio del mes en ARS/litro
+
+Alternativamente:
+- YPF Neuquén publicaciones
+- Boletines Sec. Energía Nación mes ${ym}
+
+Si NO encontrás precio oficial ACA Neuquén ${ym}: {"value":null,"pct":null}
+
+JSON únicamente:
+{"ym":"${ym}","value":number|null,"pct":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"url","note":"ACA NQN ${prod}"}`;
+  }
+  
+  // IPC NQN aggressive
+  if(def.id === 'ipc_nqn' || def.id === 'ipc_nqnab'){
+    const nivel = def.id === 'ipc_nqn' ? 'Nivel General' : 'Alimentos y Bebidas';
+    return `BÚSQUEDA EXHAUSTIVA IPC NEUQUÉN - ${ym} (${fmtMF(ym)}).
+
+INSTRUCCIONES:
+1. Andá a estadisticaneuquen.gob.ar
+2. Sección "Precios" → "Índice de Precios al Consumidor"
+3. Buscá informe mensual de ${fmtMF(ym)}
+4. En tabla de variaciones, extraé "${nivel}" (% mensual)
+
+Si informe NO publicado aún: {"pct":null,"value":null}
+
+JSON únicamente:
+{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"estadisticaneuquen.gob.ar/...","note":"DPEyC NQN ${nivel}"}`;
+  }
+  
+  // Generic aggressive
   return `BÚSQUEDA EXHAUSTIVA REQUERIDA.
 Fuente: ${def.src} — Índice: "${def.name}" — Período: ${ym} (${fmtMF(ym)}).
 
 Buscá en:
 - INDEC (indec.gob.ar/indec/web/Nivel4-Tema-3-5-31)
 - DPEyC Neuquén (estadisticaneuquen.gob.ar)
-- FADEAAC (fadeaac.org.ar)
+- FADEAAC (fadeaac.org.ar/publicaciones)
 - Secretaría de Energía (datos.energia.gob.ar)
 
 Si el dato existe en algún boletín, comunicado o dataset oficial: devolvelo.
@@ -543,22 +644,27 @@ async function fetchFuelACAYm(idxId, ym) {
     const rs = String(rec.razon_social || rec.empresa || '').toUpperCase();
     return rs.includes('ACA') || rs.includes('AUTOMOVIL CLUB') || rs.includes('AUTOMOVILCLUB');
   }
+  
   function avgPrice(recs) {
     const prices = recs.map(r => parseFloat(r.precio || r.precio_por_litro || 0)).filter(p => p > 0);
     if (!prices.length) return null;
     return Math.round(prices.reduce((a,b)=>a+b,0)/prices.length * 100) / 100;
   }
 
-  // 1. Recurso histórico
+  // 1. Recurso histórico — AMPLIADO: busca todo Neuquén, luego filtra ACA
   try {
-    const filters = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN', producto:productName}));
-    const urlH = ENERGIA_API + '?resource_id=' + RES_HIST + '&filters=' + filters + '&limit=1000';
+    const filters = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN'}));
+    const urlH = ENERGIA_API + '?resource_id=' + RES_HIST + '&filters=' + filters + '&limit=2000';
     const rH = await fetch(urlH);
     if (rH.ok) {
       const dH = await rH.json();
       const recs = (dH?.result?.records || []).filter(rec => {
+        const prod = String(rec.producto || '').toUpperCase();
         const fd = String(rec.fecha_desde_vigencia || rec.indice_tiempo || '').substring(0, 10);
-        return isACA(rec) && fd >= firstDayStr && fd <= lastDayStr;
+        // Match producto (flexible: "GASOIL GRADO 2" o "GAS OIL GRADO 2")
+        const prodMatch = prod.includes('GASOIL') || prod.includes('GAS OIL');
+        const gradeMatch = productName.includes('Grado 2') ? prod.includes('GRADO 2') || prod.includes('G2') : prod.includes('GRADO 3') || prod.includes('G3');
+        return isACA(rec) && prodMatch && gradeMatch && fd >= firstDayStr && fd <= lastDayStr;
       });
       const avg = avgPrice(recs);
       if (avg) {
@@ -575,12 +681,17 @@ async function fetchFuelACAYm(idxId, ym) {
   const nowYm = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0');
   if (ym === nowYm) {
     try {
-      const filters2 = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN', producto:productName}));
-      const urlV = ENERGIA_API + '?resource_id=' + RES_VIGENTE + '&filters=' + filters2 + '&limit=500';
+      const filters2 = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN'}));
+      const urlV = ENERGIA_API + '?resource_id=' + RES_VIGENTE + '&filters=' + filters2 + '&limit=1000';
       const rV = await fetch(urlV);
       if (rV.ok) {
         const dV = await rV.json();
-        const recs = (dV?.result?.records || []).filter(isACA);
+        const recs = (dV?.result?.records || []).filter(rec => {
+          const prod = String(rec.producto || '').toUpperCase();
+          const prodMatch = prod.includes('GASOIL') || prod.includes('GAS OIL');
+          const gradeMatch = productName.includes('Grado 2') ? prod.includes('GRADO 2') || prod.includes('G2') : prod.includes('GRADO 3') || prod.includes('G3');
+          return isACA(rec) && prodMatch && gradeMatch;
+        });
         const avg = avgPrice(recs);
         if (avg) return { ym, value: avg, pct: null, publishedAt: lastDayStr,
           note: 'ACA Neuquén · vigente Sec. Energía',
@@ -642,7 +753,21 @@ async function startAISearch(){
       // FUEL
       else if(t.def.cat==='fuel'){ 
         result=await fetchFuelACAYm(t.def.id,t.ym); 
-        via='api'; 
+        if(result) via='api';
+        
+        // Fallback Gemini si API Energía falla
+        if(!result){
+          const txt=await callGemini(buildPrompt(t.def,t.ym));
+          result=parseJSON(txt);
+          via=result?'ai':null;
+        }
+        
+        // Retry agresivo
+        if(!result){
+          const txt2=await callGemini(buildPromptAggressive(t.def,t.ym));
+          result=parseJSON(txt2);
+          via=result?'ai':null;
+        }
       }
       // INDEC
       else if(t.def.src==='INDEC'){
@@ -703,6 +828,7 @@ async function startAISearch(){
         if(via==='api')official++; else ai++;
         liveCellOk(t.def,t.ym,result,via);
       } else { 
+        console.warn('⚠️ NO DATA:', t.def.id, '('+t.def.name+')', t.ym, '| via:', via, '| result:', result);
         t.status='manual'; 
         t.via='manual'; 
         _meta[t.def.id+'_'+t.ym]='manual'; 
@@ -710,7 +836,7 @@ async function startAISearch(){
         liveCellManual(t.def,t.ym); 
       }
     }catch(e){ 
-      console.warn('task',t.def.id,e); 
+      console.error('❌ TASK FAILED:', t.def.id, '('+t.def.name+')', t.ym, '| via:', via, '| error:', e); 
       t.status='manual'; 
       t.via='manual'; 
       _meta[t.def.id+'_'+t.ym]='manual'; 
