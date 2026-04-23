@@ -476,7 +476,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.218</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
+<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v0.219</span></h1><div class="tba" id="pgA"><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div></header>
 <div class="ct">
 
 <!-- LIST -->
@@ -2992,7 +2992,10 @@ async function resetIdxAll(){
 }
 // NOTE: intentional no IIFE here — initApp() loads IDX_STORE from Supabase async.
 
-function idxRows(id){return (IDX_STORE[id]||{}).rows||[];}
+function idxRows(id){
+  if(!IDX_STORE[id]) IDX_STORE[id] = {rows:[]};
+  return (IDX_STORE[id]||{}).rows||[];
+}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
 function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
