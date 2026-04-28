@@ -835,11 +835,10 @@ document.addEventListener('DOMContentLoaded',async()=>{
   initRange();await loadFromSupabase();
 });
 
-// ── Expose script-1 globals to window (const/let don't auto-attach) ───────
+// ── Expose script-1 globals to window ────────────────────────────────────
 window.IDX_CATALOG    = IDX_CATALOG;
 window.CAT_ORDER      = CAT_ORDER;
 window.CAT_LABEL      = CAT_LABEL;
-// Functions (const arrow or async function)
 window.esc            = esc;
 window.pF             = pF;
 window.fmtM           = fmtM;
@@ -868,12 +867,11 @@ window.saveToSupabase = saveToSupabase;
 window.fetchUsdYm     = fetchUsdYm;
 window.fetchFuelACAYm = fetchFuelACAYm;
 window.startAISearch  = startAISearch;
-// let variables — proxy so mutations in script-1 are visible via window
 (function(){
-  Object.defineProperty(window,'_months', {get:function(){return _months;}, set:function(v){_months=v;}, configurable:true,enumerable:true});
-  Object.defineProperty(window,'_meta',   {get:function(){return _meta;},   set:function(v){_meta=v;},   configurable:true,enumerable:true});
-  Object.defineProperty(window,'_tasks',  {get:function(){return _tasks;},  set:function(v){_tasks=v;},  configurable:true,enumerable:true});
-  Object.defineProperty(window,'_aiStop', {get:function(){return _aiStop;}, set:function(v){_aiStop=v;}, configurable:true,enumerable:true});
+  Object.defineProperty(window,'_months', {get:function(){return _months;},set:function(v){_months=v;},configurable:true,enumerable:true});
+  Object.defineProperty(window,'_meta',   {get:function(){return _meta;},  set:function(v){_meta=v;},  configurable:true,enumerable:true});
+  Object.defineProperty(window,'_tasks',  {get:function(){return _tasks;}, set:function(v){_tasks=v;}, configurable:true,enumerable:true});
+  Object.defineProperty(window,'_aiStop', {get:function(){return _aiStop;},set:function(v){_aiStop=v;},configurable:true,enumerable:true});
 })();
 </script>
 <script>
@@ -900,33 +898,45 @@ window.startAISearch  = startAISearch;
   window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set(_cat().filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
   function renderSelectionPanel(){
-    const wrap = document.getElementById('selectorList');
+    const wrap  = document.getElementById('selectorList');
     const stats = document.getElementById('selStats');
     if(!wrap || !stats) return;
 
-    const cf = document.getElementById('catFilter')?.value || '';
-    const visible = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo' && (!cf || d.cat === cf));
-    const allAuto = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo');
-    const selCount = allAuto.filter(d => window._selectedIdx.has(d.id)).length;
-    const missingSelected = allAuto.filter(d => window._selectedIdx.has(d.id)).reduce((a,d) => a + countMissingForIdx(d.id), 0);
+    const cat    = window.IDX_CATALOG || [];
+    const cf     = (document.getElementById('catFilter')||{}).value || '';
+    const allAuto = cat.filter(function(d){ return d.cat !== 'mo'; });
+    const visible = allAuto.filter(function(d){ return !cf || d.cat === cf; });
+    const selCount = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); }).length;
+    const missTot  = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); })
+                            .reduce(function(a,d){ return a + countMissingForIdx(d.id); }, 0);
 
-    stats.textContent = `${selCount}/${allAuto.length} seleccionados · ${missingSelected} celdas faltantes`;
+    stats.textContent = selCount + '/' + allAuto.length + ' seleccionados · ' + missTot + ' celdas faltantes';
 
     if(!visible.length){
       wrap.innerHTML = '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
       return;
     }
 
-    wrap.innerHTML = visible.map(def => {
-      const active = window._selectedIdx.has(def.id);
-      const missing = countMissingForIdx(def.id);
-      return `
-        <label class="sel-chip ${active ? 'active' : ''}" title="${escAttr(def.name)} · ${missing} períodos faltantes">
-          <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleIdxSelection('${def.id}', this.checked)">
-          <span>${window.esc(def.name)}</span>
-          <small>${missing}</small>
-        </label>`;
+    // Build HTML — NO inline onchange to avoid quoting issues
+    wrap.innerHTML = visible.map(function(def){
+      var active  = window._selectedIdx.has(def.id);
+      var missing = countMissingForIdx(def.id);
+      return '<label class="sel-chip' + (active ? ' active' : '') + '" title="' + escAttr(def.name) + ' (' + missing + ' faltantes)">'
+        + '<input type="checkbox" data-idx="' + def.id + '" ' + (active ? 'checked' : '') + '>'
+        + '<span>' + window.esc(def.name) + '</span>'
+        + '<small>' + missing + '</small>'
+        + '</label>';
     }).join('');
+
+    // Attach events AFTER setting innerHTML
+    wrap.querySelectorAll('input[data-idx]').forEach(function(chk){
+      chk.addEventListener('change', function(){
+        var id = this.getAttribute('data-idx');
+        if(this.checked) window._selectedIdx.add(id);
+        else             window._selectedIdx.delete(id);
+        renderSelectionPanel();
+      });
+    });
   }
   function seriesCfg(def){ if(!INDEC_SERIES_PATCH[def.id]) INDEC_SERIES_PATCH[def.id]={}; return INDEC_SERIES_PATCH[def.id]; }
   function extractSeriesId(item){ return item?.id||item?.serie_id||item?.series_id||item?.identifier||item?.field?.id||item?.field_id||item?.series?.id||null; }
