@@ -1186,10 +1186,22 @@ function go(v){
   if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos';
-    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="importMe3nModal()">📤 Importar ME3N (SAP)</button><button class="btn btn-p" onclick="go('form')">➕ Nuevo Contrato</button></div>`;
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span>';
+    a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
+      <input 
+        type="text" 
+        id="fuzzy-search-input" 
+        placeholder="🔍 Buscar contratos... (presiona /)" 
+        style="padding-left:12px;width:100%;font-size:13px;" 
+        oninput="window.handleFuzzySearch(this.value)"
+      >
+      <div id="fuzzy-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--w);border-radius:var(--rad);box-shadow:var(--shm);max-height:400px;overflow-y:auto;z-index:999;border:1px solid var(--g200);"></div>
+    </div>
+    <button class="btn btn-p" onclick="go('form')">➕ Nuevo</button>`;
     editId=null;
     resetForm();
+    setRoleBadge();
+    setSBStatus(SB_OK);
   }
   else if(v==='form'){
     document.getElementById('vForm').classList.add('on');
@@ -1701,6 +1713,7 @@ function renderDet(){
           <span class="bdg ${isA?'act':'exp'}" style="font-size:12px;padding:5px 14px">● ${isA?'ACTIVO':'VENCIDO'}</span>
           <button class="btn btn-sm btn-a" onclick="window.copyContractAsTemplate()" title="Duplicar como template">📋 Duplicar</button>
           <button class="btn btn-s btn-sm" onclick="editCont('${c.id}')">✏️ Editar</button>
+          <button class="btn btn-d btn-sm" onclick="delCont('${c.id}')" title="Eliminar contrato">🗑️ Eliminar</button>
         </div>
       </div>
       <div class="dossier">
@@ -6372,26 +6385,47 @@ window.copyContractAsTemplate = function() {
   
   var newContract = JSON.parse(JSON.stringify(cc));
   
+  // Generar NUEVO ID único
   newContract.id = 'c_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  
+  // Limpiar campos para nuevo contrato
   newContract.num = '';
   newContract.numero = '';
   newContract.fecha = '';
   newContract.fechaIni = '';
+  newContract.fechaFin = '';
   newContract.estado = 'Borrador';
   newContract.createdAt = new Date().toISOString();
   newContract.updatedAt = new Date().toISOString();
+  delete newContract.__sbId;
   
+  // Limpiar AVEs y OPs
   newContract.aves = [];
   newContract.ops = [];
   
+  // Agregar a DB sin pisar
   if (!window.DB) window.DB = [];
   window.DB.push(newContract);
   
-  window.detId = newContract.id;
-  if (typeof save === 'function') save();
+  // Guardar
+  if (SB_OK && typeof sbUpsertItem === 'function') {
+    sbUpsertItem('contratos', newContract).catch(function(e){
+      console.warn('Error guardando duplicado en Supabase:', e);
+      localStorage.setItem('cta_v7', JSON.stringify(window.DB));
+    });
+  } else {
+    localStorage.setItem('cta_v7', JSON.stringify(window.DB));
+  }
+  
+  // Setear editId y abrir formulario
+  editId = newContract.id;
   
   toast('✅ Duplicado como borrador', 'ok');
-  if (typeof go === 'function') go('detail');
+  
+  // Ir a form para completar datos
+  setTimeout(function(){
+    editCont(newContract.id);
+  }, 100);
 };
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
