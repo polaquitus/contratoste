@@ -407,7 +407,7 @@ async function startAISearch(){
     try{
       let result=null;
       if(t.def.cat==='usd'){
-        result=await fetchUsdYm(t.ym, t.def.id);
+        result=await fetchUsdYm(t.ym,t.def.id);
       } else if(t.def.cat==='fuel'){
         result=await fetchFuelACAYm(t.def.id,t.ym);
       } else {
@@ -471,104 +471,55 @@ Respondé ÚNICAMENTE con JSON válido (sin markdown, sin texto extra):
 {"ym":"${ym}","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url o null","note":"máx 60 caracteres"}`;
 }
 
-// Cache de series USD por tipo — se cargan una sola vez por sesión
 const _usdCache = {};
-
-// API oficial BCRA Estadísticas Cambiarias — sin token, sin impuestos
-// tipoCotizacion = TC vendedor (divisa) | tipoPase = TC billete vendedor
-// descripcion distingue "Dólar U.S.A. divisa" vs "Dólar U.S.A. billete"
 const BCRA_TC_URL = 'https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones/USD';
 
 async function _bcraLoadMonth(ym){
   if(_usdCache[ym]) return _usdCache[ym];
   const [y,m] = ym.split('-').map(Number);
-  const firstDay = ym + '-01';
-  const lastDay  = new Date(y,m,0).toISOString().substring(0,10);
-  const url = BCRA_TC_URL
-    + '?fechaDesde=' + firstDay
-    + '&fechaHasta=' + lastDay
-    + '&limit=40';
+  const url = BCRA_TC_URL+'?fechaDesde='+ym+'-01&fechaHasta='+new Date(y,m,0).toISOString().substring(0,10)+'&limit=40';
   const r = await fetch(url);
-  if(!r.ok) throw new Error('BCRA TC API ' + r.status);
+  if(!r.ok) throw new Error('BCRA TC '+r.status);
   const d = await r.json();
-  const results = d?.results || [];
-  _usdCache[ym] = results;
-  return results;
+  _usdCache[ym] = d?.results||[];
+  return _usdCache[ym];
 }
 
-function _extractTc(results, tipoBusqueda){
-  // tipoBusqueda: 'divisa' | 'billete'
-  // Busca el último día hábil del mes con datos
-  for(let i = results.length - 1; i >= 0; i--){
-    const row = results[i];
-    const detalle = row?.detalle || [];
-    // Buscar por descripcion que contenga el tipo
-    const match = detalle.find(d =>
-      String(d.descripcion||'').toLowerCase().includes(tipoBusqueda)
-      && String(d.codigoMoneda||'').toUpperCase() === 'USD'
-    );
-    if(match && match.tipoCotizacion > 0){
-      return { value: match.tipoCotizacion, fecha: row.fecha };
-    }
-    // Fallback: si no hay descripcion, tomar tipoCotizacion de USD genérico
-    const usd = detalle.find(d => String(d.codigoMoneda||'').toUpperCase() === 'USD');
-    if(usd && usd.tipoCotizacion > 0){
-      return { value: usd.tipoCotizacion, fecha: row.fecha };
-    }
+function _extractTc(results, tipo){
+  for(let i=results.length-1;i>=0;i--){
+    const det = results[i]?.detalle||[];
+    const match = det.find(d=>String(d.descripcion||'').toLowerCase().includes(tipo)&&String(d.codigoMoneda||'').toUpperCase()==='USD');
+    if(match&&match.tipoCotizacion>0) return {value:match.tipoCotizacion, fecha:results[i].fecha};
+    const usd = det.find(d=>String(d.codigoMoneda||'').toUpperCase()==='USD');
+    if(usd&&usd.tipoCotizacion>0) return {value:usd.tipoCotizacion, fecha:results[i].fecha};
   }
   return null;
 }
 
 async function fetchUsdYm(ym, idxId){
-  // idxId: 'usd_div' = divisa | 'usd_bill' = billete
-  const tipo = (idxId === 'usd_bill') ? 'billete' : 'divisa';
+  const tipo = (idxId==='usd_bill') ? 'billete' : 'divisa';
   try{
     let results = await _bcraLoadMonth(ym);
-
-    // Si el mes no tiene datos (futuro o sin publicar), buscar mes anterior
-    if(!results || !results.length){
-      const [y,m] = ym.split('-').map(Number);
-      const prevDate = new Date(y, m-2, 1);
-      const prevYm = prevDate.getFullYear() + '-' + String(prevDate.getMonth()+1).padStart(2,'0');
-      results = await _bcraLoadMonth(prevYm);
+    if(!results||!results.length){
+      const [y,m]=ym.split('-').map(Number);
+      const prev=new Date(y,m-2,1);
+      results=await _bcraLoadMonth(prev.getFullYear()+'-'+String(prev.getMonth()+1).padStart(2,'0'));
     }
-
-    const found = _extractTc(results, tipo);
-    if(found){
-      return {
-        ym,
-        value: Number(found.value.toFixed(2)),
-        pct: null,
-        publishedAt: String(found.fecha).substring(0,10),
-        note: 'BCRA TC ' + tipo + ' vendedor (último día hábil del mes)',
-        sourceUrl: 'https://www.bcra.gob.ar'
-      };
-    }
-  }catch(e){ console.warn('fetchUsdYm BCRA', ym, tipo, e); }
-
-  // Fallback: argentinadatos.com /dolares/oficial (sin impuestos, TC oficial BNA)
+    const found=_extractTc(results,tipo);
+    if(found) return {ym,value:Number(found.value.toFixed(2)),pct:null,publishedAt:String(found.fecha).substring(0,10),note:'BCRA TC '+tipo+' vendedor',sourceUrl:'https://www.bcra.gob.ar'};
+  }catch(e){console.warn('fetchUsdBCRA',ym,tipo,e);}
+  // Fallback: argentinadatos /dolares/oficial (TC oficial sin impuestos)
   try{
-    const r = await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
+    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
     if(!r.ok) throw new Error(r.status);
-    const data = await r.json();
-    const [y,m] = ym.split('-').map(Number);
-    const firstDay = ym+'-01';
-    const lastDay  = new Date(y,m,0).toISOString().substring(0,10);
-    const inMonth  = data.filter(x=>x&&x.fecha&&x.fecha>=firstDay&&x.fecha<=lastDay)
-                         .sort((a,b)=>a.fecha.localeCompare(b.fecha));
-    const src = inMonth.length ? inMonth : data.filter(x=>x&&x.fecha&&x.fecha<firstDay)
-                                                .sort((a,b)=>a.fecha.localeCompare(b.fecha));
-    const last = src[src.length-1];
-    if(last && last.venta){
-      return {
-        ym, value: Number(Number(last.venta).toFixed(2)), pct: null,
-        publishedAt: last.fecha.substring(0,10),
-        note: 'USD Oficial BNA vendedor (argentinadatos.com)',
-        sourceUrl: 'https://argentinadatos.com'
-      };
-    }
-  }catch(e){ console.warn('fetchUsdYm fallback', ym, e); }
-
+    const data=await r.json();
+    const [y,m]=ym.split('-').map(Number);
+    const first=ym+'-01', last=new Date(y,m,0).toISOString().substring(0,10);
+    const inM=data.filter(x=>x&&x.fecha&&x.fecha>=first&&x.fecha<=last).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    const src=inM.length?inM:data.filter(x=>x&&x.fecha&&x.fecha<first).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    const pt=src[src.length-1];
+    if(pt&&pt.venta) return {ym,value:Number(Number(pt.venta).toFixed(2)),pct:null,publishedAt:pt.fecha.substring(0,10),note:'USD Oficial BNA vendedor (argentinadatos.com)',sourceUrl:'https://argentinadatos.com'};
+  }catch(e){console.warn('fetchUsdFallback',ym,e);}
   return null;
 }
 
@@ -915,6 +866,20 @@ document.addEventListener('DOMContentLoaded',async()=>{
   }
   initRange();await loadFromSupabase();
 });
+
+// ── Expose to window so second IIFE can access these ──────────────────────
+// (const/let at top-level do NOT auto-attach to window in modern browsers)
+window.IDX_CATALOG  = IDX_CATALOG;
+window.CAT_ORDER    = CAT_ORDER;
+window.CAT_LABEL    = CAT_LABEL;
+// Let variables — use getters/setters so changes in first script propagate
+(function(){
+  var _m=_months, _mt=_meta, _t=_tasks, _a=_aiStop;
+  Object.defineProperty(window,'_months',  {get:function(){return _months;},  set:function(v){_months=v;},  configurable:true});
+  Object.defineProperty(window,'_meta',    {get:function(){return _meta;},    set:function(v){_meta=v;},    configurable:true});
+  Object.defineProperty(window,'_tasks',   {get:function(){return _tasks;},   set:function(v){_tasks=v;},   configurable:true});
+  Object.defineProperty(window,'_aiStop',  {get:function(){return _aiStop;},  set:function(v){_aiStop=v;},  configurable:true});
+})();
 </script>
 <script>
 (function(){
@@ -927,16 +892,18 @@ document.addEventListener('DOMContentLoaded',async()=>{
     ipim_gral:{id:'448.1_NIVEL_GENERAL_0_0_13_46',use:'index'},
     ipim_r29:{candidates:['448.1_REFINADOS_PETROLEO_0_0_13_46','178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13','106.3_I1PRPMEE_1993_M_51'],queries:['IPIM productos refinados del petróleo mensual INDEC','IPIM refinados del petróleo mensual índice INDEC']}
   };
-  window._selectedIdx = window._selectedIdx || new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id));
+  // IDX_CATALOG is exposed to window.IDX_CATALOG by first script's expose block
+  function _cat(){ return window.IDX_CATALOG || []; }
+  window._selectedIdx = new Set(_cat().filter(d=>d.cat!=='mo').map(d=>d.id));
   window._seriesCache = window._seriesCache || {};
   function previousYm(ym){ const p=ym.split('-').map(Number); const d=new Date(p[0],p[1]-2,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-  function selectedDefsForAI(){ return (window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
+  function selectedDefsForAI(){ return _cat().filter(d=>d.cat!=='mo'&&window._selectedIdx.has(d.id)); }
   function countMissingForIdx(id){ return (window._months||[]).filter(ym=>{ const ex=window.idxGet(id,ym); return !ex||(ex.pct==null&&ex.value==null); }).length; }
   function escAttr(s){ return window.esc(String(s||'')).replace(/'/g,'&#39;'); }
-  window.selectAllAuto=function(){ window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
+  window.selectAllAuto=function(){ window._selectedIdx=new Set(_cat().filter(d=>d.cat!=='mo').map(d=>d.id)); renderSelectionPanel(); };
   window.clearSelectedAuto=function(){ window._selectedIdx=new Set(); renderSelectionPanel(); };
-  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
-  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set((window.IDX_CATALOG||[]).filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
+  window.selectVisibleAuto=function(){ const cf=document.getElementById('catFilter')?.value||''; window._selectedIdx=new Set(_cat().filter(d=>d.cat!=='mo'&&(!cf||d.cat===cf)).map(d=>d.id)); renderSelectionPanel(); };
+  window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set(_cat().filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
   function renderSelectionPanel(){
     const wrap = document.getElementById('selectorList');
@@ -985,7 +952,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const origRefreshNeedCount=window.refreshNeedCount; window.refreshNeedCount=function(){ if(origRefreshNeedCount) origRefreshNeedCount(); renderSelectionPanel(); };
   const origApplyRange=window.applyRange; window.applyRange=function(){ if(origApplyRange) origApplyRange(); renderSelectionPanel(); };
   const origRenderAll=window.renderAll; window.renderAll=function(){ if(origRenderAll) origRenderAll(); renderSelectionPanel(); };
-  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym, t.def.id); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
+  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym,t.def.id); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderSelectionPanel,150); });
 })();
 </script>
