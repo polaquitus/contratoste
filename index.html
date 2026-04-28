@@ -614,6 +614,13 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       </div>
     </div>
     
+    <!-- Control TC -->
+    <div style="padding:12px 20px;background:#fef3c7;border-bottom:1px solid #fcd34d;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:13px;font-weight:600;color:#92400e;">💱 Tipo de Cambio USD:</span>
+      <input type="number" id="tcInput" value="1050" step="10" min="1" style="width:100px;padding:4px 8px;border:1px solid #fbbf24;border-radius:4px;font-weight:600;" oninput="renderDashboard()">
+      <span style="font-size:12px;color:#92400e;">ARS/USD (ajustar manualmente hasta cargar datos en Índices)</span>
+    </div>
+    
     <!-- Gráficos -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px;">
       <!-- Distribución por Dominio -->
@@ -1436,34 +1443,80 @@ function getIndicatorSnapshots(code){
     };
     return map[String(label||'').trim()] || '';
   }
-  function seedSnapshotsFromIdxStore(targetCode){
+  
+  function seedSnapshotsFromIdxStore(inputCode){
     try{
-      var idxId = labelToIdxId(targetCode);
-      if(!idxId || typeof IDX_STORE==='undefined' || !IDX_STORE[idxId] || !Array.isArray(IDX_STORE[idxId].rows)) return;
+      // Normalizar: intentar primero como código directo (ej: 'usd_div')
+      var idxId = inputCode;
+      
+      // Si no existe en IDX_STORE, intentar convertir de label a código (ej: 'USD DIVISA' -> 'usd_div')
+      if(!IDX_STORE[idxId]){
+        var converted = labelToIdxId(inputCode);
+        if(converted && IDX_STORE[converted]){
+          idxId = converted;
+        }
+      }
+      
+      // Si aún no existe, salir
+      if(!idxId || typeof IDX_STORE==='undefined' || !IDX_STORE[idxId]) return;
+      
+      // IMPORTANTE: Usar siempre el código interno (idxId) como indicator_code, NO el inputCode
+      var normalizedCode = idxId;
+      
+      // NUEVA ESTRUCTURA: Leer de IDX_STORE[idxId].rows (array de objetos)
+      var rows = IDX_STORE[idxId].rows;
+      if(!Array.isArray(rows)) return;
+      
       var snaps = JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
       var changed = false;
-      IDX_STORE[idxId].rows.forEach(function(r){
+      
+      rows.forEach(function(r){
         if(!r || !r.ym) return;
         var snapDate = r.ym + '-01';
-        var exists = snaps.find(function(s){ return s.indicator_code===targetCode && s.snapshot_date===snapDate; });
+        var exists = snaps.find(function(s){ return s.indicator_code===normalizedCode && s.snapshot_date===snapDate; });
+        
         if(!exists){
-          snaps.push({indicator_code: targetCode,snapshot_date: snapDate,pct: r.pct!=null ? Number(r.pct) : null,value: r.value!=null ? Number(r.value) : null,series_value: r.value!=null ? Number(r.value) : null,source: 'IDX_STORE',confirmed: !!r.confirmed,note: r.note || ''});
+          snaps.push({
+            indicator_code: normalizedCode,  // SIEMPRE usar código interno
+            snapshot_date: snapDate,
+            pct: r.pct!=null ? Number(r.pct) : null,
+            value: r.value!=null ? Number(r.value) : null,
+            series_value: r.seriesValue!=null ? Number(r.seriesValue) : (r.value!=null ? Number(r.value) : null),
+            source: 'IDX_STORE',
+            confirmed: !!r.confirmed,
+            note: r.note || ''
+          });
           changed = true;
         }
       });
+      
       if(changed){
         snaps.sort(function(a,b){ return String(a.snapshot_date).localeCompare(String(b.snapshot_date)); });
         localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
       }
-    }catch(e){ console.warn('seedSnapshotsFromIdxStore', targetCode, e); }
+    }catch(e){ 
+      console.warn('seedSnapshotsFromIdxStore error for', inputCode, e); 
+    }
   }
+  
+  // Normalizar el código de entrada
+  var normalizedCode = code;
+  if(!IDX_STORE[code]){
+    var converted = labelToIdxId(code);
+    if(converted && IDX_STORE[converted]){
+      normalizedCode = converted;
+    }
+  }
+  
   var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-  var filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+  var filtered = snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+  
   if(!filtered.length){
     seedSnapshotsFromIdxStore(code);
     snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-    filtered = snaps.filter(function(s){return s.indicator_code===code;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+    filtered = snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
   }
+  
   return filtered;
 }
 function computeAccumulatedVariationPct(code, baseMonth, evalMonth){
@@ -6157,6 +6210,23 @@ function viewAlertContract(id) {
 
 // ═══════════════ DASHBOARD ═══════════════
 
+function getTCFromStore() {
+  // Obtener TC directamente de IDX_STORE (bypass getIndicatorSnapshots)
+  const codigosPosibles = ['usd_div', 'usd_bill'];
+  
+  for (let codigo of codigosPosibles) {
+    if (IDX_STORE[codigo] && Array.isArray(IDX_STORE[codigo].rows) && IDX_STORE[codigo].rows.length > 0) {
+      const rows = IDX_STORE[codigo].rows;
+      const ultimaRow = rows[rows.length - 1];
+      if (ultimaRow && ultimaRow.value) {
+        return Number(ultimaRow.value);
+      }
+    }
+  }
+  
+  return null;
+}
+
 let chartDominio = null;
 let chartProveedores = null;
 
@@ -6164,15 +6234,46 @@ function renderDashboard() {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   
+  // Obtener TC: primero del input manual, luego de índices, fallback 1050
+  let tcUSD = 1050;
+  
+  const tcInput = document.getElementById('tcInput');
+  if (tcInput && tcInput.value) {
+    tcUSD = Number(tcInput.value) || 1050;
+  } else {
+    // Intentar obtener de IDX_STORE directamente
+    const tcFromStore = getTCFromStore();
+    
+    if (tcFromStore) {
+      tcUSD = tcFromStore;
+      console.log('[Dashboard] TC obtenido de IDX_STORE:', tcUSD);
+    } else {
+      console.warn('[Dashboard] No se encontró TC en IDX_STORE, usando fallback:', tcUSD);
+    }
+    
+    // Actualizar input con el valor obtenido
+    if (tcInput) tcInput.value = tcUSD;
+  }
+  
+  console.log('[Dashboard] TC USD utilizado:', tcUSD);
+  
   // 1. KPIs
   const activos = window.DB.filter(function(c) {
     if (!c.fechaFin) return false;
     return new Date(c.fechaFin + 'T00:00:00') >= hoy;
   });
   
-  const montoTotal = activos.reduce(function(sum, c) {
-    return sum + getTotal(c);
-  }, 0);
+  let montoTotalARS = 0;
+  let montoTotalUSD = 0;
+  
+  activos.forEach(function(c) {
+    const total = getTotal(c);
+    if (c.mon === 'USD') {
+      montoTotalUSD += total;
+    } else {
+      montoTotalARS += total;
+    }
+  });
   
   const proxVencer = window.DB.filter(function(c) {
     if (!c.fechaFin) return false;
@@ -6184,7 +6285,9 @@ function renderDashboard() {
   const alertasCriticas = calcularAlertas().criticas.length;
   
   document.getElementById('kpiActivos').textContent = activos.length;
-  document.getElementById('kpiMonto').textContent = '$' + fN(montoTotal);
+  document.getElementById('kpiMonto').innerHTML = 
+    '<div>ARS $' + fN(montoTotalARS) + '</div>' +
+    '<div style="font-size:14px;margin-top:4px;">USD $' + fN(montoTotalUSD) + '</div>';
   document.getElementById('kpiProxVencer').textContent = proxVencer;
   document.getElementById('kpiAlertas').textContent = alertasCriticas;
   
@@ -6192,11 +6295,21 @@ function renderDashboard() {
   const porDominio = {};
   window.DB.forEach(function(c) {
     const dom = c.gob || 'Sin dominio';
-    porDominio[dom] = (porDominio[dom] || 0) + 1;
+    if (!porDominio[dom]) {
+      porDominio[dom] = { count: 0, ars: 0, usd: 0 };
+    }
+    porDominio[dom].count++;
+    
+    const total = getTotal(c);
+    if (c.mon === 'USD') {
+      porDominio[dom].usd += total;
+    } else {
+      porDominio[dom].ars += total;
+    }
   });
   
   const dominioLabels = Object.keys(porDominio);
-  const dominioData = Object.values(porDominio);
+  const dominioData = dominioLabels.map(function(d) { return porDominio[d].count; });
   const dominioColors = [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
     '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
@@ -6223,13 +6336,14 @@ function renderDashboard() {
         legend: {
           position: 'right',
           labels: {
-            font: { size: 11 },
-            padding: 10,
+            font: { size: 10 },
+            padding: 8,
             generateLabels: function(chart) {
               const data = chart.data;
               return data.labels.map(function(label, i) {
+                const dom = porDominio[label];
                 return {
-                  text: label + ' (' + data.datasets[0].data[i] + ')',
+                  text: label + ' (' + dom.count + ')',
                   fillStyle: data.datasets[0].backgroundColor[i],
                   hidden: false,
                   index: i
@@ -6241,7 +6355,12 @@ function renderDashboard() {
         tooltip: {
           callbacks: {
             label: function(context) {
-              return context.label + ': ' + context.parsed + ' contratos';
+              const dom = porDominio[context.label];
+              return [
+                context.label + ': ' + dom.count + ' contratos',
+                'ARS: $' + fN(dom.ars),
+                'USD: $' + fN(dom.usd)
+              ];
             }
           }
         }
@@ -6249,11 +6368,16 @@ function renderDashboard() {
     }
   });
   
-  // 3. Top 10 Proveedores por Monto
+  // 3. Top 10 Proveedores por Monto (USD convertido a ARS)
   const porProveedor = {};
   window.DB.forEach(function(c) {
     const prov = c.cont || 'Sin proveedor';
-    porProveedor[prov] = (porProveedor[prov] || 0) + getTotal(c);
+    const total = getTotal(c);
+    
+    // Convertir USD a ARS para comparación
+    const montoARS = c.mon === 'USD' ? total * tcUSD : total;
+    
+    porProveedor[prov] = (porProveedor[prov] || 0) + montoARS;
   });
   
   const top10 = Object.entries(porProveedor)
@@ -6271,7 +6395,7 @@ function renderDashboard() {
     data: {
       labels: provLabels,
       datasets: [{
-        label: 'Monto Total',
+        label: 'Monto Total (ARS)',
         data: provData,
         backgroundColor: '#3b82f6',
         borderRadius: 4
@@ -6286,7 +6410,7 @@ function renderDashboard() {
         tooltip: {
           callbacks: {
             label: function(context) {
-              return '$' + fN(context.parsed.x);
+              return 'ARS $' + fN(context.parsed.x);
             }
           }
         }
@@ -6337,7 +6461,7 @@ function renderDashboard() {
   
   document.getElementById('proximosVencimientos').innerHTML = proximosHtml;
   
-  console.log('[Dashboard] Rendered - Activos:', activos.length, 'Monto:', fN(montoTotal));
+  console.log('[Dashboard] Rendered - TC:', tcUSD, 'ARS:', fN(montoTotalARS), 'USD:', fN(montoTotalUSD));
 }
 
 </script>
