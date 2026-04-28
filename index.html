@@ -6634,6 +6634,8 @@ function renderTimeline() {
   document.getElementById('tlCnt').textContent = contratos.length;
   
   if (!contratos.length) {
+    canvas.width = container.clientWidth;
+    canvas.height = 200;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.font = '14px system-ui';
     ctx.fillStyle = '#6b7280';
@@ -6650,9 +6652,12 @@ function renderTimeline() {
   const minFecha = new Date(Math.min.apply(null, fechas));
   const maxFecha = new Date(Math.max.apply(null, fechas));
   
+  // Calcular años de rango
+  const añosRango = (maxFecha.getFullYear() - minFecha.getFullYear()) + 1;
+  
   // Dimensiones canvas
-  const ROW_HEIGHT = 32;
-  const PADDING_TOP = 60;
+  const ROW_HEIGHT = 42;
+  const PADDING_TOP = 80;
   const PADDING_LEFT = 20;
   const PADDING_RIGHT = 20;
   
@@ -6671,7 +6676,7 @@ function renderTimeline() {
   ctx.fillStyle = '#fafafa';
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   
-  // Eje temporal (años)
+  // Eje temporal inteligente
   ctx.font = '11px system-ui';
   ctx.fillStyle = '#6b7280';
   ctx.textAlign = 'center';
@@ -6679,18 +6684,73 @@ function renderTimeline() {
   const añoInicio = minFecha.getFullYear();
   const añoFin = maxFecha.getFullYear();
   
-  for (let año = añoInicio; año <= añoFin; año++) {
-    const fechaAño = new Date(año, 0, 1);
-    const x = PADDING_LEFT + ((fechaAño.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
-    
-    if (x >= PADDING_LEFT && x <= canvasWidth - PADDING_RIGHT) {
-      ctx.fillText(año.toString(), x, 20);
-      ctx.strokeStyle = '#e5e7eb';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, PADDING_TOP - 10);
-      ctx.lineTo(x, canvasHeight - 10);
-      ctx.stroke();
+  if (añosRango > 5) {
+    // Solo años
+    for (let año = añoInicio; año <= añoFin; año++) {
+      const fechaAño = new Date(año, 0, 1);
+      const x = PADDING_LEFT + ((fechaAño.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+      
+      if (x >= PADDING_LEFT && x <= canvasWidth - PADDING_RIGHT) {
+        ctx.fillText(año.toString(), x, 20);
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, PADDING_TOP - 20);
+        ctx.lineTo(x, canvasHeight - 10);
+        ctx.stroke();
+      }
+    }
+  } else if (añosRango >= 2) {
+    // Trimestres
+    for (let año = añoInicio; año <= añoFin; año++) {
+      for (let q = 0; q < 4; q++) {
+        const mes = q * 3;
+        const fechaQ = new Date(año, mes, 1);
+        const x = PADDING_LEFT + ((fechaQ.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+        
+        if (x >= PADDING_LEFT && x <= canvasWidth - PADDING_RIGHT) {
+          ctx.font = '10px system-ui';
+          ctx.fillText('Q' + (q + 1), x, 30);
+          
+          if (q === 0) {
+            ctx.font = 'bold 11px system-ui';
+            ctx.fillText(año.toString(), x, 15);
+          }
+          
+          ctx.strokeStyle = q === 0 ? '#d1d5db' : '#e5e7eb';
+          ctx.lineWidth = q === 0 ? 1.5 : 1;
+          ctx.beginPath();
+          ctx.moveTo(x, PADDING_TOP - 20);
+          ctx.lineTo(x, canvasHeight - 10);
+          ctx.stroke();
+        }
+      }
+    }
+  } else {
+    // Meses
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    for (let año = añoInicio; año <= añoFin; año++) {
+      for (let mes = 0; mes < 12; mes++) {
+        const fechaMes = new Date(año, mes, 1);
+        const x = PADDING_LEFT + ((fechaMes.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+        
+        if (x >= PADDING_LEFT && x <= canvasWidth - PADDING_RIGHT) {
+          ctx.font = '9px system-ui';
+          ctx.fillText(meses[mes], x, 30);
+          
+          if (mes === 0) {
+            ctx.font = 'bold 11px system-ui';
+            ctx.fillText(año.toString(), x, 15);
+          }
+          
+          ctx.strokeStyle = mes === 0 ? '#d1d5db' : '#f3f4f6';
+          ctx.lineWidth = mes === 0 ? 1.5 : 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x, PADDING_TOP - 20);
+          ctx.lineTo(x, canvasHeight - 10);
+          ctx.stroke();
+        }
+      }
     }
   }
   
@@ -6701,14 +6761,14 @@ function renderTimeline() {
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    ctx.moveTo(hoyX, PADDING_TOP - 10);
+    ctx.moveTo(hoyX, PADDING_TOP - 20);
     ctx.lineTo(hoyX, canvasHeight - 10);
     ctx.stroke();
     ctx.setLineDash([]);
     
     ctx.fillStyle = '#ef4444';
     ctx.font = 'bold 10px system-ui';
-    ctx.fillText('HOY', hoyX, 35);
+    ctx.fillText('HOY', hoyX, 50);
   }
   
   // Renderizar contratos
@@ -6720,7 +6780,7 @@ function renderTimeline() {
     const x2 = PADDING_LEFT + ((fin.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
     const y = PADDING_TOP + (i * ROW_HEIGHT);
     const barWidth = Math.max(x2 - x1, 3);
-    const barHeight = 24;
+    const barHeight = 28;
     
     // Calcular color según estado y proximidad vencimiento
     let color;
@@ -6742,29 +6802,40 @@ function renderTimeline() {
       }
     }
     
-    // Barra
+    // Barra con bordes redondeados
     ctx.fillStyle = color;
-    ctx.fillRect(x1, y, barWidth, barHeight);
+    ctx.beginPath();
+    ctx.roundRect(x1, y, barWidth, barHeight, 4);
+    ctx.fill();
     
-    // Texto dentro de barra (contratista + número)
+    // Texto dentro de barra con estrategia adaptativa
     ctx.fillStyle = '#ffffff';
-    ctx.font = '10px system-ui';
+    ctx.font = '11px system-ui';
     ctx.textAlign = 'left';
     
-    const texto = (c.cont || 'Sin proveedor') + ' · ' + c.num;
-    const textWidth = ctx.measureText(texto).width;
+    const textoCompleto = (c.cont || 'Sin proveedor') + ' · ' + c.num;
+    const textoCorto = c.num;
     
-    // Solo mostrar texto si cabe en la barra
-    if (textWidth + 10 < barWidth) {
+    const anchoCompleto = ctx.measureText(textoCompleto).width;
+    const anchoCorto = ctx.measureText(textoCorto).width;
+    
+    let textoFinal = '';
+    if (anchoCompleto + 16 < barWidth) {
+      textoFinal = textoCompleto;
+    } else if (anchoCorto + 16 < barWidth) {
+      textoFinal = textoCorto;
+    }
+    
+    if (textoFinal) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(x1, y, barWidth, barHeight);
       ctx.clip();
-      ctx.fillText(texto, x1 + 5, y + 15);
+      ctx.fillText(textoFinal, x1 + 8, y + 18);
       ctx.restore();
     }
     
-    // Hover detection (guardado para evento)
+    // Hover detection
     c._renderData = { x: x1, y: y, width: barWidth, height: barHeight, i: i };
   });
   
@@ -6828,7 +6899,7 @@ function renderTimeline() {
     });
   };
   
-  console.log('[Timeline] Rendered:', contratos.length, 'contratos');
+  console.log('[Timeline] Rendered:', contratos.length, 'contratos, rango:', añosRango, 'años');
 }
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
