@@ -1389,6 +1389,11 @@ async function guardar(){
     return;
   }
   resetForm();renderList();updNav();go('list');
+  
+  // Actualizar fuzzy search cache
+  if (typeof window.initFuzzySearch === 'function') {
+    window.initFuzzySearch();
+  }
 }
 
 function resetForm(){
@@ -2403,7 +2408,7 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;editId=i
   files=(c.adj||[]).map(a=>({...a}));renderFL();go('form');
 }
 
-async function delCont(id){if(!confirm('¿Eliminar contrato?'))return;const c=window.DB.find(x=>x.id===id);if(c&&SB_OK)await sbDeleteItem('contratos',c.__sbId);else if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(window.DB));window.DB=window.DB.filter(x=>x.id!==id);renderList();updNav();toast('Eliminado','ok');if(window.detId===id)go('list');}
+async function delCont(id){if(!confirm('¿Eliminar contrato?'))return;const c=window.DB.find(x=>x.id===id);if(c&&SB_OK)await sbDeleteItem('contratos',c.__sbId);else if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(window.DB));window.DB=window.DB.filter(x=>x.id!==id);renderList();updNav();toast('Eliminado','ok');if(window.detId===id)go('list');if(typeof window.initFuzzySearch==='function')window.initFuzzySearch();}
 
 // ===================== ME2N SYSTEM =====================
 // ME2N data structure: { "4600005730": ["VENDOR NAME", "EUR", [[po,YYYY-MM,plant,nov,still,nItems,shortText],...]], ... }
@@ -2840,6 +2845,11 @@ async function guardarEnm(){
   renderList();
   updNav();
   toast('Enmienda N°'+num+' guardada correctamente', 'ok');
+  
+  // Actualizar fuzzy search cache
+  if (typeof window.initFuzzySearch === 'function') {
+    window.initFuzzySearch();
+  }
 }
 
 // ═══════════ AVE OWNER — Panel separado ══════════════════════
@@ -5128,6 +5138,9 @@ var PolUpdate = (function(){
       saveConditions(contract.id,state.conditions);
     }
     toast('Actualización aplicada: AVE '+fN(state.aveAmount),'ok'); loadContract(contract.id);
+    if (typeof window.initFuzzySearch === 'function') {
+      window.initFuzzySearch();
+    }
   }
   
   return{getConditions:getConditions,saveConditions:saveConditions,checkConditions:checkConditions,calculateUpdate:calculateUpdate,applyUpdate:applyUpdate};
@@ -6206,13 +6219,19 @@ window.initFuzzySearch = function() {
       estado = fin >= hoy ? 'Activo' : 'Vencido';
     }
     
+    // Calcular monto total real (monto base + AVEs)
+    var montoTotal = (c.monto || 0);
+    if (c.aves && Array.isArray(c.aves)) {
+      montoTotal += c.aves.reduce(function(sum, ave){ return sum + (ave.monto || 0); }, 0);
+    }
+    
     return {
       id: c.id,
       proveedor: c.cont || '',
       numero: c.num || '',
       objeto: c.det || '',
       estado: estado,
-      monto: c.tot || 0
+      monto: montoTotal
     };
   });
 
