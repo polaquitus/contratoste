@@ -489,7 +489,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
         id="fuzzy-search-input" 
         placeholder="🔍 Buscar contratos... (presiona /)" 
         style="padding-left:12px;width:100%;font-size:13px;" 
-        oninput="handleFuzzySearch(this.value)"
+        oninput="window.handleFuzzySearch(this.value)"
       >
       <div id="fuzzy-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--w);border-radius:var(--rad);box-shadow:var(--shm);max-height:400px;overflow-y:auto;z-index:999;border:1px solid var(--g200);"></div>
     </div>
@@ -517,7 +517,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--g600c);">💾 Filtros Guardados</span>
       </div>
-      <button class="btn btn-sm btn-s" onclick="saveCurrentFilter()" style="width:100%;margin-bottom:8px;font-size:11px;">
+      <button class="btn btn-sm btn-s" onclick="window.saveCurrentFilter()" style="width:100%;margin-bottom:8px;font-size:11px;">
         💾 Guardar Filtro Actual
       </button>
       <div id="saved-filters-container" style="max-height:200px;overflow-y:auto;"></div>
@@ -1693,7 +1693,7 @@ function renderDet(){
         <div><h2>${c.num} — ${c.cont}</h2><div class="ds">${c.det||''} · ${c.tipo||''} · ${c.tcontr||''}</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="bdg ${isA?'act':'exp'}" style="font-size:12px;padding:5px 14px">● ${isA?'ACTIVO':'VENCIDO'}</span>
-          <button class="btn btn-sm btn-a" onclick="copyContractAsTemplate()" title="Duplicar como template">📋 Duplicar</button>
+          <button class="btn btn-sm btn-a" onclick="window.copyContractAsTemplate()" title="Duplicar como template">📋 Duplicar</button>
           <button class="btn btn-s btn-sm" onclick="editCont('${c.id}')">✏️ Editar</button>
         </div>
       </div>
@@ -6144,8 +6144,13 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
     patchVersionBadge();
     
     // Init FASE 1 features
-    if (typeof initKeyboardShortcuts === 'function') {
-      initKeyboardShortcuts();
+    try {
+      if (typeof window.initKeyboardShortcuts === 'function') {
+        window.initKeyboardShortcuts();
+        console.log('[FASE 1] Shortcuts initialized');
+      }
+    } catch(e) {
+      console.warn('[FASE 1] Shortcuts init failed:', e);
     }
   }
 
@@ -6165,7 +6170,7 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
 
 // ═══════════════ FUSE.JS FUZZY SEARCH ═══════════════
 
-function initFuzzySearch() {
+window.initFuzzySearch = function() {
   if (!window.DB || !Array.isArray(window.DB)) {
     _searchCache = [];
     _fuseInstance = null;
@@ -6191,19 +6196,19 @@ function initFuzzySearch() {
       minMatchCharLength: 2
     });
   }
-}
+};
 
-function fuzzySearchContracts(query) {
+window.fuzzySearchContracts = function(query) {
   if (!query || query.length < 2) return [];
-  if (!_fuseInstance) initFuzzySearch();
+  if (!_fuseInstance) window.initFuzzySearch();
   if (!_fuseInstance) return [];
   
-  const results = _fuseInstance.search(query);
+  var results = _fuseInstance.search(query);
   return results.slice(0, 15).map(function(r){ return r.item; });
-}
+};
 
-function handleFuzzySearch(query) {
-  const resultsDiv = document.getElementById('fuzzy-results');
+window.handleFuzzySearch = function(query) {
+  var resultsDiv = document.getElementById('fuzzy-results');
   if (!resultsDiv) return;
   
   if (!query || query.length < 2) {
@@ -6211,7 +6216,7 @@ function handleFuzzySearch(query) {
     return;
   }
   
-  const results = fuzzySearchContracts(query);
+  var results = window.fuzzySearchContracts(query);
   
   if (!results.length) {
     resultsDiv.innerHTML = '<div style="padding:12px;text-align:center;color:var(--g500);font-size:12px;">Sin resultados</div>';
@@ -6221,26 +6226,26 @@ function handleFuzzySearch(query) {
   
   resultsDiv.innerHTML = results.map(function(c){
     var estClass = c.estado === 'Activo' ? 'act' : (c.estado === 'Borrador' ? 'pend' : 'exp');
-    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">$' + fN(c.monto) + '</span></div></div>';
+    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="window.selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">$' + fN(c.monto) + '</span></div></div>';
   }).join('');
   
   resultsDiv.style.display = 'block';
-}
+};
 
-function selectFuzzyResult(contractId) {
+window.selectFuzzyResult = function(contractId) {
   window.detId = contractId;
   if (typeof go === 'function') go('detail');
   
-  const resultsDiv = document.getElementById('fuzzy-results');
+  var resultsDiv = document.getElementById('fuzzy-results');
   if (resultsDiv) resultsDiv.style.display = 'none';
   
-  const searchInput = document.getElementById('fuzzy-search-input');
+  var searchInput = document.getElementById('fuzzy-search-input');
   if (searchInput) searchInput.value = '';
-}
+};
 
 // ═══════════════ SHORTCUTS TECLADO ═══════════════
 
-function initKeyboardShortcuts() {
+window.initKeyboardShortcuts = function() {
   document.addEventListener('keydown', function(e) {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
       if (e.key === 'Escape') {
@@ -6287,50 +6292,50 @@ function initKeyboardShortcuts() {
       toggleShortcutHelp();
     }
   });
-}
+};
 
-function closeAllModals() {
+window.closeAllModals = function() {
   const modals = document.querySelectorAll('.modal');
   modals.forEach(function(m){ m.style.display = 'none'; });
   
-  const md = document.getElementById('modal');
+  var md = document.getElementById('modal');
   if (md) md.style.display = 'none';
-}
+};
 
-function focusSearchInput() {
-  const searchInput = document.getElementById('fuzzy-search-input');
+window.focusSearchInput = function() {
+  var searchInput = document.getElementById('fuzzy-search-input');
   if (searchInput) {
     searchInput.focus();
     searchInput.select();
   }
-}
+};
 
-function showContractEditor() {
+window.showContractEditor = function() {
   var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (cc) {
     if (typeof go === 'function') go('detail');
     setTimeout(function(){
-      const editBtn = document.querySelector('[onclick*="editCont"]');
+      var editBtn = document.querySelector('[onclick*="editCont"]');
       if (editBtn) editBtn.click();
     }, 100);
   }
-}
+};
 
-function confirmDeleteContract() {
+window.confirmDeleteContract = function() {
   var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (!cc) return;
   
   if (confirm('¿Eliminar contrato ' + (cc.num||'') + ' - ' + (cc.cont||'') + '?')) {
     if (typeof delContract === 'function') delContract(cc.id);
   }
-}
+};
 
-function saveCurrentForm() {
-  const saveBtn = document.querySelector('.btn-p[onclick*="guardar"]');
+window.saveCurrentForm = function() {
+  var saveBtn = document.querySelector('.btn-p[onclick*="guardar"]');
   if (saveBtn) saveBtn.click();
-}
+};
 
-function toggleShortcutHelp() {
+window.toggleShortcutHelp = function() {
   _shortcutHelpVisible = !_shortcutHelpVisible;
   
   var helpBox = document.getElementById('shortcut-help-box');
@@ -6339,15 +6344,15 @@ function toggleShortcutHelp() {
     helpBox = document.createElement('div');
     helpBox.id = 'shortcut-help-box';
     helpBox.style.cssText = 'position:fixed;bottom:20px;right:20px;background:var(--w);border-radius:var(--radl);box-shadow:var(--shm);padding:18px 22px;z-index:9999;max-width:320px;border:2px solid var(--p500);';
-    helpBox.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><h3 style="font-size:14px;font-weight:700;color:var(--p900);">⌨️ Shortcuts</h3><button onclick="toggleShortcutHelp()" style="border:none;background:none;cursor:pointer;font-size:18px;color:var(--g500);">×</button></div><div style="font-size:12px;color:var(--g700);line-height:1.6;"><div style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;"><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Ctrl+N</kbd><span>Nuevo contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">/</kbd><span>Buscar</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Esc</kbd><span>Cerrar modales</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">e</kbd><span>Editar contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Del</kbd><span>Eliminar contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Ctrl+S</kbd><span>Guardar</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">?</kbd><span>Ayuda shortcuts</span></div></div>';
+    helpBox.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><h3 style="font-size:14px;font-weight:700;color:var(--p900);">⌨️ Shortcuts</h3><button onclick="window.toggleShortcutHelp()" style="border:none;background:none;cursor:pointer;font-size:18px;color:var(--g500);">×</button></div><div style="font-size:12px;color:var(--g700);line-height:1.6;"><div style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;"><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Ctrl+N</kbd><span>Nuevo contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">/</kbd><span>Buscar</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Esc</kbd><span>Cerrar modales</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">e</kbd><span>Editar contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Del</kbd><span>Eliminar contrato</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">Ctrl+S</kbd><span>Guardar</span><kbd style="background:var(--g100);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px;">?</kbd><span>Ayuda shortcuts</span></div></div>';
     document.body.appendChild(helpBox);
   }
   
   helpBox.style.display = _shortcutHelpVisible ? 'block' : 'none';
-}
+};
 
 // ═══════════════ COPY CONTRACT TEMPLATE ═══════════════
-function copyContractAsTemplate() {
+window.copyContractAsTemplate = function() {
   if (!window.detId) {
     toast('Abre un contrato primero', 'er');
     return;
@@ -6381,28 +6386,28 @@ function copyContractAsTemplate() {
   
   toast('✅ Duplicado como borrador', 'ok');
   if (typeof go === 'function') go('detail');
-}
+};
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
 
-function loadSavedFilters() {
+window.loadSavedFilters = function() {
   try {
     var stored = localStorage.getItem('cta_saved_filters');
     _savedFilters = stored ? JSON.parse(stored) : [];
   } catch(e) {
     _savedFilters = [];
   }
-}
+};
 
-function saveFiltersList() {
+window.saveFiltersList = function() {
   try {
     localStorage.setItem('cta_saved_filters', JSON.stringify(_savedFilters));
   } catch(e) {
     console.error('Error guardando filtros', e);
   }
-}
+};
 
-function saveCurrentFilter() {
+window.saveCurrentFilter = function() {
   var name = prompt('Nombre del filtro:');
   if (!name) return;
   
@@ -6417,12 +6422,12 @@ function saveCurrentFilter() {
   };
   
   _savedFilters.push(filter);
-  saveFiltersList();
+  window.saveFiltersList();
   toast('Filtro "' + name + '" guardado', 'ok');
-  renderSavedFiltersDropdown();
-}
+  window.renderSavedFiltersDropdown();
+};
 
-function applySavedFilter(filterId) {
+window.applySavedFilter = function(filterId) {
   var filter = _savedFilters.find(function(f){ return f.id === filterId; });
   if (!filter) return;
   
@@ -6444,16 +6449,16 @@ function applySavedFilter(filterId) {
   
   if (typeof renderList === 'function') renderList();
   toast('Filtro "' + filter.name + '" aplicado', 'ok');
-}
+};
 
-function deleteSavedFilter(filterId) {
+window.deleteSavedFilter = function(filterId) {
   _savedFilters = _savedFilters.filter(function(f){ return f.id !== filterId; });
-  saveFiltersList();
-  renderSavedFiltersDropdown();
+  window.saveFiltersList();
+  window.renderSavedFiltersDropdown();
   toast('Filtro eliminado', 'ok');
-}
+};
 
-function renderSavedFiltersDropdown() {
+window.renderSavedFiltersDropdown = function() {
   var container = document.getElementById('saved-filters-container');
   if (!container) return;
   
@@ -6463,9 +6468,11 @@ function renderSavedFiltersDropdown() {
   }
   
   container.innerHTML = _savedFilters.map(function(f){
-    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--g100);"><button class="btn btn-sm btn-p" onclick="applySavedFilter(\'' + f.id + '\')" style="flex:1;text-align:left;">' + f.name + '</button><button class="btn btn-sm btn-d" onclick="deleteSavedFilter(\'' + f.id + '\')" title="Eliminar">🗑️</button></div>';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--g100);"><button class="btn btn-sm btn-p" onclick="window.applySavedFilter(\'' + f.id + '\')" style="flex:1;text-align:left;">' + f.name + '</button><button class="btn btn-sm btn-d" onclick="window.deleteSavedFilter(\'' + f.id + '\')" title="Eliminar">🗑️</button></div>';
   }).join('');
-}
+};
+
+console.log('[FASE 1] All functions loaded');
 
 </script>
 </body>
