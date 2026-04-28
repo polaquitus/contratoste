@@ -46,6 +46,7 @@ body{font-family:'Roboto',sans-serif;background:var(--g100);color:var(--g900);mi
 .nv:hover{background:rgba(255,255,255,.07);color:var(--w)}.nv.act{background:rgba(255,255,255,.12);color:var(--w);font-weight:500}
 .nv .ni{width:20px;text-align:center;font-size:15px;flex-shrink:0}
 .nv .badge{margin-left:auto;background:var(--p500);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px}
+.badge-danger{background:#ef4444!important;color:#fff!important}
 .nv.dis{opacity:.35;pointer-events:none}
 .mn{margin-left:250px;flex:1;min-height:100vh;display:flex;flex-direction:column}
 .tb{background:var(--w);border-bottom:1px solid var(--g200);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
@@ -546,6 +547,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
     <div class="sb-sec">Módulos</div>
     <a class="nv act" data-mod="list" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
     <a class="nv" data-mod="timeline" onclick="go('timeline')" href="#"><span class="ni">📅</span><span>Timeline</span></a>
+    <a class="nv" data-mod="alertas" onclick="go('alertas')" href="#"><span class="ni">🔔</span><span>Alertas</span><span class="badge badge-danger" id="alertCnt" style="display:none;">0</span></a>
     <a class="nv" data-mod="form" onclick="go('form')" href="#"><span class="ni">➕</span><span>Nuevo Contrato</span></a>
     <a class="nv" data-mod="me2n" onclick="go('me2n')" href="#"><span class="ni">🛒</span><span>Purchase Orders</span><span class="badge" id="poCnt">0</span></a>
     <div class="sb-sec" style="margin-top:18px">Módulos adicionales</div>
@@ -694,6 +696,46 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       </div>
       <div id="timelineTooltip" style="position:absolute;display:none;background:var(--w);border:1px solid var(--g300);border-radius:var(--rads);padding:10px 12px;box-shadow:var(--shm);font-size:12px;pointer-events:none;z-index:1000;"></div>
     </div>
+  </div>
+</div>
+
+<!-- ALERTAS -->
+<div id="vAlertas" class="vw">
+  <div class="card">
+    <div class="thdr">
+      <h2>🔔 Alertas del Sistema</h2>
+      <span class="tcnt" id="alertTotal">0</span>
+    </div>
+    
+    <!-- Configuración -->
+    <div style="padding:16px 18px;background:var(--g50);border-bottom:1px solid var(--g200);">
+      <details style="cursor:pointer;">
+        <summary style="font-weight:600;font-size:12px;color:var(--g700);text-transform:uppercase;letter-spacing:.5px;">⚙️ Configuración de Umbrales</summary>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;">
+          <div>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--g600c);margin-bottom:4px;">🔴 Crítico (días)</label>
+            <input type="number" id="alertDiasCritico" value="30" min="1" max="90" style="width:100%;padding:6px 8px;font-size:12px;" onchange="saveAlertConfig()">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--g600c);margin-bottom:4px;">🟡 Advertencia (días)</label>
+            <input type="number" id="alertDiasAdvertencia" value="60" min="1" max="90" style="width:100%;padding:6px 8px;font-size:12px;" onchange="saveAlertConfig()">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:600;color:var(--g600c);margin-bottom:4px;">🟢 Info (días)</label>
+            <input type="number" id="alertDiasInfo" value="90" min="1" max="180" style="width:100%;padding:6px 8px;font-size:12px;" onchange="saveAlertConfig()">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--g700);">
+            <input type="checkbox" id="alertMostrarSinPoly" onchange="saveAlertConfig(); renderAlertas();">
+            <span>Mostrar contratos sin fórmula polinómica (462 contratos)</span>
+          </label>
+        </div>
+      </details>
+    </div>
+    
+    <!-- Lista de alertas -->
+    <div id="alertasContainer"></div>
   </div>
 </div>
 
@@ -1081,6 +1123,7 @@ async function initApp(__fromLogin) {
   window.initFuzzySearch();
   window.loadSavedFilters();
   window.renderSavedFiltersDropdown();
+  window.updateAlertBadge(); // Actualizar badge alertas
   console.log('[FASE 1] Features initialized:', {
     shortcuts: typeof window.initKeyboardShortcuts === 'function',
     fuzzy: typeof window.initFuzzySearch === 'function',
@@ -1351,7 +1394,7 @@ function _navAct(mod){
   if(el) el.classList.add('act');
 }
 function go(v){
-  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline','vAlertas'].forEach(id=>document.getElementById(id).classList.remove('on'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
   if(v==='list'){
     document.getElementById('vList').classList.add('on');
@@ -1378,6 +1421,15 @@ function go(v){
     if (typeof window.initFuzzySearch === 'function') {
       window.initFuzzySearch();
     }
+  }
+  else if(v==='alertas'){
+    document.getElementById('vAlertas').classList.add('on');
+    _navAct('alertas');
+    t.innerHTML='🔔 Alertas del Sistema';
+    a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver a Lista</button>`;
+    loadAlertConfig();
+    renderAlertas();
+    window.scrollTo({top:0,behavior:'smooth'});
   }
   else if(v==='timeline'){
     document.getElementById('vTimeline').classList.add('on');
@@ -6655,6 +6707,325 @@ window.copyContractAsTemplate = function() {
   setTimeout(function(){
     editCont(newContract.id);
   }, 100);
+};
+
+// ═══════════════ SISTEMA DE ALERTAS ═══════════════
+
+const ALERT_DEFAULTS = {
+  dias_critico: 30,
+  dias_advertencia: 60,
+  dias_info: 90,
+  mostrar_sin_poly: false
+};
+
+function getAlertConfig() {
+  try {
+    const saved = localStorage.getItem('alert_config');
+    return saved ? { ...ALERT_DEFAULTS, ...JSON.parse(saved) } : ALERT_DEFAULTS;
+  } catch(e) {
+    console.warn('Error loading alert config:', e);
+    return ALERT_DEFAULTS;
+  }
+}
+
+function saveAlertConfig() {
+  const config = {
+    dias_critico: parseInt(document.getElementById('alertDiasCritico').value) || 30,
+    dias_advertencia: parseInt(document.getElementById('alertDiasAdvertencia').value) || 60,
+    dias_info: parseInt(document.getElementById('alertDiasInfo').value) || 90,
+    mostrar_sin_poly: document.getElementById('alertMostrarSinPoly').checked
+  };
+  
+  localStorage.setItem('alert_config', JSON.stringify(config));
+  renderAlertas();
+  toast('Configuración guardada', 'ok');
+}
+
+function loadAlertConfig() {
+  const config = getAlertConfig();
+  document.getElementById('alertDiasCritico').value = config.dias_critico;
+  document.getElementById('alertDiasAdvertencia').value = config.dias_advertencia;
+  document.getElementById('alertDiasInfo').value = config.dias_info;
+  document.getElementById('alertMostrarSinPoly').checked = config.mostrar_sin_poly;
+}
+
+function calcularAlertas() {
+  const config = getAlertConfig();
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  
+  const alertas = {
+    criticas: [],
+    advertencias: [],
+    info: []
+  };
+  
+  // 1. ALERTAS POR VENCIMIENTO
+  window.DB.forEach(function(c) {
+    if (!c.fechaFin) return;
+    
+    const fin = new Date(c.fechaFin + 'T00:00:00');
+    const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
+    
+    if (dias < 0) return; // Vencido
+    
+    const alerta = {
+      id: c.id,
+      num: c.num,
+      cont: c.cont || 'Sin proveedor',
+      fechaFin: c.fechaFin,
+      dias: dias,
+      tipo: 'vencimiento'
+    };
+    
+    if (dias < config.dias_critico) {
+      alertas.criticas.push(alerta);
+    } else if (dias < config.dias_advertencia) {
+      alertas.advertencias.push(alerta);
+    } else if (dias < config.dias_info) {
+      alertas.info.push(alerta);
+    }
+  });
+  
+  // 2. ALERTAS DE TRIGGERS GATILLADOS
+  window.DB.forEach(function(c) {
+    if (!c.poly || c.poly.length === 0) return;
+    if (!c.btar && !c.fechaIni) return;
+    
+    // Buscar condiciones en localStorage o c.gatillos
+    let cond = null;
+    const lsKey = 'pol_cond_' + c.id;
+    const lsData = localStorage.getItem(lsKey);
+    
+    if (lsData) {
+      try {
+        cond = JSON.parse(lsData);
+      } catch(e) {}
+    }
+    
+    if (!cond && c.gatillos) {
+      cond = c.gatillos;
+    }
+    
+    if (!cond || !cond.enabled) return;
+    
+    // Evaluar si trigger está gatillado
+    const baseYm = ymOf(c.btar || c.fechaIni);
+    const hoyYm = ymOf(hoy.toISOString().slice(0, 10));
+    
+    // Verificar umbral de variación por componente
+    let triggered = false;
+    let detalles = [];
+    
+    if (cond.allComponentsThreshold && cond.allComponentsThreshold > 0) {
+      c.poly.forEach(function(comp) {
+        const variacion = computeAccumulatedVariationPct(comp.idx, baseYm, hoyYm);
+        if (variacion && variacion.pct >= cond.allComponentsThreshold) {
+          triggered = true;
+          detalles.push({
+            indice: comp.idx,
+            variacion: variacion.pct.toFixed(2) + '%',
+            umbral: cond.allComponentsThreshold + '%'
+          });
+        }
+      });
+    }
+    
+    // Verificar umbral de meses transcurridos
+    if (cond.monthsElapsed && cond.monthsElapsed > 0) {
+      const mesesTranscurridos = monthDiff(baseYm, hoyYm);
+      if (mesesTranscurridos >= cond.monthsElapsed) {
+        triggered = true;
+        detalles.push({
+          tipo: 'plazo',
+          meses: mesesTranscurridos,
+          umbral: cond.monthsElapsed + ' meses'
+        });
+      }
+    }
+    
+    if (triggered) {
+      alertas.criticas.push({
+        id: c.id,
+        num: c.num,
+        cont: c.cont || 'Sin proveedor',
+        tipo: 'trigger_gatillado',
+        detalles: detalles
+      });
+    }
+  });
+  
+  // 3. ALERTAS DE CONSUMO > 80%
+  window.DB.forEach(function(c) {
+    const total = getTotal(c);
+    if (total <= 0) return;
+    
+    const consumed = getConsumed(c.num);
+    if (consumed === null) return; // Sin datos ME2N
+    
+    const remanente = total - consumed;
+    const pctDisponible = (remanente / total) * 100;
+    
+    if (pctDisponible < 20) { // Consumido > 80%
+      alertas.criticas.push({
+        id: c.id,
+        num: c.num,
+        cont: c.cont || 'Sin proveedor',
+        tipo: 'consumo_alto',
+        total: total,
+        consumido: consumed,
+        remanente: remanente,
+        pct_consumido: 100 - pctDisponible
+      });
+    }
+  });
+  
+  // 4. ALERTAS DE CONTRATOS SIN POLYNOMIAL
+  if (config.mostrar_sin_poly) {
+    window.DB.forEach(function(c) {
+      if (!c.poly || c.poly.length === 0) {
+        alertas.info.push({
+          id: c.id,
+          num: c.num,
+          cont: c.cont || 'Sin proveedor',
+          tipo: 'sin_poly'
+        });
+      }
+    });
+  }
+  
+  // Ordenar por días (menor a mayor)
+  alertas.criticas.sort(function(a, b) { return (a.dias || 0) - (b.dias || 0); });
+  alertas.advertencias.sort(function(a, b) { return a.dias - b.dias; });
+  alertas.info.sort(function(a, b) { 
+    if (a.tipo === 'sin_poly' && b.tipo !== 'sin_poly') return 1;
+    if (a.tipo !== 'sin_poly' && b.tipo === 'sin_poly') return -1;
+    return (a.dias || 999) - (b.dias || 999);
+  });
+  
+  return alertas;
+}
+
+function renderAlertas() {
+  const alertas = calcularAlertas();
+  const total = alertas.criticas.length + alertas.advertencias.length + alertas.info.length;
+  
+  // Actualizar contador total
+  document.getElementById('alertTotal').textContent = total;
+  
+  // Actualizar badge sidebar
+  const badge = document.getElementById('alertCnt');
+  const criticas = alertas.criticas.length;
+  if (criticas > 0) {
+    badge.textContent = criticas;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+  
+  // Renderizar alertas
+  const container = document.getElementById('alertasContainer');
+  
+  if (total === 0) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--g500);">✅ No hay alertas activas</div>';
+    return;
+  }
+  
+  let html = '';
+  
+  // Críticas
+  if (alertas.criticas.length > 0) {
+    html += '<div style="border-bottom:1px solid var(--g200);">';
+    html += '<div style="padding:12px 18px;background:#fef2f2;border-left:4px solid #ef4444;font-weight:600;font-size:13px;color:#991b1b;">🔴 CRÍTICAS (' + alertas.criticas.length + ')</div>';
+    alertas.criticas.forEach(function(a) {
+      html += renderAlertaItem(a, 'critica');
+    });
+    html += '</div>';
+  }
+  
+  // Advertencias
+  if (alertas.advertencias.length > 0) {
+    html += '<div style="border-bottom:1px solid var(--g200);">';
+    html += '<div style="padding:12px 18px;background:#fffbeb;border-left:4px solid #f59e0b;font-weight:600;font-size:13px;color:#92400e;">🟡 ADVERTENCIAS (' + alertas.advertencias.length + ')</div>';
+    alertas.advertencias.forEach(function(a) {
+      html += renderAlertaItem(a, 'advertencia');
+    });
+    html += '</div>';
+  }
+  
+  // Info
+  if (alertas.info.length > 0) {
+    html += '<div>';
+    html += '<div style="padding:12px 18px;background:#f0fdf4;border-left:4px solid #10b981;font-weight:600;font-size:13px;color:#065f46;">🟢 INFORMACIÓN (' + alertas.info.length + ')</div>';
+    alertas.info.forEach(function(a) {
+      html += renderAlertaItem(a, 'info');
+    });
+    html += '</div>';
+  }
+  
+  container.innerHTML = html;
+}
+
+function renderAlertaItem(alerta, nivel) {
+  let html = '<div style="padding:14px 18px;border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:12px;">';
+  
+  // Icono según nivel
+  let icono = nivel === 'critica' ? '🔴' : (nivel === 'advertencia' ? '🟡' : '🟢');
+  html += '<div style="font-size:20px;">' + icono + '</div>';
+  
+  // Contenido
+  html += '<div style="flex:1;">';
+  html += '<div style="font-weight:600;font-size:13px;color:var(--g900);margin-bottom:2px;">';
+  html += alerta.num + ' - ' + alerta.cont;
+  html += '</div>';
+  
+  if (alerta.tipo === 'vencimiento') {
+    html += '<div style="font-size:12px;color:var(--g600c);">';
+    html += 'Vence en <strong>' + alerta.dias + ' días</strong> (' + alerta.fechaFin + ')';
+    html += '</div>';
+  } else if (alerta.tipo === 'trigger_gatillado') {
+    html += '<div style="font-size:12px;color:#991b1b;font-weight:600;margin-bottom:4px;">⚠️ TRIGGER GATILLADO</div>';
+    html += '<div style="font-size:11px;color:var(--g600c);">';
+    alerta.detalles.forEach(function(d) {
+      if (d.tipo === 'plazo') {
+        html += '• Plazo: ' + d.meses + ' meses (umbral: ' + d.umbral + ')<br>';
+      } else {
+        html += '• ' + d.indice + ': ' + d.variacion + ' (umbral: ' + d.umbral + ')<br>';
+      }
+    });
+    html += '</div>';
+  } else if (alerta.tipo === 'consumo_alto') {
+    html += '<div style="font-size:12px;color:#991b1b;font-weight:600;margin-bottom:4px;">💰 CONSUMO ELEVADO</div>';
+    html += '<div style="font-size:11px;color:var(--g600c);">';
+    html += '• Consumido: <strong>' + alerta.pct_consumido.toFixed(1) + '%</strong> del total<br>';
+    html += '• Monto consumido: $' + fN(alerta.consumido) + '<br>';
+    html += '• Remanente: $' + fN(alerta.remanente);
+    html += '</div>';
+  } else if (alerta.tipo === 'sin_poly') {
+    html += '<div style="font-size:12px;color:var(--g600c);">Sin fórmula polinómica configurada</div>';
+  }
+  
+  html += '</div>';
+  
+  // Botón ver contrato
+  html += '<button class="btn btn-sm btn-p" onclick="window.detId=' + alerta.id + '; go(\'detail\');">Ver Contrato</button>';
+  
+  html += '</div>';
+  return html;
+}
+
+// Actualizar contador alertas al cargar
+window.updateAlertBadge = function() {
+  const alertas = calcularAlertas();
+  const badge = document.getElementById('alertCnt');
+  const criticas = alertas.criticas.length;
+  
+  if (criticas > 0) {
+    badge.textContent = criticas;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
 };
 
 // ═══════════════ TIMELINE VISUAL ═══════════════
