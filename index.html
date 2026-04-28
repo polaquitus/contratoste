@@ -560,6 +560,35 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
         <option value="OPS">OPS</option>
         <option value="OTHER">OTHER</option>
       </select>
+      <select id="tlResp" onchange="renderTimeline()" style="max-width:180px">
+        <option value="">Responsable</option>
+        <option>Adrian OBINO</option>
+        <option>Alejo Nicolas CORDOBA</option>
+        <option>Ana Chiquinquira LEAÑEZ PERNALETE</option>
+        <option>Astrid Belen TERRIZZANO</option>
+        <option>Barbara Camila ALVAREZ OYARZO</option>
+        <option>Emilio Sebastian SAPORITO</option>
+        <option>Eugenia FERNANDEZ BOTTARO</option>
+        <option>Eugenia FERNANDEZ PUENTE</option>
+        <option>Fabiana Alejandra DI TATA</option>
+        <option>Federico Claudio VAZQUEZ FERNANDEZ</option>
+        <option>Fernando Javier PUENTES GALLY</option>
+        <option>Flavia SEGOVIA</option>
+        <option>Francisco Javier CACERES DIAZ</option>
+        <option>Gaston CORSO</option>
+        <option>Joaquin DELLA VEDOVA</option>
+        <option>Maria Silvia TRAVERSO</option>
+        <option>Maria Sol LEONARDIS</option>
+        <option>Martín ZALAZAR</option>
+        <option>Mauro ELIAS</option>
+        <option>Mauro Ivo DI CALOGERO</option>
+        <option>SEBASTIAN PEREZ PERUGORRIA</option>
+        <option>SERGIO CAPECE</option>
+        <option>Santiago Hernan SOTO</option>
+        <option>Sebastian Matias PARODI</option>
+        <option>Tamara Denise MADERA</option>
+        <option>Yanel DOMINGUEZ</option>
+      </select>
       <button class="btn btn-s btn-sm" onclick="clearTimelineFilters()">🧹 Limpiar</button>
     </div>
     <div style="padding:20px;background:var(--w);">
@@ -571,6 +600,14 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
         <div style="display:flex;gap:8px;align-items:center;">
           <div style="width:16px;height:16px;background:#10b981;border-radius:3px;"></div>
           <span style="font-size:12px;color:var(--g700);">Activo</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:16px;height:16px;background:#eab308;border-radius:3px;"></div>
+          <span style="font-size:12px;color:var(--g700);">Vence &lt;6 meses</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:16px;height:16px;background:#f97316;border-radius:3px;"></div>
+          <span style="font-size:12px;color:var(--g700);">Vence &lt;3 meses</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <div style="width:16px;height:16px;background:#6b7280;border-radius:3px;"></div>
@@ -6550,6 +6587,7 @@ function clearTimelineFilters() {
   document.getElementById('tlEst').value = '';
   document.getElementById('tlAsset').value = '';
   document.getElementById('tlDom').value = '';
+  document.getElementById('tlResp').value = '';
   renderTimeline();
 }
 
@@ -6568,6 +6606,7 @@ function renderTimeline() {
   const fEst = document.getElementById('tlEst').value;
   const fAsset = document.getElementById('tlAsset').value;
   const fDom = document.getElementById('tlDom').value;
+  const fResp = document.getElementById('tlResp').value;
   
   // Filtrar contratos válidos
   let contratos = window.DB.filter(function(c) {
@@ -6586,6 +6625,7 @@ function renderTimeline() {
     if (fEst && estado !== fEst) return false;
     if (fAsset && c.asset !== fAsset) return false;
     if (fDom && c.gob !== fDom) return false;
+    if (fResp && c.resp !== fResp) return false;
     
     return true;
   });
@@ -6602,7 +6642,7 @@ function renderTimeline() {
     return;
   }
   
-  // Calcular rango temporal
+  // Calcular rango temporal (solo contratos filtrados)
   const fechas = contratos.flatMap(function(c) {
     return [new Date(c.fechaIni + 'T00:00:00'), new Date(c.fechaFin + 'T00:00:00')];
   });
@@ -6615,7 +6655,6 @@ function renderTimeline() {
   const PADDING_TOP = 60;
   const PADDING_LEFT = 20;
   const PADDING_RIGHT = 20;
-  const TIMELINE_HEIGHT = 40;
   
   const canvasWidth = container.clientWidth;
   const canvasHeight = PADDING_TOP + (contratos.length * ROW_HEIGHT) + 40;
@@ -6683,15 +6722,47 @@ function renderTimeline() {
     const barWidth = Math.max(x2 - x1, 3);
     const barHeight = 24;
     
-    // Color según estado
+    // Calcular color según estado y proximidad vencimiento
     let color;
-    if (hoy < ini) color = '#3b82f6'; // Próximo
-    else if (hoy > fin) color = '#6b7280'; // Vencido
-    else color = '#10b981'; // Activo
+    if (hoy < ini) {
+      color = '#3b82f6'; // Próximo
+    } else if (hoy > fin) {
+      color = '#6b7280'; // Vencido
+    } else {
+      // Activo - verificar proximidad vencimiento
+      const diasRestantes = Math.floor((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+      const mesesRestantes = diasRestantes / 30.4;
+      
+      if (mesesRestantes < 3) {
+        color = '#f97316'; // Naranja - menos de 3 meses
+      } else if (mesesRestantes < 6) {
+        color = '#eab308'; // Amarillo - menos de 6 meses
+      } else {
+        color = '#10b981'; // Verde - más de 6 meses
+      }
+    }
     
     // Barra
     ctx.fillStyle = color;
     ctx.fillRect(x1, y, barWidth, barHeight);
+    
+    // Texto dentro de barra (contratista + número)
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'left';
+    
+    const texto = (c.cont || 'Sin proveedor') + ' · ' + c.num;
+    const textWidth = ctx.measureText(texto).width;
+    
+    // Solo mostrar texto si cabe en la barra
+    if (textWidth + 10 < barWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x1, y, barWidth, barHeight);
+      ctx.clip();
+      ctx.fillText(texto, x1 + 5, y + 15);
+      ctx.restore();
+    }
     
     // Hover detection (guardado para evento)
     c._renderData = { x: x1, y: y, width: barWidth, height: barHeight, i: i };
