@@ -470,6 +470,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <nav class="sb-nav">
     <div class="sb-sec">Módulos</div>
     <a class="nv act" data-mod="list" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
+    <a class="nv" data-mod="timeline" onclick="go('timeline')" href="#"><span class="ni">📅</span><span>Timeline</span></a>
     <a class="nv" data-mod="form" onclick="go('form')" href="#"><span class="ni">➕</span><span>Nuevo Contrato</span></a>
     <a class="nv" data-mod="me2n" onclick="go('me2n')" href="#"><span class="ni">🛒</span><span>Purchase Orders</span><span class="badge" id="poCnt">0</span></a>
     <div class="sb-sec" style="margin-top:18px">Módulos adicionales</div>
@@ -523,6 +524,64 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div id="saved-filters-container" style="max-height:200px;overflow-y:auto;"></div>
     </div>
     <div id="tBody"></div>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div id="vTimeline" class="vw">
+  <div class="card">
+    <div class="thdr">
+      <h2>Timeline de Contratos</h2>
+      <span class="tcnt" id="tlCnt">0</span>
+    </div>
+    <div class="tfl">
+      <select id="tlEst" onchange="renderTimeline()">
+        <option value="">Todos</option>
+        <option value="ACTIVO">Activos</option>
+        <option value="VENCIDO">Vencidos</option>
+        <option value="PROXIMO">Próximos</option>
+      </select>
+      <select id="tlAsset" onchange="renderTimeline()" style="max-width:120px">
+        <option value="">Asset</option>
+        <option>NQN</option>
+        <option>TDF</option>
+        <option>NQN + TDF</option>
+      </select>
+      <select id="tlDom" onchange="renderTimeline()" style="max-width:120px">
+        <option value="">Dominio</option>
+        <option value="B&GS">B&GS</option>
+        <option value="EDL">EDL</option>
+        <option value="P&P">P&P</option>
+        <option value="HSE">HSE</option>
+        <option value="FIN">FIN</option>
+        <option value="HR">HR</option>
+        <option value="IT">IT</option>
+        <option value="LEGAL">LEGAL</option>
+        <option value="OPS">OPS</option>
+        <option value="OTHER">OTHER</option>
+      </select>
+      <button class="btn btn-s btn-sm" onclick="clearTimelineFilters()">🧹 Limpiar</button>
+    </div>
+    <div style="padding:20px;background:var(--w);">
+      <div style="margin-bottom:16px;display:flex;gap:20px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:16px;height:16px;background:#3b82f6;border-radius:3px;"></div>
+          <span style="font-size:12px;color:var(--g700);">Próximo</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:16px;height:16px;background:#10b981;border-radius:3px;"></div>
+          <span style="font-size:12px;color:var(--g700);">Activo</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:16px;height:16px;background:#6b7280;border-radius:3px;"></div>
+          <span style="font-size:12px;color:var(--g700);">Vencido</span>
+        </div>
+      </div>
+      <div id="timelineContainer" style="position:relative;overflow:auto;max-height:calc(100vh - 280px);border:1px solid var(--g200);border-radius:var(--rad);background:var(--g50);">
+        <canvas id="timelineCanvas"></canvas>
+      </div>
+      <div id="timelineTooltip" style="position:absolute;display:none;background:var(--w);border:1px solid var(--g300);border-radius:var(--rads);padding:10px 12px;box-shadow:var(--shm);font-size:12px;pointer-events:none;z-index:1000;"></div>
+    </div>
   </div>
 </div>
 
@@ -1180,7 +1239,7 @@ function _navAct(mod){
   if(el) el.classList.add('act');
 }
 function go(v){
-  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline'].forEach(id=>document.getElementById(id).classList.remove('on'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
   if(v==='list'){
     document.getElementById('vList').classList.add('on');
@@ -1206,6 +1265,14 @@ function go(v){
     if (typeof window.initFuzzySearch === 'function') {
       window.initFuzzySearch();
     }
+  }
+  else if(v==='timeline'){
+    document.getElementById('vTimeline').classList.add('on');
+    _navAct('timeline');
+    t.innerHTML='📅 Timeline de Contratos';
+    a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Volver a Lista</button>`;
+    renderTimeline();
+    window.scrollTo({top:0,behavior:'smooth'});
   }
   else if(v==='form'){
     document.getElementById('vForm').classList.add('on');
@@ -6476,6 +6543,222 @@ window.copyContractAsTemplate = function() {
     editCont(newContract.id);
   }, 100);
 };
+
+// ═══════════════ TIMELINE VISUAL ═══════════════
+
+function clearTimelineFilters() {
+  document.getElementById('tlEst').value = '';
+  document.getElementById('tlAsset').value = '';
+  document.getElementById('tlDom').value = '';
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const canvas = document.getElementById('timelineCanvas');
+  const container = document.getElementById('timelineContainer');
+  const tooltip = document.getElementById('timelineTooltip');
+  
+  if (!canvas || !container) return;
+  
+  const ctx = canvas.getContext('2d');
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  
+  // Filtros
+  const fEst = document.getElementById('tlEst').value;
+  const fAsset = document.getElementById('tlAsset').value;
+  const fDom = document.getElementById('tlDom').value;
+  
+  // Filtrar contratos válidos
+  let contratos = window.DB.filter(function(c) {
+    if (!c.fechaIni || !c.fechaFin) return false;
+    
+    const fin = new Date(c.fechaFin + 'T00:00:00');
+    const ini = new Date(c.fechaIni + 'T00:00:00');
+    
+    // Calcular estado
+    let estado;
+    if (hoy < ini) estado = 'PROXIMO';
+    else if (hoy > fin) estado = 'VENCIDO';
+    else estado = 'ACTIVO';
+    
+    // Aplicar filtros
+    if (fEst && estado !== fEst) return false;
+    if (fAsset && c.asset !== fAsset) return false;
+    if (fDom && c.gob !== fDom) return false;
+    
+    return true;
+  });
+  
+  // Actualizar contador
+  document.getElementById('tlCnt').textContent = contratos.length;
+  
+  if (!contratos.length) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '14px system-ui';
+    ctx.fillStyle = '#6b7280';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sin contratos para mostrar', canvas.width / 2, 100);
+    return;
+  }
+  
+  // Calcular rango temporal
+  const fechas = contratos.flatMap(function(c) {
+    return [new Date(c.fechaIni + 'T00:00:00'), new Date(c.fechaFin + 'T00:00:00')];
+  });
+  
+  const minFecha = new Date(Math.min.apply(null, fechas));
+  const maxFecha = new Date(Math.max.apply(null, fechas));
+  
+  // Dimensiones canvas
+  const ROW_HEIGHT = 32;
+  const PADDING_TOP = 60;
+  const PADDING_LEFT = 20;
+  const PADDING_RIGHT = 20;
+  const TIMELINE_HEIGHT = 40;
+  
+  const canvasWidth = container.clientWidth;
+  const canvasHeight = PADDING_TOP + (contratos.length * ROW_HEIGHT) + 40;
+  
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  canvas.style.width = canvasWidth + 'px';
+  canvas.style.height = canvasHeight + 'px';
+  
+  const timelineWidth = canvasWidth - PADDING_LEFT - PADDING_RIGHT;
+  const timeSpan = maxFecha.getTime() - minFecha.getTime();
+  
+  // Fondo
+  ctx.fillStyle = '#fafafa';
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  
+  // Eje temporal (años)
+  ctx.font = '11px system-ui';
+  ctx.fillStyle = '#6b7280';
+  ctx.textAlign = 'center';
+  
+  const añoInicio = minFecha.getFullYear();
+  const añoFin = maxFecha.getFullYear();
+  
+  for (let año = añoInicio; año <= añoFin; año++) {
+    const fechaAño = new Date(año, 0, 1);
+    const x = PADDING_LEFT + ((fechaAño.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+    
+    if (x >= PADDING_LEFT && x <= canvasWidth - PADDING_RIGHT) {
+      ctx.fillText(año.toString(), x, 20);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, PADDING_TOP - 10);
+      ctx.lineTo(x, canvasHeight - 10);
+      ctx.stroke();
+    }
+  }
+  
+  // Línea de hoy
+  const hoyX = PADDING_LEFT + ((hoy.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+  if (hoyX >= PADDING_LEFT && hoyX <= canvasWidth - PADDING_RIGHT) {
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(hoyX, PADDING_TOP - 10);
+    ctx.lineTo(hoyX, canvasHeight - 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillText('HOY', hoyX, 35);
+  }
+  
+  // Renderizar contratos
+  contratos.forEach(function(c, i) {
+    const ini = new Date(c.fechaIni + 'T00:00:00');
+    const fin = new Date(c.fechaFin + 'T00:00:00');
+    
+    const x1 = PADDING_LEFT + ((ini.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+    const x2 = PADDING_LEFT + ((fin.getTime() - minFecha.getTime()) / timeSpan) * timelineWidth;
+    const y = PADDING_TOP + (i * ROW_HEIGHT);
+    const barWidth = Math.max(x2 - x1, 3);
+    const barHeight = 24;
+    
+    // Color según estado
+    let color;
+    if (hoy < ini) color = '#3b82f6'; // Próximo
+    else if (hoy > fin) color = '#6b7280'; // Vencido
+    else color = '#10b981'; // Activo
+    
+    // Barra
+    ctx.fillStyle = color;
+    ctx.fillRect(x1, y, barWidth, barHeight);
+    
+    // Hover detection (guardado para evento)
+    c._renderData = { x: x1, y: y, width: barWidth, height: barHeight, i: i };
+  });
+  
+  // Interactividad
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    
+    let found = null;
+    contratos.forEach(function(c) {
+      if (!c._renderData) return;
+      const r = c._renderData;
+      if (mx >= r.x && mx <= r.x + r.width && my >= r.y && my <= r.y + r.height) {
+        found = c;
+      }
+    });
+    
+    if (found) {
+      canvas.style.cursor = 'pointer';
+      
+      const monto = getTotal(found);
+      const ini = found.fechaIni;
+      const fin = found.fechaFin;
+      const plazo = found.plazo_meses || monthDiffInclusive(ini, fin);
+      
+      tooltip.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:var(--p900);">' + found.num + '</div>' +
+        '<div style="color:var(--g700);margin-bottom:6px;">' + (found.cont || 'Sin proveedor') + '</div>' +
+        '<div style="font-size:11px;color:var(--g600c);line-height:1.5;">' +
+        '<div><strong>Monto:</strong> $' + fN(monto) + '</div>' +
+        '<div><strong>Inicio:</strong> ' + ini + '</div>' +
+        '<div><strong>Fin:</strong> ' + fin + '</div>' +
+        '<div><strong>Plazo:</strong> ' + plazo + ' meses</div>' +
+        '</div>';
+      
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 15) + 'px';
+      tooltip.style.top = (e.clientY + 15) + 'px';
+    } else {
+      canvas.style.cursor = 'default';
+      tooltip.style.display = 'none';
+    }
+  };
+  
+  canvas.onmouseleave = function() {
+    tooltip.style.display = 'none';
+  };
+  
+  canvas.onclick = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    
+    contratos.forEach(function(c) {
+      if (!c._renderData) return;
+      const r = c._renderData;
+      if (mx >= r.x && mx <= r.x + r.width && my >= r.y && my <= r.y + r.height) {
+        window.detId = c.id;
+        go('detail');
+      }
+    });
+  };
+  
+  console.log('[Timeline] Rendered:', contratos.length, 'contratos');
+}
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
 
