@@ -1202,6 +1202,11 @@ function go(v){
     resetForm();
     setRoleBadge();
     setSBStatus(SB_OK);
+    
+    // Re-init fuzzy search para actualizar cache
+    if (typeof window.initFuzzySearch === 'function') {
+      window.initFuzzySearch();
+    }
   }
   else if(v==='form'){
     document.getElementById('vForm').classList.add('on');
