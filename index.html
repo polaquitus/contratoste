@@ -6644,6 +6644,11 @@ function renderTimeline() {
     return;
   }
   
+  // Ordenar por fecha fin (próximo a vencer primero)
+  contratos.sort(function(a, b) {
+    return new Date(a.fechaFin) - new Date(b.fechaFin);
+  });
+  
   // Calcular rango temporal (solo contratos filtrados)
   const fechas = contratos.flatMap(function(c) {
     return [new Date(c.fechaIni + 'T00:00:00'), new Date(c.fechaFin + 'T00:00:00')];
