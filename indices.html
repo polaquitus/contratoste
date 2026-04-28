@@ -201,6 +201,11 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
       <button class="btn btn-s btn-sm" onclick="selectVisibleAuto()">👁️ Seleccionar visibles</button>
       <button class="btn btn-s btn-sm" onclick="selectCurrentCategory()">🧩 Categoría actual</button>
       <button class="btn btn-s btn-sm" onclick="clearSelectedAuto()">🧹 Limpiar</button>
+      <button class="btn btn-d btn-sm" onclick="deleteSelectedData()" title="Borra los valores del período actual para los índices seleccionados">🗑 Borrar período</button>
+      <label class="sel-chip" id="forceReloadChip" style="cursor:pointer;padding:4px 10px;gap:6px" title="Incluye períodos que ya tienen datos">
+        <input type="checkbox" id="forceReloadChk" style="accent-color:var(--r500)">
+        <span style="font-size:11.5px">Forzar recarga</span>
+      </label>
     </div>
   </div>
   <div class="selector-list" id="selectorList"></div>
@@ -898,40 +903,35 @@ window.startAISearch  = startAISearch;
   window.selectCurrentCategory=function(){ const cf=document.getElementById('catFilter')?.value||''; if(!cf){ window.selectVisibleAuto(); return; } window._selectedIdx=new Set(_cat().filter(d=>d.cat!=='mo'&&d.cat===cf).map(d=>d.id)); renderSelectionPanel(); };
   window.toggleIdxSelection=function(id,checked){ if(checked) window._selectedIdx.add(id); else window._selectedIdx.delete(id); renderSelectionPanel(); };
   function renderSelectionPanel(){
-    const wrap  = document.getElementById('selectorList');
+    const wrap = document.getElementById('selectorList');
     const stats = document.getElementById('selStats');
     if(!wrap || !stats) return;
 
-    const cat    = window.IDX_CATALOG || [];
-    const cf     = (document.getElementById('catFilter')||{}).value || '';
-    const allAuto = cat.filter(function(d){ return d.cat !== 'mo'; });
-    const visible = allAuto.filter(function(d){ return !cf || d.cat === cf; });
-    const selCount = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); }).length;
-    const missTot  = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); })
-                            .reduce(function(a,d){ return a + countMissingForIdx(d.id); }, 0);
+    const cf = document.getElementById('catFilter')?.value || '';
+    const visible = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo' && (!cf || d.cat === cf));
+    const allAuto = (window.IDX_CATALOG || []).filter(d => d.cat !== 'mo');
+    const selCount = allAuto.filter(d => window._selectedIdx.has(d.id)).length;
+    const missingSelected = allAuto.filter(d => window._selectedIdx.has(d.id)).reduce((a,d) => a + countMissingForIdx(d.id), 0);
 
-    stats.textContent = selCount + '/' + allAuto.length + ' seleccionados · ' + missTot + ' celdas faltantes';
+    stats.textContent = `${selCount}/${allAuto.length} seleccionados · ${missingSelected} celdas faltantes`;
 
     if(!visible.length){
       wrap.innerHTML = '<span style="font-size:12px;color:var(--g500)">No hay índices automáticos para el filtro actual.</span>';
       return;
     }
 
-    // Build HTML — NO inline onchange to avoid quoting issues
     wrap.innerHTML = visible.map(function(def){
       var active  = window._selectedIdx.has(def.id);
       var missing = countMissingForIdx(def.id);
-      return '<label class="sel-chip' + (active ? ' active' : '') + '" title="' + escAttr(def.name) + ' (' + missing + ' faltantes)">'
-        + '<input type="checkbox" data-idx="' + def.id + '" ' + (active ? 'checked' : '') + '>'
-        + '<span>' + window.esc(def.name) + '</span>'
-        + '<small>' + missing + '</small>'
-        + '</label>';
+      return '<label class="sel-chip'+(active?' active':'')+'" title="'+escAttr(def.name)+' ('+missing+' faltantes)">'
+        +'<input type="checkbox" data-idx="'+def.id+'" '+(active?'checked ':'')+'/>'
+        +'<span>'+window.esc(def.name)+'</span>'
+        +'<small>'+missing+'</small>'
+        +'</label>';
     }).join('');
-
-    // Attach events AFTER setting innerHTML
     wrap.querySelectorAll('input[data-idx]').forEach(function(chk){
       chk.addEventListener('change', function(){
-        var id = this.getAttribute('data-idx');
+        var id=this.getAttribute('data-idx');
         if(this.checked) window._selectedIdx.add(id);
         else             window._selectedIdx.delete(id);
         renderSelectionPanel();
@@ -956,7 +956,40 @@ window.startAISearch  = startAISearch;
   const origRefreshNeedCount=window.refreshNeedCount; window.refreshNeedCount=function(){ if(origRefreshNeedCount) origRefreshNeedCount(); renderSelectionPanel(); };
   const origApplyRange=window.applyRange; window.applyRange=function(){ if(origApplyRange) origApplyRange(); renderSelectionPanel(); };
   const origRenderAll=window.renderAll; window.renderAll=function(){ if(origRenderAll) origRenderAll(); renderSelectionPanel(); };
-  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast('No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
+  // ── Delete selected index data for current period ──────────────────────
+  window.deleteSelectedData = function(){
+    var defs = selectedDefsForAI();
+    if(!defs.length){ window.toast('Seleccioná al menos un índice','er'); return; }
+    var months = window._months||[];
+    if(!months.length){ window.toast('Aplicá un rango de período primero','er'); return; }
+    var totalDel = 0;
+    defs.forEach(function(def){
+      months.forEach(function(ym){
+        var ex = window.idxGet(def.id, ym);
+        if(ex && (ex.pct!=null || ex.value!=null)){
+          // Clear the row values but keep the row structure
+          window.idxSet(def.id, {ym:ym, pct:null, value:null, confirmed:false,
+            status:'cleared', note:'', publishedAt:null, sourceUrl:null,
+            seriesId:null, seriesValue:null, seriesPrevValue:null, calcMethod:null});
+          delete window._meta[def.id+'_'+ym];
+          // Clear UI cell
+          var isUsd = window.isUsd(def);
+          var field = isUsd ? 'value' : 'pct';
+          var inp = document.getElementById('ci_'+def.id+'_'+ym+'_'+field);
+          if(inp){ inp.value=''; inp.className=inp.className.replace(/\b(has-val|ai-found|api-found|confirmed|need-manual)\b/g,'').trim(); }
+          var chk = document.getElementById('chk_'+def.id+'_'+ym);
+          if(chk) chk.checked=false;
+          totalDel++;
+        }
+      });
+      if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id);
+    });
+    if(!totalDel){ window.toast('No había datos para borrar en el período seleccionado','ok'); return; }
+    renderSelectionPanel();
+    window.toast('Borrados '+totalDel+' valores — podés volver a buscarlos con IA','ok');
+  };
+
+  window.startAISearch=async function(){ const from=document.getElementById('ctrlFrom').value; const to=document.getElementById('ctrlTo').value; if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; } const defs=selectedDefsForAI(); if(!defs.length){ window.toast('Seleccioná al menos un índice para actualizar','er'); return; } const months=(window._months&&window._months.length)?window._months:window.buildRange(from,to); var forceReload=document.getElementById('forceReloadChk')?.checked||false; window._tasks=[]; defs.forEach(def=>{ months.forEach(ym=>{ const ex=window.idxGet(def.id,ym); var isMissing=!ex||(ex.pct==null&&ex.value==null); if(isMissing||forceReload) window._tasks.push({def,ym,status:'pending',found:null,via:null}); }); }); if(!window._tasks.length){ window.toast(forceReload?'No hay períodos en el rango seleccionado':'No hay períodos faltantes para la selección actual','ok'); return; } const panel=document.getElementById('aiPanel'); if(panel) panel.classList.add('vis'); document.getElementById('btnStop').style.display=''; document.getElementById('btnAI').disabled=true; document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas pendientes'; document.getElementById('aiBar').style.width='0%'; document.getElementById('aiLog').innerHTML=''; window._aiStop=false; let done=0,found=0,manual=0,official=0,ai=0; for(const t of window._tasks){ if(window._aiStop) break; t.status='running'; window.renderLog(); try{ let result=null,via=null; if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; } else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; } else if(t.def.src==='INDEC'){ try{ result=await fetchIndecYm(t.def,t.ym); if(result) via='api'; }catch(err){ console.warn('fetchIndecYm',t.def.id,t.ym,err); } if(!result){ const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } } else { const txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; } if(result&&(result.pct!=null||result.value!=null)){ window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null}); window._meta[t.def.id+'_'+t.ym]=(via==='api'?'api':'ai'); t.status='found'; t.found=result; t.via=via; found++; if(via==='api')official++; else ai++; window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai'); } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } }catch(e){ console.warn('auto task',t.def.id,t.ym,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); } done++; document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%'; window.updateAIStats(found,manual,done,window._tasks.length,official,ai); window.renderLog(); await window.sleep(220); } document.getElementById('btnStop').style.display='none'; document.getElementById('btnAI').disabled=false; document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales'; window.refreshNeedCount(); if(typeof window.updateAllAcum==='function') window.updateAllAcum(); renderSelectionPanel(); if(found>0){ window.toast('Actualización: '+found+' encontrados · '+manual+' manuales','ai'); await window.saveToSupabase(); } else { window.toast('Sin datos automáticos · '+manual+' requieren carga manual','er'); } };
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderSelectionPanel,150); });
 })();
 </script>
