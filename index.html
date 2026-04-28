@@ -446,6 +446,71 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 .sb-logout{width:100%;justify-content:flex-start;background:rgba(255,255,255,.08);color:var(--w);border:1px solid rgba(255,255,255,.12)}
 .sb-logout:hover{background:rgba(255,255,255,.14)}
 
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+.modal-content {
+  background: var(--w);
+  border-radius: var(--radl);
+  box-shadow: var(--shl);
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--g200);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--g900);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--g500);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--g100);
+  color: var(--g900);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
 </style>
 </head>
 <body>
