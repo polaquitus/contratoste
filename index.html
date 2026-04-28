@@ -6207,11 +6207,18 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
 // ═══════════════ FUSE.JS FUZZY SEARCH ═══════════════
 
 window.initFuzzySearch = function() {
+  console.log('[initFuzzySearch] START - DB length:', window.DB?.length);
+  
   if (!window.DB || !Array.isArray(window.DB)) {
     _searchCache = [];
     _fuseInstance = null;
+    console.warn('[initFuzzySearch] DB not ready');
     return;
   }
+  
+  // CRÍTICO: Limpiar cache viejo ANTES de recrear
+  _searchCache = [];
+  _fuseInstance = null;
   
   var hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -6220,11 +6227,14 @@ window.initFuzzySearch = function() {
     var fin = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00') : null;
     var estado;
     
-    // Si NO tiene fechas, es Borrador
-    if (!c.fechaIni || !c.fechaFin) {
+    // Verificar si tiene fechas VÁLIDAS (no vacías, no null, no undefined)
+    var tieneFechaIni = c.fechaIni && String(c.fechaIni).trim().length > 0;
+    var tieneFechaFin = c.fechaFin && String(c.fechaFin).trim().length > 0;
+    
+    if (!tieneFechaIni || !tieneFechaFin) {
       estado = 'Borrador';
     } else {
-      // Si tiene fechas, calcular Activo/Vencido
+      // Si tiene fechas válidas, calcular Activo/Vencido
       estado = fin >= hoy ? 'Activo' : 'Vencido';
     }
     
@@ -6253,7 +6263,7 @@ window.initFuzzySearch = function() {
     });
   }
   
-  console.log('[Fuzzy] Cache updated:', _searchCache.length, 'contratos');
+  console.log('[initFuzzySearch] DONE - Cache length:', _searchCache.length);
 };
 
 window.fuzzySearchContracts = function(query) {
