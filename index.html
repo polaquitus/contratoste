@@ -6081,6 +6081,11 @@ window.toggleAlertSection = function(section) {
   }
 };
 
+function viewAlertContract(id) {
+  window.detId = id;
+  go('detail');
+}
+
 </script>
 
 <!-- ENM PDF IMPORT MODAL -->
@@ -7125,7 +7130,7 @@ function renderAlertaItem(alerta, nivel) {
   html += '</div>';
   
   // Botón ver contrato
-  html += '<button class="btn btn-sm btn-p" onclick="window.detId=' + alerta.id + '; go(\'detail\');">Ver Contrato</button>';
+  html += '<button class="btn btn-sm btn-p" onclick="viewAlertContract(' + alerta.id + ')">Ver Contrato</button>';
   
   html += '</div>';
   return html;
