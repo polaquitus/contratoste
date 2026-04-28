@@ -664,6 +664,12 @@ const SAP_VENDORS=[{"n":"1021815","l":"ENSI SE"},{"n":"1022486","l":"BAHISA FUEG
 let DB=[],editId=null,files=[],detId=null,ME2N={},poDetOA=null;
 const IDX={'Mano de Obra':['PP','UOCRA','COMERCIO','CAMIONEROS','UOM RAMA N°10','UOM RAMA N°17'],'Equipos':['USD DIVISA','USD BILLETE','FADEAAC'],'Combustible':['GAS OIL G3 YPF NQN','GAS OIL G2 YPF NQN'],'Gastos Generales':['IPIM GRAL','IPC PATAGONIA','IPC NAC GRAL','IPC NQN GRAL','IPC NQN ALIM','IPC GBA GRAL'],'Consumibles':['FADEAAC','IPC GBA GRAL','IPIM R29','IPIM REFINADOS']};
 
+// FASE 1 globals
+var _fuseInstance = null;
+var _searchCache = [];
+var _savedFilters = [];
+var _shortcutHelpVisible = false;
+
 // ═══════════════════════════════════════════
 // SUPABASE CONFIG
 // ═══════════════════════════════════════════
@@ -6136,6 +6142,11 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
 
   function boot(){
     patchVersionBadge();
+    
+    // Init FASE 1 features
+    if (typeof initKeyboardShortcuts === 'function') {
+      initKeyboardShortcuts();
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -6153,8 +6164,6 @@ function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se gener
 // ══════════════════════════════════════════════════════════════════════
 
 // ═══════════════ FUSE.JS FUZZY SEARCH ═══════════════
-var _fuseInstance = null;
-var _searchCache = [];
 
 function initFuzzySearch() {
   if (!window.DB || !Array.isArray(window.DB)) {
@@ -6230,7 +6239,6 @@ function selectFuzzyResult(contractId) {
 }
 
 // ═══════════════ SHORTCUTS TECLADO ═══════════════
-var _shortcutHelpVisible = false;
 
 function initKeyboardShortcuts() {
   document.addEventListener('keydown', function(e) {
@@ -6340,9 +6348,14 @@ function toggleShortcutHelp() {
 
 // ═══════════════ COPY CONTRACT TEMPLATE ═══════════════
 function copyContractAsTemplate() {
+  if (!window.detId) {
+    toast('Abre un contrato primero', 'er');
+    return;
+  }
+  
   var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (!cc) {
-    toast('Selecciona un contrato primero', 'er');
+    toast('Contrato no encontrado', 'er');
     return;
   }
   
@@ -6366,12 +6379,11 @@ function copyContractAsTemplate() {
   window.detId = newContract.id;
   if (typeof save === 'function') save();
   
-  toast('Contrato duplicado como borrador', 'ok');
+  toast('✅ Duplicado como borrador', 'ok');
   if (typeof go === 'function') go('detail');
 }
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
-var _savedFilters = [];
 
 function loadSavedFilters() {
   try {
@@ -6454,12 +6466,6 @@ function renderSavedFiltersDropdown() {
     return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--g100);"><button class="btn btn-sm btn-p" onclick="applySavedFilter(\'' + f.id + '\')" style="flex:1;text-align:left;">' + f.name + '</button><button class="btn btn-sm btn-d" onclick="deleteSavedFilter(\'' + f.id + '\')" title="Eliminar">🗑️</button></div>';
   }).join('');
 }
-
-// ═══════════════ INIT ═══════════════
-window.addEventListener('DOMContentLoaded', function() {
-  initKeyboardShortcuts();
-  // fuzzy y filters se inician después de cargar DB
-});
 
 </script>
 </body>
