@@ -3621,8 +3621,29 @@ function renderIdxCards(){
         console.log(`[${def.id}] displayYm:`, displayYm);
       }
       
-      const spark8=rows.slice(-8), maxAbs=Math.max(...spark8.map(r=>Math.abs(r.pct||0)),0.001);
-      const sparkH=spark8.map(r=>{ const pct=r.pct||0; const h8=Math.max(Math.round(Math.abs(pct)/maxAbs*28),2); return `<div class="spark-b ${pct>=0?'pos':'neg'}" style="height:${h8}px" title="${pctStr(pct)} ${formatMonth(r.ym)}"></div>`; }).join('');
+      // Sparkline: adaptar para USD (usa 'value') vs otros índices (usa 'pct')
+      const spark8 = rows.slice(-8);
+      let sparkH = '';
+      
+      if (def.cat === 'usd') {
+        // Para USD: calcular variación porcentual entre períodos
+        const vals = spark8.map(r => r.value || 0);
+        const maxAbs = Math.max(...vals.map((v, i) => i > 0 ? Math.abs((v - vals[i-1]) / vals[i-1] * 100) : 0), 0.001);
+        sparkH = spark8.map((r, i) => {
+          if (i === 0) return '<div class="spark-b pos" style="height:2px" title="' + fN(r.value) + ' ' + formatMonth(r.ym) + '"></div>';
+          const pct = ((r.value - vals[i-1]) / vals[i-1]) * 100;
+          const h8 = Math.max(Math.round(Math.abs(pct) / maxAbs * 28), 2);
+          return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + fN(r.value) + ' (' + pctStr(pct) + ') ' + formatMonth(r.ym) + '"></div>';
+        }).join('');
+      } else {
+        // Para otros índices: usar pct directamente
+        const maxAbs = Math.max(...spark8.map(r => Math.abs(r.pct || 0)), 0.001);
+        sparkH = spark8.map(r => {
+          const pct = r.pct || 0;
+          const h8 = Math.max(Math.round(Math.abs(pct) / maxAbs * 28), 2);
+          return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + pctStr(pct) + ' ' + formatMonth(r.ym) + '"></div>';
+        }).join('');
+      }
       
       // Formatear valor según tipo de índice (USD usa value, otros usan pct)
       const formattedValue = idxValueLabel(def, lastStore || officialSeed);
@@ -6217,6 +6238,11 @@ function viewAlertContract(id) {
 
 function getTCFromStore() {
   // Obtener TC directamente de IDX_STORE (bypass getIndicatorSnapshots)
+  if (!IDX_STORE || typeof IDX_STORE !== 'object') {
+    console.warn('[getTCFromStore] IDX_STORE no disponible');
+    return null;
+  }
+  
   const codigosPosibles = ['usd_div', 'usd_bill'];
   
   for (let codigo of codigosPosibles) {
@@ -6224,11 +6250,13 @@ function getTCFromStore() {
       const rows = IDX_STORE[codigo].rows;
       const ultimaRow = rows[rows.length - 1];
       if (ultimaRow && ultimaRow.value) {
+        console.log('[getTCFromStore] TC encontrado:', codigo, '=', ultimaRow.value);
         return Number(ultimaRow.value);
       }
     }
   }
   
+  console.warn('[getTCFromStore] No se encontró TC en IDX_STORE');
   return null;
 }
 
@@ -6290,9 +6318,16 @@ function renderDashboard() {
   const alertasCriticas = calcularAlertas().criticas.length;
   
   document.getElementById('kpiActivos').textContent = activos.length;
+  
+  const grandTotal = montoTotalARS + (montoTotalUSD * tcUSD);
+  
   document.getElementById('kpiMonto').innerHTML = 
-    '<div>ARS $' + fN(montoTotalARS) + '</div>' +
-    '<div style="font-size:14px;margin-top:4px;">USD $' + fN(montoTotalUSD) + '</div>';
+    '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">Total: ARS $' + fN(grandTotal) + '</div>' +
+    '<div style="font-size:13px;color:var(--g600c);display:flex;flex-direction:column;gap:2px;">' +
+    '<span>ARS $' + fN(montoTotalARS) + '</span>' +
+    '<span>USD $' + fN(montoTotalUSD) + ' (× ' + fN(tcUSD) + ')</span>' +
+    '</div>';
+  
   document.getElementById('kpiProxVencer').textContent = proxVencer;
   document.getElementById('kpiAlertas').textContent = alertasCriticas;
   
