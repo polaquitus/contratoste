@@ -47,6 +47,11 @@ body{font-family:'Roboto',sans-serif;background:var(--g100);color:var(--g900);mi
 .nv .ni{width:20px;text-align:center;font-size:15px;flex-shrink:0}
 .nv .badge{margin-left:auto;background:var(--p500);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px}
 .badge-danger{background:#ef4444!important;color:#fff!important}
+.kpi-card{background:var(--w);border:1px solid var(--g200);border-radius:var(--rad);padding:16px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:.2s;}
+.kpi-card:hover{box-shadow:var(--shm);transform:translateY(-2px);}
+.kpi-icon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px;}
+.kpi-value{font-size:28px;font-weight:700;color:var(--g900);margin-bottom:4px;font-family:monospace;}
+.kpi-label{font-size:12px;color:var(--g600c);font-weight:500;}
 .nv.dis{opacity:.35;pointer-events:none}
 .mn{margin-left:250px;flex:1;min-height:100vh;display:flex;flex-direction:column}
 .tb{background:var(--w);border-bottom:1px solid var(--g200);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
@@ -513,6 +518,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 }
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -545,6 +551,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   </div>
   <nav class="sb-nav">
     <div class="sb-sec">Módulos</div>
+    <a class="nv" data-mod="dashboard" onclick="go('dashboard')" href="#"><span class="ni">📊</span><span>Dashboard</span></a>
     <a class="nv act" data-mod="list" onclick="go('list')" href="#"><span class="ni">📋</span><span>Contratos</span><span class="badge" id="cnt">0</span></a>
     <a class="nv" data-mod="timeline" onclick="go('timeline')" href="#"><span class="ni">📅</span><span>Timeline</span></a>
     <a class="nv" data-mod="alertas" onclick="go('alertas')" href="#"><span class="ni">🔔</span><span>Alertas</span><span class="badge badge-danger" id="alertCnt" style="display:none;">0</span></a>
@@ -575,6 +582,60 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   </div>
 </header>
 <div class="ct">
+
+<!-- DASHBOARD -->
+<div id="vDashboard" class="vw">
+  <div class="card">
+    <div class="thdr">
+      <h2>📊 Dashboard Ejecutivo</h2>
+    </div>
+    
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px;background:var(--g50);">
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#e0f2fe;color:#0284c7;">📋</div>
+        <div class="kpi-value" id="kpiActivos">0</div>
+        <div class="kpi-label">Contratos Activos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#dcfce7;color:#16a34a;">💰</div>
+        <div class="kpi-value" id="kpiMonto">$0</div>
+        <div class="kpi-label">Monto Total Activo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#fef3c7;color:#ca8a04;">⏰</div>
+        <div class="kpi-value" id="kpiProxVencer">0</div>
+        <div class="kpi-label">Vencen en 30 días</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#fee2e2;color:#dc2626;">🔔</div>
+        <div class="kpi-value" id="kpiAlertas">0</div>
+        <div class="kpi-label">Alertas Críticas</div>
+      </div>
+    </div>
+    
+    <!-- Gráficos -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px;">
+      <!-- Distribución por Dominio -->
+      <div style="background:var(--w);border:1px solid var(--g200);border-radius:var(--rad);padding:20px;">
+        <h3 style="margin:0 0 16px 0;font-size:15px;font-weight:700;color:var(--g900);">Distribución por Dominio</h3>
+        <canvas id="chartDominio" style="max-height:300px;"></canvas>
+      </div>
+      
+      <!-- Top 10 Proveedores -->
+      <div style="background:var(--w);border:1px solid var(--g200);border-radius:var(--rad);padding:20px;">
+        <h3 style="margin:0 0 16px 0;font-size:15px;font-weight:700;color:var(--g900);">Top 10 Proveedores por Monto</h3>
+        <canvas id="chartProveedores" style="max-height:300px;"></canvas>
+      </div>
+    </div>
+    
+    <!-- Vencimientos Próximos -->
+    <div style="padding:20px;background:var(--w);border-top:1px solid var(--g200);">
+      <h3 style="margin:0 0 16px 0;font-size:15px;font-weight:700;color:var(--g900);">⏰ Próximos Vencimientos (90 días)</h3>
+      <div id="proximosVencimientos"></div>
+    </div>
+  </div>
+</div>
 
 <!-- LIST -->
 <div id="vList" class="vw on">
@@ -1447,9 +1508,17 @@ function _navAct(mod){
   if(el) el.classList.add('act');
 }
 function go(v){
-  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline','vAlertas'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline','vAlertas','vDashboard'].forEach(id=>document.getElementById(id).classList.remove('on'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
-  if(v==='list'){
+  if(v==='dashboard'){
+    document.getElementById('vDashboard').classList.add('on');
+    _navAct('dashboard');
+    t.innerHTML='📊 Dashboard Ejecutivo';
+    a.innerHTML=`<button class="btn btn-s" onclick="go('list')">← Contratos</button>`;
+    renderDashboard();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
     t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span>';
@@ -6084,6 +6153,191 @@ window.toggleAlertSection = function(section) {
 function viewAlertContract(id) {
   window.detId = id;
   go('detail');
+}
+
+// ═══════════════ DASHBOARD ═══════════════
+
+let chartDominio = null;
+let chartProveedores = null;
+
+function renderDashboard() {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  
+  // 1. KPIs
+  const activos = window.DB.filter(function(c) {
+    if (!c.fechaFin) return false;
+    return new Date(c.fechaFin + 'T00:00:00') >= hoy;
+  });
+  
+  const montoTotal = activos.reduce(function(sum, c) {
+    return sum + getTotal(c);
+  }, 0);
+  
+  const proxVencer = window.DB.filter(function(c) {
+    if (!c.fechaFin) return false;
+    const fin = new Date(c.fechaFin + 'T00:00:00');
+    const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
+    return dias > 0 && dias <= 30;
+  }).length;
+  
+  const alertasCriticas = calcularAlertas().criticas.length;
+  
+  document.getElementById('kpiActivos').textContent = activos.length;
+  document.getElementById('kpiMonto').textContent = '$' + fN(montoTotal);
+  document.getElementById('kpiProxVencer').textContent = proxVencer;
+  document.getElementById('kpiAlertas').textContent = alertasCriticas;
+  
+  // 2. Gráfico Distribución por Dominio
+  const porDominio = {};
+  window.DB.forEach(function(c) {
+    const dom = c.gob || 'Sin dominio';
+    porDominio[dom] = (porDominio[dom] || 0) + 1;
+  });
+  
+  const dominioLabels = Object.keys(porDominio);
+  const dominioData = Object.values(porDominio);
+  const dominioColors = [
+    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+  ];
+  
+  if (chartDominio) chartDominio.destroy();
+  
+  const ctxDominio = document.getElementById('chartDominio');
+  chartDominio = new Chart(ctxDominio, {
+    type: 'doughnut',
+    data: {
+      labels: dominioLabels,
+      datasets: [{
+        data: dominioData,
+        backgroundColor: dominioColors,
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            font: { size: 11 },
+            padding: 10,
+            generateLabels: function(chart) {
+              const data = chart.data;
+              return data.labels.map(function(label, i) {
+                return {
+                  text: label + ' (' + data.datasets[0].data[i] + ')',
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  hidden: false,
+                  index: i
+                };
+              });
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return context.label + ': ' + context.parsed + ' contratos';
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  // 3. Top 10 Proveedores por Monto
+  const porProveedor = {};
+  window.DB.forEach(function(c) {
+    const prov = c.cont || 'Sin proveedor';
+    porProveedor[prov] = (porProveedor[prov] || 0) + getTotal(c);
+  });
+  
+  const top10 = Object.entries(porProveedor)
+    .sort(function(a, b) { return b[1] - a[1]; })
+    .slice(0, 10);
+  
+  const provLabels = top10.map(function(p) { return p[0]; });
+  const provData = top10.map(function(p) { return p[1]; });
+  
+  if (chartProveedores) chartProveedores.destroy();
+  
+  const ctxProv = document.getElementById('chartProveedores');
+  chartProveedores = new Chart(ctxProv, {
+    type: 'bar',
+    data: {
+      labels: provLabels,
+      datasets: [{
+        label: 'Monto Total',
+        data: provData,
+        backgroundColor: '#3b82f6',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return '$' + fN(context.parsed.x);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            callback: function(value) {
+              return '$' + (value / 1000000).toFixed(0) + 'M';
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  // 4. Próximos Vencimientos (90 días)
+  const proximos = window.DB.filter(function(c) {
+    if (!c.fechaFin) return false;
+    const fin = new Date(c.fechaFin + 'T00:00:00');
+    const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
+    return dias > 0 && dias <= 90;
+  })
+  .sort(function(a, b) {
+    return new Date(a.fechaFin) - new Date(b.fechaFin);
+  })
+  .slice(0, 10);
+  
+  const proximosHtml = proximos.length > 0 
+    ? proximos.map(function(c) {
+        const fin = new Date(c.fechaFin + 'T00:00:00');
+        const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
+        const color = dias <= 30 ? '#ef4444' : (dias <= 60 ? '#f59e0b' : '#10b981');
+        
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--g100);">' +
+          '<div style="flex:1;">' +
+          '<div style="font-weight:600;font-size:13px;color:var(--g900);">' + c.num + ' - ' + (c.cont || 'Sin proveedor') + '</div>' +
+          '<div style="font-size:11px;color:var(--g600c);">' + (c.det || 'Sin objeto') + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+          '<div style="font-weight:700;font-size:14px;color:' + color + ';">' + dias + ' días</div>' +
+          '<div style="font-size:11px;color:var(--g500);">' + c.fechaFin + '</div>' +
+          '</div>' +
+          '<button class="btn btn-sm btn-p" style="margin-left:12px;" onclick="viewAlertContract(\'' + c.id + '\')">Ver</button>' +
+          '</div>';
+      }).join('')
+    : '<div style="padding:40px;text-align:center;color:var(--g500);">✅ Sin vencimientos próximos</div>';
+  
+  document.getElementById('proximosVencimientos').innerHTML = proximosHtml;
+  
+  console.log('[Dashboard] Rendered - Activos:', activos.length, 'Monto:', fN(montoTotal));
 }
 
 </script>
