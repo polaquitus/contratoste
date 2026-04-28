@@ -456,14 +456,16 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <defs>
         <linearGradient id="te-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style="stop-color:#EE3124;stop-opacity:1" />
-          <stop offset="30%" style="stop-color:#FF6900;stop-opacity:1" />
-          <stop offset="60%" style="stop-color:#00A88F;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#005EB8;stop-opacity:1" />
+          <stop offset="25%" style="stop-color:#FF6900;stop-opacity:1" />
+          <stop offset="50%" style="stop-color:#00A88F;stop-opacity:1" />
+          <stop offset="75%" style="stop-color:#005EB8;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#8B4789;stop-opacity:1" />
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="45" fill="url(#te-grad)" opacity="0.15"/>
-      <path d="M30,40 Q50,20 70,40 T90,60" stroke="url(#te-grad)" stroke-width="8" fill="none" stroke-linecap="round"/>
-      <circle cx="50" cy="50" r="8" fill="#fff"/>
+      <!-- Círculo externo -->
+      <circle cx="50" cy="50" r="48" fill="none" stroke="url(#te-grad)" stroke-width="4"/>
+      <!-- Símbolo energía (rayo estilizado) -->
+      <path d="M50,20 L35,50 L50,50 L40,80 L65,45 L50,45 L60,20 Z" fill="url(#te-grad)"/>
     </svg>
     <div class="txt">Contratos TA<span>Gestión Contractual</span></div>
   </div>
@@ -1292,6 +1294,7 @@ function go(v){
       >
       <div id="fuzzy-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--w);border-radius:var(--rad);box-shadow:var(--shm);max-height:400px;overflow-y:auto;z-index:999;border:1px solid var(--g200);"></div>
     </div>
+    <button class="btn btn-a btn-sm" onclick="openKoCalculator()">🧮 Calculadora Ko</button>
     <button class="btn btn-p" onclick="go('form')">➕ Nuevo</button>`;
     editId=null;
     resetForm();
@@ -1323,7 +1326,7 @@ function go(v){
     document.getElementById('vDet').classList.add('on');
     _navAct('list');
     t.innerHTML='📄 Detalle';
-    a.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>`;
+    a.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-a btn-sm" onclick="openKoCalculator()">🧮 Calc Ko</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>`;
     renderDet();
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -6993,6 +6996,192 @@ window.renderSavedFiltersDropdown = function() {
 
 console.log('[FASE 1] All functions loaded');
 
+// ═══════════════ CALCULADORA KO ═══════════════
+
+function openKoCalculator() {
+  const modal = document.getElementById('koCalcModal');
+  const select = document.getElementById('koContrato');
+  
+  // Poblar dropdown con contratos que tienen polynomial
+  const contratosConPoly = window.DB.filter(function(c) {
+    return c.poly && c.poly.length > 0 && c.fechaIni && c.fechaFin;
+  });
+  
+  select.innerHTML = '<option value="">Seleccionar contrato...</option>' +
+    contratosConPoly.map(function(c) {
+      return '<option value="' + c.id + '">' + c.num + ' - ' + (c.cont || 'Sin proveedor') + '</option>';
+    }).join('');
+  
+  // Setear mes actual
+  const hoy = new Date();
+  const mesActual = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+  document.getElementById('koMes').value = mesActual;
+  
+  // Cargar historial
+  renderKoHistorial();
+  
+  modal.style.display = 'flex';
+}
+
+function closeKoCalc() {
+  document.getElementById('koCalcModal').style.display = 'none';
+  document.getElementById('koResultado').style.display = 'none';
+}
+
+function calcularKo() {
+  const contratoId = document.getElementById('koContrato').value;
+  const mes = document.getElementById('koMes').value;
+  
+  if (!contratoId) {
+    toast('Seleccioná un contrato', 'er');
+    return;
+  }
+  
+  if (!mes) {
+    toast('Ingresá un mes de evaluación', 'er');
+    return;
+  }
+  
+  const contrato = window.DB.find(function(c) { return c.id === contratoId; });
+  if (!contrato) {
+    toast('Contrato no encontrado', 'er');
+    return;
+  }
+  
+  if (!contrato.poly || !contrato.poly.length) {
+    toast('Este contrato no tiene fórmula polinómica', 'er');
+    return;
+  }
+  
+  // Calcular Ko usando polynomial
+  let ko = 0;
+  let breakdown = [];
+  
+  contrato.poly.forEach(function(comp) {
+    const incidencia = comp.inc || 0;
+    const indice = comp.idx || '';
+    
+    // Obtener valor base (mes base tarifas)
+    const baseYm = ymOf(contrato.btar || contrato.fechaIni);
+    const evalYm = ymOf(mes + '-01');
+    
+    // Calcular variación acumulada
+    const variacion = computeAccumulatedVariationPct(indice, baseYm, evalYm);
+    
+    let componenteKo = incidencia;
+    if (variacion && variacion.pct !== null) {
+      componenteKo = incidencia * (1 + variacion.pct / 100);
+    }
+    
+    ko += componenteKo;
+    
+    breakdown.push({
+      rubro: comp.rub || 'Sin rubro',
+      indice: indice,
+      incidencia: incidencia,
+      variacion: variacion ? variacion.pct.toFixed(2) + '%' : 'N/A',
+      ko: componenteKo.toFixed(4)
+    });
+  });
+  
+  // Mostrar resultado
+  document.getElementById('koValor').textContent = 'Ko = ' + ko.toFixed(4);
+  
+  const breakdownHtml = '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="border-bottom:1px solid var(--g300);"><th style="text-align:left;padding:6px;">Rubro</th><th style="text-align:left;padding:6px;">Índice</th><th style="text-align:right;padding:6px;">Inc.</th><th style="text-align:right;padding:6px;">Var%</th><th style="text-align:right;padding:6px;">Ko</th></tr></thead>' +
+    '<tbody>' +
+    breakdown.map(function(b) {
+      return '<tr style="border-bottom:1px solid var(--g100);"><td style="padding:6px;">' + b.rubro + '</td><td style="padding:6px;font-size:10px;">' + b.indice + '</td><td style="text-align:right;padding:6px;">' + b.incidencia.toFixed(2) + '</td><td style="text-align:right;padding:6px;">' + b.variacion + '</td><td style="text-align:right;padding:6px;font-weight:600;">' + b.ko + '</td></tr>';
+    }).join('') +
+    '</tbody></table>';
+  
+  document.getElementById('koBreakdown').innerHTML = breakdownHtml;
+  document.getElementById('koResultado').style.display = 'block';
+  
+  // Guardar en historial
+  saveKoHistorial({
+    contratoNum: contrato.num,
+    contratoNombre: contrato.cont || 'Sin proveedor',
+    mes: mes,
+    ko: ko.toFixed(4),
+    fecha: new Date().toISOString()
+  });
+  
+  renderKoHistorial();
+}
+
+function saveKoHistorial(item) {
+  try {
+    let historial = JSON.parse(localStorage.getItem('ko_historial') || '[]');
+    historial.unshift(item);
+    historial = historial.slice(0, 5); // Solo últimos 5
+    localStorage.setItem('ko_historial', JSON.stringify(historial));
+  } catch(e) {
+    console.warn('Error guardando historial Ko:', e);
+  }
+}
+
+function renderKoHistorial() {
+  const container = document.getElementById('koHistorialList');
+  
+  try {
+    const historial = JSON.parse(localStorage.getItem('ko_historial') || '[]');
+    
+    if (!historial.length) {
+      container.innerHTML = '<div style="color:var(--g500);padding:8px;">Sin historial</div>';
+      return;
+    }
+    
+    container.innerHTML = historial.map(function(h) {
+      const fecha = new Date(h.fecha);
+      const fechaStr = fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return '<div style="padding:8px;border-bottom:1px solid var(--g100);display:flex;justify-content:space-between;"><div><strong>' + h.contratoNum + '</strong> - ' + h.contratoNombre + ' <span style="color:var(--g500);">(' + h.mes + ')</span></div><div style="font-weight:700;color:var(--p600);">Ko=' + h.ko + '</div></div><div style="font-size:10px;color:var(--g400);padding:0 8px 8px;">' + fechaStr + '</div>';
+    }).join('');
+  } catch(e) {
+    console.warn('Error rendering historial Ko:', e);
+    container.innerHTML = '<div style="color:var(--g500);padding:8px;">Error cargando historial</div>';
+  }
+}
+
 </script>
+
+<!-- MODAL CALCULADORA KO -->
+<div id="koCalcModal" class="modal">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header">
+      <h2>🧮 Calculadora Ko</h2>
+      <button class="modal-close" onclick="closeKoCalc()">×</button>
+    </div>
+    <div class="modal-body" style="padding:24px;">
+      <div style="display:grid;gap:16px;">
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Contrato</label>
+          <select id="koContrato" style="width:100%;">
+            <option value="">Seleccionar contrato...</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:6px;font-size:13px;">Mes de Evaluación</label>
+          <input type="month" id="koMes" style="width:100%;">
+        </div>
+        <button class="btn btn-p" onclick="calcularKo()" style="width:100%;">Calcular Ko</button>
+      </div>
+      
+      <div id="koResultado" style="display:none;margin-top:24px;padding:20px;background:var(--g50);border-radius:var(--rad);border:1px solid var(--g200);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <span style="font-weight:700;font-size:14px;color:var(--g700);">Resultado</span>
+          <div style="font-size:24px;font-weight:700;color:var(--p600);" id="koValor">-</div>
+        </div>
+        <div id="koBreakdown" style="font-size:12px;color:var(--g600c);"></div>
+      </div>
+      
+      <div id="koHistorial" style="margin-top:20px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--g700);">Historial (últimos 5)</div>
+        <div id="koHistorialList" style="font-size:11px;color:var(--g600c);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
