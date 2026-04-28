@@ -6214,8 +6214,13 @@ window.initFuzzySearch = function() {
   
   _searchCache = window.DB.map(function(c){
     var fin = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00') : null;
-    var estado = 'Borrador';
-    if (fin) {
+    var estado;
+    
+    // Si NO tiene fechas, es Borrador
+    if (!c.fechaIni || !c.fechaFin) {
+      estado = 'Borrador';
+    } else {
+      // Si tiene fechas, calcular Activo/Vencido
       estado = fin >= hoy ? 'Activo' : 'Vencido';
     }
     
@@ -6243,6 +6248,8 @@ window.initFuzzySearch = function() {
       minMatchCharLength: 2
     });
   }
+  
+  console.log('[Fuzzy] Cache updated:', _searchCache.length, 'contratos');
 };
 
 window.fuzzySearchContracts = function(query) {
