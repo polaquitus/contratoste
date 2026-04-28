@@ -707,6 +707,59 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <span class="tcnt" id="alertTotal">0</span>
     </div>
     
+    <!-- Filtros -->
+    <div class="tfl">
+      <select id="alertAsset" onchange="renderAlertas()" style="max-width:120px">
+        <option value="">Asset</option>
+        <option>NQN</option>
+        <option>TDF</option>
+        <option>NQN + TDF</option>
+      </select>
+      <select id="alertDom" onchange="renderAlertas()" style="max-width:120px">
+        <option value="">Dominio</option>
+        <option value="B&GS">B&GS</option>
+        <option value="EDL">EDL</option>
+        <option value="P&P">P&P</option>
+        <option value="HSE">HSE</option>
+        <option value="FIN">FIN</option>
+        <option value="HR">HR</option>
+        <option value="IT">IT</option>
+        <option value="LEGAL">LEGAL</option>
+        <option value="OPS">OPS</option>
+        <option value="OTHER">OTHER</option>
+      </select>
+      <select id="alertResp" onchange="renderAlertas()" style="max-width:180px">
+        <option value="">Responsable</option>
+        <option>Adrian OBINO</option>
+        <option>Alejo Nicolas CORDOBA</option>
+        <option>Ana Chiquinquira LEAÑEZ PERNALETE</option>
+        <option>Astrid Belen TERRIZZANO</option>
+        <option>Barbara Camila ALVAREZ OYARZO</option>
+        <option>Emilio Sebastian SAPORITO</option>
+        <option>Eugenia FERNANDEZ BOTTARO</option>
+        <option>Eugenia FERNANDEZ PUENTE</option>
+        <option>Fabiana Alejandra DI TATA</option>
+        <option>Federico Claudio VAZQUEZ FERNANDEZ</option>
+        <option>Fernando Javier PUENTES GALLY</option>
+        <option>Flavia SEGOVIA</option>
+        <option>Francisco Javier CACERES DIAZ</option>
+        <option>Gaston CORSO</option>
+        <option>Joaquin DELLA VEDOVA</option>
+        <option>Maria Silvia TRAVERSO</option>
+        <option>Maria Sol LEONARDIS</option>
+        <option>Martín ZALAZAR</option>
+        <option>Mauro ELIAS</option>
+        <option>Mauro Ivo DI CALOGERO</option>
+        <option>SEBASTIAN PEREZ PERUGORRIA</option>
+        <option>SERGIO CAPECE</option>
+        <option>Santiago Hernan SOTO</option>
+        <option>Sebastian Matias PARODI</option>
+        <option>Tamara Denise MADERA</option>
+        <option>Yanel DOMINGUEZ</option>
+      </select>
+      <button class="btn btn-s btn-sm" onclick="clearAlertFilters()">🧹 Limpiar</button>
+    </div>
+    
     <!-- Configuración -->
     <div style="padding:16px 18px;background:var(--g50);border-bottom:1px solid var(--g200);">
       <details style="cursor:pointer;">
@@ -6015,6 +6068,19 @@ function previewUpdate(cid){
 function closeUpdatePreview(){ var m=document.getElementById('updatePreviewModal'); if(m)m.remove(); }
 function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); }
 
+window.toggleAlertSection = function(section) {
+  const content = document.getElementById('section' + section.charAt(0).toUpperCase() + section.slice(1));
+  const toggle = document.getElementById('toggle' + section.charAt(0).toUpperCase() + section.slice(1));
+  
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    toggle.textContent = '▼';
+  } else {
+    content.style.display = 'none';
+    toggle.textContent = '▶';
+  }
+};
+
 </script>
 
 <!-- ENM PDF IMPORT MODAL -->
@@ -6482,7 +6548,8 @@ window.initFuzzySearch = function() {
       numero: c.num || '',
       objeto: c.det || '',
       estado: estado,
-      monto: montoTotal
+      monto: montoTotal,
+      moneda: c.mon || 'ARS'
     };
   });
 
@@ -6526,7 +6593,7 @@ window.handleFuzzySearch = function(query) {
   
   resultsDiv.innerHTML = results.map(function(c){
     var estClass = c.estado === 'Activo' ? 'act' : (c.estado === 'Borrador' ? 'pend' : 'exp');
-    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="window.selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">$' + fN(c.monto) + '</span></div></div>';
+    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="window.selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">' + (c.moneda || 'ARS') + ' ' + fN(c.monto) + '</span></div></div>';
   }).join('');
   
   resultsDiv.style.display = 'block';
@@ -6749,10 +6816,22 @@ function loadAlertConfig() {
   document.getElementById('alertMostrarSinPoly').checked = config.mostrar_sin_poly;
 }
 
+function clearAlertFilters() {
+  document.getElementById('alertAsset').value = '';
+  document.getElementById('alertDom').value = '';
+  document.getElementById('alertResp').value = '';
+  renderAlertas();
+}
+
 function calcularAlertas() {
   const config = getAlertConfig();
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
+  
+  // Obtener filtros
+  const fAsset = document.getElementById('alertAsset')?.value || '';
+  const fDom = document.getElementById('alertDom')?.value || '';
+  const fResp = document.getElementById('alertResp')?.value || '';
   
   const alertas = {
     criticas: [],
@@ -6762,6 +6841,11 @@ function calcularAlertas() {
   
   // 1. ALERTAS POR VENCIMIENTO
   window.DB.forEach(function(c) {
+    // Aplicar filtros
+    if (fAsset && c.asset !== fAsset) return;
+    if (fDom && c.gob !== fDom) return;
+    if (fResp && c.resp !== fResp) return;
+    
     if (!c.fechaFin) return;
     
     const fin = new Date(c.fechaFin + 'T00:00:00');
@@ -6775,7 +6859,8 @@ function calcularAlertas() {
       cont: c.cont || 'Sin proveedor',
       fechaFin: c.fechaFin,
       dias: dias,
-      tipo: 'vencimiento'
+      tipo: 'vencimiento',
+      moneda: c.mon || 'ARS'
     };
     
     if (dias < config.dias_critico) {
@@ -6789,6 +6874,11 @@ function calcularAlertas() {
   
   // 2. ALERTAS DE TRIGGERS GATILLADOS
   window.DB.forEach(function(c) {
+    // Aplicar filtros
+    if (fAsset && c.asset !== fAsset) return;
+    if (fDom && c.gob !== fDom) return;
+    if (fResp && c.resp !== fResp) return;
+    
     if (!c.poly || c.poly.length === 0) return;
     if (!c.btar && !c.fechaIni) return;
     
@@ -6850,13 +6940,19 @@ function calcularAlertas() {
         num: c.num,
         cont: c.cont || 'Sin proveedor',
         tipo: 'trigger_gatillado',
-        detalles: detalles
+        detalles: detalles,
+        moneda: c.mon || 'ARS'
       });
     }
   });
   
   // 3. ALERTAS DE CONSUMO > 80%
   window.DB.forEach(function(c) {
+    // Aplicar filtros
+    if (fAsset && c.asset !== fAsset) return;
+    if (fDom && c.gob !== fDom) return;
+    if (fResp && c.resp !== fResp) return;
+    
     const total = getTotal(c);
     if (total <= 0) return;
     
@@ -6875,7 +6971,8 @@ function calcularAlertas() {
         total: total,
         consumido: consumed,
         remanente: remanente,
-        pct_consumido: 100 - pctDisponible
+        pct_consumido: 100 - pctDisponible,
+        moneda: c.mon || 'ARS'
       });
     }
   });
@@ -6883,6 +6980,11 @@ function calcularAlertas() {
   // 4. ALERTAS DE CONTRATOS SIN POLYNOMIAL
   if (config.mostrar_sin_poly) {
     window.DB.forEach(function(c) {
+      // Aplicar filtros
+      if (fAsset && c.asset !== fAsset) return;
+      if (fDom && c.gob !== fDom) return;
+      if (fResp && c.resp !== fResp) return;
+      
       if (!c.poly || c.poly.length === 0) {
         alertas.info.push({
           id: c.id,
@@ -6936,30 +7038,45 @@ function renderAlertas() {
   // Críticas
   if (alertas.criticas.length > 0) {
     html += '<div style="border-bottom:1px solid var(--g200);">';
-    html += '<div style="padding:12px 18px;background:#fef2f2;border-left:4px solid #ef4444;font-weight:600;font-size:13px;color:#991b1b;">🔴 CRÍTICAS (' + alertas.criticas.length + ')</div>';
+    html += '<div style="padding:12px 18px;background:#fef2f2;border-left:4px solid #ef4444;font-weight:600;font-size:13px;color:#991b1b;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAlertSection(\'criticas\')">';
+    html += '<span>🔴 CRÍTICAS (' + alertas.criticas.length + ')</span>';
+    html += '<span id="toggleCriticas" style="font-size:18px;">▼</span>';
+    html += '</div>';
+    html += '<div id="sectionCriticas">';
     alertas.criticas.forEach(function(a) {
       html += renderAlertaItem(a, 'critica');
     });
+    html += '</div>';
     html += '</div>';
   }
   
   // Advertencias
   if (alertas.advertencias.length > 0) {
     html += '<div style="border-bottom:1px solid var(--g200);">';
-    html += '<div style="padding:12px 18px;background:#fffbeb;border-left:4px solid #f59e0b;font-weight:600;font-size:13px;color:#92400e;">🟡 ADVERTENCIAS (' + alertas.advertencias.length + ')</div>';
+    html += '<div style="padding:12px 18px;background:#fffbeb;border-left:4px solid #f59e0b;font-weight:600;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAlertSection(\'advertencias\')">';
+    html += '<span>🟡 ADVERTENCIAS (' + alertas.advertencias.length + ')</span>';
+    html += '<span id="toggleAdvertencias" style="font-size:18px;">▼</span>';
+    html += '</div>';
+    html += '<div id="sectionAdvertencias">';
     alertas.advertencias.forEach(function(a) {
       html += renderAlertaItem(a, 'advertencia');
     });
+    html += '</div>';
     html += '</div>';
   }
   
   // Info
   if (alertas.info.length > 0) {
     html += '<div>';
-    html += '<div style="padding:12px 18px;background:#f0fdf4;border-left:4px solid #10b981;font-weight:600;font-size:13px;color:#065f46;">🟢 INFORMACIÓN (' + alertas.info.length + ')</div>';
+    html += '<div style="padding:12px 18px;background:#f0fdf4;border-left:4px solid #10b981;font-weight:600;font-size:13px;color:#065f46;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAlertSection(\'info\')">';
+    html += '<span>🟢 INFORMACIÓN (' + alertas.info.length + ')</span>';
+    html += '<span id="toggleInfo" style="font-size:18px;">▼</span>';
+    html += '</div>';
+    html += '<div id="sectionInfo">';
     alertas.info.forEach(function(a) {
       html += renderAlertaItem(a, 'info');
     });
+    html += '</div>';
     html += '</div>';
   }
   
@@ -6998,8 +7115,8 @@ function renderAlertaItem(alerta, nivel) {
     html += '<div style="font-size:12px;color:#991b1b;font-weight:600;margin-bottom:4px;">💰 CONSUMO ELEVADO</div>';
     html += '<div style="font-size:11px;color:var(--g600c);">';
     html += '• Consumido: <strong>' + alerta.pct_consumido.toFixed(1) + '%</strong> del total<br>';
-    html += '• Monto consumido: $' + fN(alerta.consumido) + '<br>';
-    html += '• Remanente: $' + fN(alerta.remanente);
+    html += '• Monto consumido: ' + (alerta.moneda || 'ARS') + ' ' + fN(alerta.consumido) + '<br>';
+    html += '• Remanente: ' + (alerta.moneda || 'ARS') + ' ' + fN(alerta.remanente);
     html += '</div>';
   } else if (alerta.tipo === 'sin_poly') {
     html += '<div style="font-size:12px;color:var(--g600c);">Sin fórmula polinómica configurada</div>';
