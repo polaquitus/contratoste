@@ -905,18 +905,17 @@ async function initApp(__fromLogin) {
   hideLoader();
   buildPoly(); renderList(); updNav();
   
-  // Init features FASE 1
-  setTimeout(function(){
-    window.initKeyboardShortcuts();
-    window.initFuzzySearch();
-    window.loadSavedFilters();
-    window.renderSavedFiltersDropdown();
-    console.log('[FASE 1] Features initialized:', {
-      shortcuts: typeof window.initKeyboardShortcuts === 'function',
-      fuzzy: typeof window.initFuzzySearch === 'function',
-      db_length: window.DB ? window.DB.length : 0
-    });
-  }, 500);
+  // Init features FASE 1 - DESPUÉS de cargar DB
+  window.initKeyboardShortcuts();
+  window.initFuzzySearch();
+  window.loadSavedFilters();
+  window.renderSavedFiltersDropdown();
+  console.log('[FASE 1] Features initialized:', {
+    shortcuts: typeof window.initKeyboardShortcuts === 'function',
+    fuzzy: typeof window.initFuzzySearch === 'function',
+    db_length: window.DB ? window.DB.length : 0,
+    cache_length: _searchCache ? _searchCache.length : 0
+  });
 }
 
 // ─── PUBLIC API (called throughout app) ──────
