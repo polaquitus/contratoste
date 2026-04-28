@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cargador de Índices v2 OPTIMIZADO</title>
+<title>Cargador de Índices</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -28,6 +28,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--g100);color:var(--g900);m
 .sb-badge{font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.2)}
 .sb-badge.ok{background:rgba(25,135,84,.3);color:#6ee7b7}
 .sb-badge.err{background:rgba(220,53,69,.3);color:#fca5a5}
+.sb-badge.warn{background:rgba(245,158,11,.25);color:#fcd34d}
 
 .ctrl-bar{background:var(--w);border-bottom:2px solid var(--g200);padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .ctrl-lbl{font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px}
@@ -35,6 +36,7 @@ input[type=month]{font-family:inherit;font-size:13px;padding:7px 10px;border:1.5
 input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,128,149,.1)}
 .ctrl-sep{color:var(--g400);font-size:14px}
 .ctrl-divider{width:1px;height:26px;background:var(--g200);flex-shrink:0}
+select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900);outline:none;cursor:pointer}
 
 .status-bar{padding:7px 24px;font-size:12px;display:flex;align-items:center;gap:8px}
 .status-bar.ok{background:var(--g100d);color:#166534}
@@ -56,7 +58,6 @@ input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,12
 .ai-log-row.pending{color:var(--g500)}
 .ai-log-row.running{color:var(--p700);background:var(--p50);animation:pulse .8s ease infinite}
 .ai-log-row.found{color:#166534;background:var(--g100d)}
-.ai-log-row.api{color:#1e3a8a;background:var(--b100);font-weight:600}
 .ai-log-row.manual{color:#92400e;background:var(--a100)}
 .ai-log-row.failed{color:var(--r500);background:var(--r100)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
@@ -64,7 +65,6 @@ input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,12
 .ai-log-name{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ai-log-ym{font-size:10.5px;color:var(--g600c);flex-shrink:0}
 .ai-log-val{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;flex-shrink:0;margin-left:4px}
-.ai-log-note{font-size:9px;color:var(--g500);margin-left:4px}
 .ai-stats{display:flex;gap:8px;flex-wrap:wrap}
 .ai-stat{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700}
 .ai-stat.ok{background:var(--g100d);color:#166534}
@@ -81,106 +81,141 @@ input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,12
 .cat-pill.ipim{background:var(--p100);color:var(--p700)}
 .cat-pill.fuel{background:#fef9c3;color:#713f12}
 .cat-pill.usd{background:var(--b100);color:#1e3a8a}
+.cat-toggle{margin-left:auto;font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid var(--g300);background:var(--g50);color:var(--g600c);cursor:pointer;font-family:inherit;font-weight:600}
+.cat-toggle:hover{background:var(--g200)}
 
 .grid-wrap{overflow-x:auto;border-radius:var(--rad);box-shadow:var(--sh)}
 .grid-tbl{border-collapse:collapse;width:100%;min-width:500px}
 .grid-tbl th{background:var(--p800);color:var(--w);padding:8px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;text-align:center;white-space:nowrap}
 .grid-tbl th.th-idx{text-align:left;min-width:185px;position:sticky;left:0;z-index:2;background:var(--p900)}
+.grid-tbl th.th-acum{background:var(--p700);min-width:96px}
 .grid-tbl td{padding:5px 6px;border-bottom:1px solid var(--g100);border-right:1px solid var(--g100);text-align:center;vertical-align:middle;background:var(--w)}
 .grid-tbl tr:hover td{background:var(--p50)}
 .grid-tbl td.td-idx{text-align:left;font-size:12px;font-weight:600;color:var(--p900);padding:8px 12px;white-space:nowrap;position:sticky;left:0;z-index:1;background:var(--g50);border-right:2px solid var(--g200)}
 .grid-tbl tr:hover td.td-idx{background:var(--p50)}
 .td-src{font-size:10px;color:var(--g500);font-weight:400;margin-top:1px}
+.td-cct{font-size:9.5px;color:var(--pur);font-weight:600;margin-top:1px}
 
 .cell-inp{font-family:'JetBrains Mono',monospace;font-size:12px;width:76px;padding:4px 6px;border:1.5px solid var(--g200);border-radius:5px;text-align:center;background:var(--w);color:var(--g900);outline:none;transition:.15s}
 .cell-inp:focus{border-color:var(--p500);box-shadow:0 0 0 2px rgba(62,128,149,.12)}
 .cell-inp.has-val{border-color:var(--p300);background:var(--p50)}
 .cell-inp.confirmed{border-color:var(--g600);background:var(--g100d)}
 .cell-inp.ai-found{border-color:var(--pur);background:var(--pur100)}
-.cell-inp.api-found{border-color:#1e3a8a;background:var(--b100);font-weight:600}
 .cell-inp.need-manual{border-color:var(--a500);background:var(--a100);animation:blink-a 1.8s ease infinite}
 .cell-inp.usd-w{width:90px}
 @keyframes blink-a{0%,100%{border-color:var(--a500)}50%{border-color:rgba(245,158,11,.35)}}
 .cell-chk{accent-color:var(--g600);width:13px;height:13px;cursor:pointer}
+.td-acum{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;padding:6px 10px;background:var(--p50);text-align:center}
+.td-acum.pos{color:var(--g600)}.td-acum.neg{color:var(--r500)}.td-acum.zero{color:var(--g600c)}
 
 .btn{font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:6px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.12s;white-space:nowrap;line-height:1}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn-p{background:var(--p600);color:var(--w)}.btn-p:hover:not(:disabled){background:var(--p700)}
-.btn-g{background:var(--g600);color:var(--w)}.btn-g:hover:not(:disabled){background:#157347}
-.btn-s{background:var(--g200);color:var(--g800)}.btn-s:hover:not(:disabled){background:var(--g300)}
-.btn-d{background:var(--r500);color:var(--w)}.btn-d:hover:not(:disabled){background:#bb2d3b}
-.btn-ai{background:var(--pur);color:var(--w)}.btn-ai:hover:not(:disabled){background:#6d28d9}
-.btn-sm{font-size:11px;padding:5px 10px}
+.btn-s{background:var(--g100);color:var(--g700);border:1px solid var(--g300)}.btn-s:hover:not(:disabled){background:var(--g200)}
+.btn-g{background:var(--g100d);color:var(--g600)}.btn-g:hover:not(:disabled){background:var(--g600);color:var(--w)}
+.btn-d{background:var(--r100);color:var(--r500)}.btn-d:hover:not(:disabled){background:var(--r500);color:var(--w)}
+.btn-ai{background:linear-gradient(135deg,var(--pur),#a855f7);color:var(--w);box-shadow:0 2px 8px rgba(124,58,237,.3)}.btn-ai:hover:not(:disabled){box-shadow:0 4px 14px rgba(124,58,237,.4);transform:translateY(-1px)}
+.btn-sm{font-size:11.5px;padding:6px 12px}
 
-.toast{position:fixed;bottom:24px;right:24px;background:var(--g900);color:var(--w);padding:12px 18px;border-radius:var(--rad);font-size:13px;font-weight:600;box-shadow:var(--shm);z-index:300;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none}
-.toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
-.toast.ok{background:var(--g600)}.toast.er{background:var(--r500)}.toast.info{background:var(--p600)}.toast.ai{background:var(--pur)}
+.toast{position:fixed;bottom:20px;right:20px;padding:11px 16px;border-radius:var(--rad);font-size:13px;font-weight:500;box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:9999;transform:translateY(80px);opacity:0;transition:.25s;display:flex;align-items:center;gap:8px;max-width:340px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{background:var(--g600);color:var(--w)}.toast.er{background:var(--r500);color:var(--w)}.toast.info{background:var(--p600);color:var(--w)}.toast.ai{background:var(--pur);color:var(--w)}
 
-.loader-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(2px);z-index:400;display:none;align-items:center;justify-content:center}
+.loader-ov{position:fixed;inset:0;background:rgba(255,255,255,.82);z-index:8888;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px}
 .loader-ov.show{display:flex}
-.loader-box{background:var(--w);padding:24px 32px;border-radius:var(--radl);box-shadow:var(--shm);text-align:center}
-.loader-spin{width:40px;height:40px;border:4px solid var(--g200);border-top-color:var(--p600);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+.spinner{width:34px;height:34px;border:4px solid var(--g200);border-top-color:var(--p500);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loader-msg{font-size:14px;color:var(--g700);font-weight:600}
-
-.selector-wrap{background:var(--w);border-bottom:2px solid var(--pur100);padding:16px 24px}
-.selector-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.selector-hdr h3{font-size:13px;font-weight:700;color:var(--pur)}
-.selector-stats{font-size:11px;color:var(--g600c)}
-.selector-btns{display:flex;gap:6px;flex-wrap:wrap}
-.selector-list{display:flex;gap:6px;flex-wrap:wrap}
-.sel-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;border:1.5px solid var(--g300);background:var(--g50);font-size:11.5px;font-weight:600;color:var(--g700);cursor:pointer;transition:.12s}
-.sel-chip:hover{background:var(--g200)}
-.sel-chip.active{background:var(--pur100);border-color:var(--pur);color:var(--pur)}
-.sel-chip input{margin:0}
-.sel-chip small{font-size:9px;background:var(--g300);color:var(--g700);padding:1px 5px;border-radius:99px;font-weight:700}
-.sel-chip.active small{background:var(--pur);color:var(--w)}
+.loader-msg{font-size:13px;font-weight:600;color:var(--p700)}
+.empty-msg{text-align:center;padding:48px;color:var(--g500);font-size:13px}
+.need-count{font-size:11.5px;color:#92400e;font-weight:700}
+/* SELECCIÓN DE ÍNDICES */
+.selector-bar{background:var(--w);border-bottom:2px solid var(--g200);padding:12px 24px;display:flex;flex-direction:column;gap:10px}
+.selector-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.selector-top .left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.selector-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.selector-stats{font-size:11.5px;font-weight:700;color:var(--p700);background:var(--p50);border:1px solid var(--p100);padding:4px 10px;border-radius:99px}
+.selector-list{display:flex;flex-wrap:wrap;gap:8px}
+.sel-chip{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:999px;background:var(--g50);font-size:12px;line-height:1;cursor:pointer;user-select:none}
+.sel-chip:hover{background:var(--p50);border-color:var(--p300)}
+.sel-chip input{accent-color:var(--p600);cursor:pointer}
+.sel-chip.active{background:var(--p50);border-color:var(--p400)}
+.sel-chip small{font-size:10px;color:var(--g600c);font-weight:700;background:var(--w);padding:2px 6px;border-radius:999px;border:1px solid var(--g200)}
+.cell-inp.api-found{border-color:var(--b500);background:var(--b100)}
+.ai-log-row.api{color:#1d4ed8;background:var(--b100)}
+.ai-log-note{display:block;font-size:10px;color:var(--g600c);margin-top:2px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
 
+<div class="loader-ov" id="loaderOv"><div class="spinner"></div><div class="loader-msg" id="loaderMsg">Cargando...</div></div>
+<div class="toast" id="toast"></div>
+
+<!-- TOPBAR -->
 <div class="topbar">
   <div class="tb-left">
     <div class="tb-logo">📊</div>
-    <div class="tb-title">Migrador de Índices v2<span>OPTIMIZADO · INDEC API + Gemini IA</span></div>
+    <div><div class="tb-title">Cargador de Índices<span>Herramienta standalone · Supabase + Gemini AI</span></div></div>
   </div>
   <div class="tb-right">
-    <span class="sb-badge ok" id="sbBadge">⬤ Iniciando</span>
+    <span class="sb-badge warn" id="sbBadge">⬤ Conectando...</span>
+    <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🤖 Buscar con IA</button>
+    <button class="btn btn-s btn-sm" onclick="loadFromSupabase()">🔄 Recargar</button>
+    <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar en BD</button>
+    <button class="btn btn-s btn-sm" onclick="exportJSON()">⬇ JSON</button>
+    <button class="btn btn-s btn-sm" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(this)">
   </div>
 </div>
 
+<!-- CTRL BAR -->
 <div class="ctrl-bar">
   <span class="ctrl-lbl">Período</span>
-  <input type="month" id="ctrlFrom">
+  <input type="month" id="ctrlFrom" value="2024-01">
   <span class="ctrl-sep">→</span>
   <input type="month" id="ctrlTo">
-  <button class="btn btn-p btn-sm" onclick="applyRange()">📅 Aplicar</button>
+  <button class="btn btn-p btn-sm" onclick="applyRange()">Aplicar</button>
   <div class="ctrl-divider"></div>
-  <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar</button>
-  <button class="btn btn-s btn-sm" onclick="exportJSON()">📥 Export JSON</button>
-  <button class="btn btn-ai btn-sm" onclick="startAISearch()" id="btnAI">🤖 Buscar con IA</button>
+  <span class="ctrl-lbl">Categoría</span>
+  <select class="ctrl-sel" id="catFilter" onchange="renderAll()">
+    <option value="">Todas</option>
+    <option value="ipc">IPC</option>
+    <option value="ipim">IPIM</option>
+    <option value="fuel">Combustible</option>
+    <option value="usd">USD</option>
+    <option value="mo">Mano de Obra</option>
+  </select>
+  <div class="ctrl-divider"></div>
+  <button class="btn btn-s btn-sm" onclick="confirmAllVisible()">✅ Confirmar visibles</button>
+  <span class="need-count" id="needCount" style="display:none"></span>
 </div>
 
-<div class="selector-wrap">
-  <div class="selector-hdr">
-    <h3>🎯 Selección de índices automáticos</h3>
-    <span class="selector-stats" id="selStats">—</span>
-    <div class="selector-btns">
-      <button class="btn btn-s btn-sm" onclick="selectAllAuto()">☑️ Todos</button>
+<!-- SELECTOR -->
+<div class="selector-bar" id="selectorBar">
+  <div class="selector-top">
+    <div class="left">
+      <span class="ctrl-lbl">Índices a actualizar</span>
+      <span class="selector-stats" id="selStats">0 seleccionados</span>
+    </div>
+    <div class="selector-actions">
+      <button class="btn btn-s btn-sm" onclick="selectAllAuto()">☑️ Todos automáticos</button>
+      <button class="btn btn-s btn-sm" onclick="selectVisibleAuto()">👁️ Seleccionar visibles</button>
+      <button class="btn btn-s btn-sm" onclick="selectCurrentCategory()">🧩 Categoría actual</button>
       <button class="btn btn-s btn-sm" onclick="clearSelectedAuto()">🧹 Limpiar</button>
     </div>
   </div>
   <div class="selector-list" id="selectorList"></div>
 </div>
 
+<!-- STATUS -->
 <div class="status-bar info" id="statusBar">
   <div class="status-dot"></div>
   <span id="statusMsg">Iniciando...</span>
 </div>
 
+<!-- AI PANEL -->
 <div class="ai-panel" id="aiPanel">
   <div class="ai-panel-hdr">
-    <h3>🤖 Búsqueda masiva con IA <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
+    <h3>🤖 Búsqueda masiva con Gemini <span id="aiSub" style="font-size:11px;font-weight:400;color:var(--g600c);margin-left:4px"></span></h3>
     <div class="ai-stats" id="aiStats"></div>
     <div style="display:flex;gap:7px;flex-shrink:0">
       <button class="btn btn-d btn-sm" id="btnStop" onclick="stopAI()" style="display:none">⏹ Detener</button>
@@ -191,10 +226,8 @@ input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,12
   <div class="ai-log" id="aiLog"></div>
 </div>
 
-<div class="main" id="mainContent"><div style="text-align:center;padding:40px;color:var(--g500)">Cargando...</div></div>
-
-<div class="toast" id="toast"></div>
-<div class="loader-ov" id="loaderOv"><div class="loader-box"><div class="loader-spin"></div><div class="loader-msg" id="loaderMsg">Cargando...</div></div></div>
+<!-- MAIN -->
+<div class="main" id="mainContent"><div class="empty-msg">Cargando...</div></div>
 
 <script>
 // ═══════════════ CONFIG ═══════════════
@@ -219,6 +252,12 @@ const IDX_CATALOG = [
   {id:'usd_bill',   name:'USD BILLETE (TC Vendedor)',        cat:'usd',  src:'BCRA'},
   {id:'mo_pp',      name:'Petroleros Privados (SINPEP)',     cat:'mo',   src:'RRLL', cct:'CCT N°396/04'},
   {id:'mo_pj',      name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo',   src:'RRLL', cct:'CCT N°644/12'},
+  {id:'mo_uocra',   name:'UOCRA (Construcción General)',     cat:'mo',   src:'RRLL', cct:'CCT N°76/75'},
+  {id:'mo_uocrayac',name:'UOCRA Yacimiento',                 cat:'mo',   src:'RRLL', cct:'CCT N°1024/16'},
+  {id:'mo_com',     name:'Comercio (FAECYS)',                cat:'mo',   src:'RRLL', cct:'CCT N°130/75'},
+  {id:'mo_cam',     name:'Camioneros (FCTA)',                cat:'mo',   src:'RRLL', cct:'CCT N°40/89'},
+  {id:'mo_uom10',   name:'UOM Rama N°10',                   cat:'mo',   src:'RRLL', cct:'UOM R°10'},
+  {id:'mo_uom17',   name:'UOM Rama N°17',                   cat:'mo',   src:'RRLL', cct:'UOM R°17'},
 ];
 const CAT_ORDER = ['ipc','ipim','fuel','usd','mo'];
 const CAT_LABEL = {
@@ -234,9 +273,9 @@ let IDX_STORE = {};
 let SB_ROW_ID = null;
 let SB_OK     = false;
 let _months   = [];
-let _meta     = {};
+let _coll     = {};  // collapsed cats
+let _meta     = {};  // {idxId_ym: 'ai'|'manual'|'manual-filled'}
 let _aiStop   = false;
-let _selectedIdx = new Set(IDX_CATALOG.filter(d=>d.cat!=='mo').map(d=>d.id));
 
 // ═══════════════ UTILS ═══════════════
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -261,6 +300,7 @@ function idxSet(id,row){
   if(i>=0)rows[i]={...rows[i],...row};
   else{rows.push(row);rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
 }
+function acum(rows){return rows.reduce((p,r)=>p*(1+(Number(r.pct)||0)/100),1)-1;}
 
 // ═══════════════ SUPABASE ═══════════════
 async function sbFetch(table,method,body,filter=''){
@@ -284,7 +324,7 @@ async function loadFromSupabase(){
     SB_OK=false;IDX_STORE={};setSb('err','⬤ Sin conexión');
     setStatus('err','Error Supabase: '+e.message);
   }
-  renderAll();renderSel();hideLoader();
+  refreshNeedCount();renderAll();hideLoader();
 }
 
 async function saveToSupabase(){
@@ -294,9 +334,9 @@ async function saveToSupabase(){
     if(SB_ROW_ID)await sbFetch('indices','PATCH',payload,`?id=eq.${SB_ROW_ID}`);
     else{const r=await sbFetch('indices','POST',payload);if(r&&r[0])SB_ROW_ID=r[0].id;}
     SB_OK=true;setSb('ok','⬤ Conectado');
-    setStatus('ok','✅ Guardado en Supabase');
+    setStatus('ok','✅ Guardado correctamente en Supabase');
     toast('Guardado en Supabase','ok');
-  }catch(e){setStatus('err','Error: '+e.message);toast('Error al guardar','er');}
+  }catch(e){setStatus('err','Error al guardar: '+e.message);toast('Error al guardar','er');}
   hideLoader();
 }
 
@@ -328,480 +368,51 @@ function parseJSON(txt){
   }catch{return null;}
 }
 
-// ═══════════════ PROMPTS ═══════════════
-function buildPrompt(def,ym){
-  const today = new Date().toISOString().substring(0,10);
-  const [y,m] = ym.split('-').map(Number);
-  const pubEst = new Date(y, m, 20);
-  const probablyPublished = new Date() > pubEst;
-  
-  // FADEAAC prompt específico
-  if(def.id === 'fadeaac'){
-    return `Sos experto en índices económicos argentinos.
-Hoy: ${today}.
-
-Necesito variación % mensual de FADEAAC (Equipo Vial) para ${ym} (${fmtMF(ym)}).
-
-FUENTE OFICIAL: fadeaac.org.ar publica boletines mensuales en sección "Publicaciones" → "Boletines FADEAAC".
-Buscá el boletín de ${fmtMF(ym)} (publicado ~día 15 del mes siguiente).
-
-El boletín tiene tabla "VARIACIÓN MENSUAL DE PRECIOS" con fila "EQUIPO VIAL" o "MAQUINARIA VIAL".
-Ejemplo: si dice "Equipo Vial: 3,25%" → pct = 3.25
-
-REGLAS:
-- Si encontrás el boletín oficial con dato de ${ym}: devolvé pct exacto
-- Si el boletín NO existe aún: {"pct":null,"value":null}
-- NUNCA inventes o estimes
-
-JSON únicamente:
-{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"https://fadeaac.org.ar/...","note":"FADEAAC boletín ${fmtMF(ym)}"}`;
-  }
-  
-  // IPC NQN prompt específico
-  if(def.id === 'ipc_nqn' || def.id === 'ipc_nqnab'){
-    return `Sos experto en estadísticas de Neuquén.
-Hoy: ${today}.
-
-Necesito ${def.id === 'ipc_nqn' ? 'IPC NQN Nivel General' : 'IPC NQN Alimentos y Bebidas'} para ${ym} (${fmtMF(ym)}).
-
-FUENTE OFICIAL: DPEyC Neuquén (estadisticaneuquen.gob.ar) publica informe mensual ~día 20-30 del mes siguiente.
-Buscá "Índice de Precios al Consumidor" en sección "Precios".
-
-El informe tiene tabla con variación mensual.
-Ejemplo: "Nivel General: 4,2%" → pct = 4.2
-
-REGLAS:
-- Si encontrás informe oficial de ${ym}: devolvé pct exacto
-- Si NO publicado aún: {"pct":null,"value":null}
-- NUNCA inventes
-
-JSON únicamente:
-{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url","note":"DPEyC NQN ${fmtMF(ym)}"}`;
-  }
-  
-  // Prompt genérico para otros índices
-  return `Sos un asistente experto en estadísticas económicas argentinas oficiales.
-Hoy es ${today}.
-
-Necesito el valor OFICIAL PUBLICADO del índice "${def.name}" (fuente: ${def.src}) para el período ${ym} (${fmtMF(ym)}).
-
-CONTEXTO DE PUBLICACIÓN:
-- ${def.src} típicamente publica datos del mes N entre días 12-25 del mes N+1.
-- Para ${ym}: ${probablyPublished ? 'dato PROBABLEMENTE ya publicado' : 'dato POSIBLEMENTE aún NO publicado'}.
-
-REGLAS ESTRICTAS:
-- Si el dato de ${ym} fue publicado oficialmente: devolvé ese valor exacto.
-- Si ${ym} aún NO fue publicado o no encontrás fuente oficial: devolvé null en pct y value.
-- NUNCA inventes, estimes o extrapoles datos.
-- Para IPC/IPIM: "pct" = variación % mensual, "value" = null.
-- Para combustibles: "value" = precio ARS/litro, "pct" = null.
-
-Respondé ÚNICAMENTE con JSON válido (sin markdown, sin texto extra):
-{"ym":"${ym}","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url o null","note":"máx 60 caracteres"}`;
-}
-
-function buildPromptAggressive(def,ym){
-  // FADEAAC aggressive
-  if(def.id === 'fadeaac'){
-    return `BÚSQUEDA EXHAUSTIVA FADEAAC - ${ym} (${fmtMF(ym)}).
-
-INSTRUCCIONES PRECISAS:
-1. Andá a fadeaac.org.ar
-2. Buscá sección "Publicaciones" → "Boletines FADEAAC"
-3. Descargá boletín de ${fmtMF(ym)} (PDF)
-4. En tabla "VARIACIÓN MENSUAL", fila "EQUIPO VIAL" o "MAQUINARIA VIAL"
-5. Extraé % mensual (ej: 3,25% → pct:3.25)
-
-Si el boletín NO existe: {"pct":null,"value":null}
-Si existe pero no podés leerlo: {"pct":null,"value":null}
-
-JSON únicamente:
-{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"https://fadeaac.org.ar/publicaciones/...","note":"FADEAAC boletín oficial"}`;
-  }
-  
-  // Gas Oil aggressive
-  if(def.id === 'go_g2' || def.id === 'go_g3'){
-    const prod = def.id === 'go_g2' ? 'Gasoil Grado 2' : 'Gasoil Grado 3';
-    return `BÚSQUEDA EXHAUSTIVA GAS OIL ACA NEUQUÉN - ${ym} (${fmtMF(ym)}).
-
-INSTRUCCIONES:
-1. Buscá en datos.energia.gob.ar → "Precios en surtidor"
-2. Filtrá: Provincia=NEUQUEN, Producto="${prod}", Empresa=ACA (Automóvil Club Argentino)
-3. Rango: 01/${ym} a último día de ${ym}
-4. Extraé precio promedio del mes en ARS/litro
-
-Alternativamente:
-- YPF Neuquén publicaciones
-- Boletines Sec. Energía Nación mes ${ym}
-
-Si NO encontrás precio oficial ACA Neuquén ${ym}: {"value":null,"pct":null}
-
-JSON únicamente:
-{"ym":"${ym}","value":number|null,"pct":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"url","note":"ACA NQN ${prod}"}`;
-  }
-  
-  // IPC NQN aggressive
-  if(def.id === 'ipc_nqn' || def.id === 'ipc_nqnab'){
-    const nivel = def.id === 'ipc_nqn' ? 'Nivel General' : 'Alimentos y Bebidas';
-    return `BÚSQUEDA EXHAUSTIVA IPC NEUQUÉN - ${ym} (${fmtMF(ym)}).
-
-INSTRUCCIONES:
-1. Andá a estadisticaneuquen.gob.ar
-2. Sección "Precios" → "Índice de Precios al Consumidor"
-3. Buscá informe mensual de ${fmtMF(ym)}
-4. En tabla de variaciones, extraé "${nivel}" (% mensual)
-
-Si informe NO publicado aún: {"pct":null,"value":null}
-
-JSON únicamente:
-{"ym":"${ym}","pct":number|null,"value":null,"publishedAt":"YYYY-MM-DD","sourceUrl":"estadisticaneuquen.gob.ar/...","note":"DPEyC NQN ${nivel}"}`;
-  }
-  
-  // Generic aggressive
-  return `BÚSQUEDA EXHAUSTIVA REQUERIDA.
-Fuente: ${def.src} — Índice: "${def.name}" — Período: ${ym} (${fmtMF(ym)}).
-
-Buscá en:
-- INDEC (indec.gob.ar/indec/web/Nivel4-Tema-3-5-31)
-- DPEyC Neuquén (estadisticaneuquen.gob.ar)
-- FADEAAC (fadeaac.org.ar/publicaciones)
-- Secretaría de Energía (datos.energia.gob.ar)
-
-Si el dato existe en algún boletín, comunicado o dataset oficial: devolvelo.
-Si definitivamente NO existe: {"pct":null,"value":null}.
-
-JSON únicamente (sin texto):
-{"ym":"${ym}","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url","note":"fuente"}`;
-}
-
-// ═══════════════ INDEC API ═══════════════
-const SERIES_API = 'https://apis.datos.gob.ar/series/api/series';
-const SERIES_IDS = {
-  ipc_nac:   '148.3_INIVELNAL_DICI_M_26',
-  ipc_gba:   '148.3_INIVELGBA_DICI_M_21',
-  ipc_pat:   '148.3_INIVELNIA_DICI_M_27',
-  ipim_gral: '448.1_NIVEL_GENERAL_0_0_13_46',
-  ipim_r29:  '448.1_REFINADOS_PETROLEO_0_0_13_46'
-};
-const SERIES_FALLBACK = {
-  ipc_pat:  ['148.3_INIVELPAT_DICI_M_27'],
-  ipim_r29: ['178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13']
-};
-window._seriesCache = window._seriesCache || {};
-
-function prevYm(ym){
-  const p = ym.split('-').map(Number);
-  const d = new Date(p[0], p[1]-2, 1);
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-}
-
-async function fetchBundle(sid, pct, fullData){
-  const key = sid + (pct ? '_pct' : '_idx') + (fullData ? '_full' : '');
-  if(window._seriesCache[key]) return window._seriesCache[key];
-  
-  const qid = pct ? sid + ':percent_change' : sid;
-  const url = SERIES_API + '?ids=' + encodeURIComponent(qid) + '&format=json&sort=desc'
-            + (fullData ? '&limit=600&start_date=2016-01-01' : '&limit=24');
-  
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('series ' + r.status + ' ' + qid);
-  const d = await r.json();
-  const b = { rows: Array.isArray(d.data)?d.data:[], url: url, pct: pct };
-  window._seriesCache[key] = b;
-  return b;
-}
-
-function findPt(rows, ym){
-  return rows.find(x => String(x && x[0] || '').slice(0,7) === ym) || null;
-}
-
-function interpret(def, sid, bundle, ym){
-  const pt = findPt(bundle.rows, ym);
-  if(!pt || pt[1] == null) return null;
-  const v = Number(pt[1]);
-  if(!isFinite(v)) return null;
-  const pub = String(pt[0]).slice(0,10);
-
-  if(bundle.pct){
-    // :percent_change — value is monthly % as fraction (0.046) or direct (4.6)
-    let pct = Math.abs(v) <= 1.5 ? +(v*100).toFixed(2) : +v.toFixed(2);
-    
-    // VALIDACIÓN: IPC/IPIM mensual nunca >50%
-    if(Math.abs(pct) > 50) return null;
-    
-    return { ym:ym, pct:pct, value:null, seriesId:sid, calcMethod:'pct',
-             publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v,
-             note:'INDEC % mensual (' + sid + ')' };
-  }
-
-  // Index mode — compute ratio with previous month
-  const prev = findPt(bundle.rows, prevYm(ym));
-  if(v > 20 && prev && prev[1] != null){
-    const pv = Number(prev[1]);
-    if(isFinite(pv) && pv > 0 && v > 0){
-      const pct2 = ((v/pv)-1)*100;
-      if(isFinite(pct2) && Math.abs(pct2) < 200)
-        return { ym:ym, pct:+pct2.toFixed(2), value:null,
-                 seriesValue:+v.toFixed(4), seriesPrevValue:+pv.toFixed(4),
-                 seriesId:sid, calcMethod:'ratio', publishedAt:pub, sourceUrl:bundle.url,
-                 source:def.src, rawValue:v, note:'INDEC índice (' + sid + ')' };
-    }
-  }
-  if(Math.abs(v) <= 1.5) return { ym:ym, pct:+(v*100).toFixed(2), value:null, seriesId:sid, calcMethod:'frac', publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v, note:'INDEC frac' };
-  if(Math.abs(v) <= 200) return { ym:ym, pct:+v.toFixed(2), value:null, seriesId:sid, calcMethod:'direct', publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v, note:'INDEC directo' };
-  return null;
-}
-
-async function fetchIndecYm(def, ym){
-  const sid = SERIES_IDS[def.id];
-  if(!sid) return null;
-  
-  // 1. Try :percent_change (recent data first)
-  try{ 
-    const b = await fetchBundle(sid, true, false); 
-    const r = interpret(def, sid, b, ym); 
-    if(r) return r; 
-  }catch(e){ console.warn('pct recent', sid, ym, e); }
-  
-  // 2. Try :percent_change (full historical)
-  try{ 
-    const b = await fetchBundle(sid, true, true); 
-    const r = interpret(def, sid, b, ym); 
-    if(r) return r; 
-  }catch(e){ console.warn('pct full', sid, ym, e); }
-  
-  // 3. Try index-based ratio (recent)
-  try{ 
-    const b = await fetchBundle(sid, false, false); 
-    const r = interpret(def, sid, b, ym); 
-    if(r) return r; 
-  }catch(e){ console.warn('idx recent', sid, ym, e); }
-  
-  // 4. Try index-based ratio (full)
-  try{ 
-    const b = await fetchBundle(sid, false, true); 
-    const r = interpret(def, sid, b, ym); 
-    if(r) return r; 
-  }catch(e){ console.warn('idx full', sid, ym, e); }
-  
-  // 5. Fallback series
-  const fbs = SERIES_FALLBACK[def.id] || [];
-  for(let i=0; i<fbs.length; i++){
-    // Intenta pct primero
-    try{ 
-      const fb = await fetchBundle(fbs[i], true, false); 
-      const rf = interpret(def, fbs[i], fb, ym); 
-      if(rf) return rf; 
-    }catch(e){}
-    // Luego raw
-    try{ 
-      const fb2 = await fetchBundle(fbs[i], false, false); 
-      const rf2 = interpret(def, fbs[i], fb2, ym); 
-      if(rf2) return rf2; 
-    }catch(e){}
-  }
-  
-  return null;
-}
-
-// ═══════════════ USD API ═══════════════
-async function fetchUsdYm(ym){
-  try{
-    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares');
-    if(!r.ok)throw new Error('API '+r.status);
-    const data=await r.json();
-    const[y,m]=ym.split('-').map(Number);
-    const end=new Date(y,m,0);
-    let arr=data.filter(x=>x&&x.fecha&&new Date(x.fecha)<=end);
-    let bna=arr.filter(x=>/nacion|bna/i.test(String(x.casa||'')));
-    let src=(bna.length?bna:arr).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
-    const last=src[src.length-1];
-    if(last&&(last.venta||last.sell)){
-      return{ym,value:Number(last.venta||last.sell),pct:null,
-        publishedAt:String(last.fecha||'').substring(0,10),
-        note:'BNA TC vendedor - argentinadatos.com'};
-    }
-  }catch(e){console.warn('fetchUsd',ym,e);}
-  return null;
-}
-
-// ═══════════════ FUEL API ═══════════════
-const FUEL_PRODUCT = { go_g2:'Gasoil Grado 2', go_g3:'Gasoil Grado 3' };
-const RES_HIST    = 'f8dda0d5-2a9f-4d34-b79b-4e63de3995df';
-const RES_VIGENTE = '80ac25de-a44a-4445-9215-090cf55cfda5';
-const ENERGIA_API = 'https://datos.energia.gob.ar/api/3/action/datastore_search';
-
-async function fetchFuelACAYm(idxId, ym) {
-  const productName = FUEL_PRODUCT[idxId];
-  if (!productName) return null;
-
-  const [y, mo] = ym.split('-').map(Number);
-  const lastDay = new Date(y, mo, 0);
-  const lastDayStr = lastDay.toISOString().substring(0, 10);
-  const firstDayStr = ym + '-01';
-
-  function isACA(rec) {
-    const rs = String(rec.razon_social || rec.empresa || '').toUpperCase();
-    return rs.includes('ACA') || rs.includes('AUTOMOVIL CLUB') || rs.includes('AUTOMOVILCLUB');
-  }
-  
-  function avgPrice(recs) {
-    const prices = recs.map(r => parseFloat(r.precio || r.precio_por_litro || 0)).filter(p => p > 0);
-    if (!prices.length) return null;
-    return Math.round(prices.reduce((a,b)=>a+b,0)/prices.length * 100) / 100;
-  }
-
-  // 1. Recurso histórico — AMPLIADO: busca todo Neuquén, luego filtra ACA
-  try {
-    const filters = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN'}));
-    const urlH = ENERGIA_API + '?resource_id=' + RES_HIST + '&filters=' + filters + '&limit=2000';
-    const rH = await fetch(urlH);
-    if (rH.ok) {
-      const dH = await rH.json();
-      const recs = (dH?.result?.records || []).filter(rec => {
-        const prod = String(rec.producto || '').toUpperCase();
-        const fd = String(rec.fecha_desde_vigencia || rec.indice_tiempo || '').substring(0, 10);
-        // Match producto (flexible: "GASOIL GRADO 2" o "GAS OIL GRADO 2")
-        const prodMatch = prod.includes('GASOIL') || prod.includes('GAS OIL');
-        const gradeMatch = productName.includes('Grado 2') ? prod.includes('GRADO 2') || prod.includes('G2') : prod.includes('GRADO 3') || prod.includes('G3');
-        return isACA(rec) && prodMatch && gradeMatch && fd >= firstDayStr && fd <= lastDayStr;
-      });
-      const avg = avgPrice(recs);
-      if (avg) {
-        const last = recs[recs.length - 1];
-        return { ym, value: avg, pct: null,
-          publishedAt: String(last.fecha_desde_vigencia || lastDayStr).substring(0, 10),
-          note: 'ACA Neuquén · Sec. Energía Nación',
-          sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor' };
-      }
-    }
-  } catch(e) { console.warn('fetchFuelHist', idxId, ym, e); }
-
-  // 2. Recurso vigente (solo mes actual)
-  const nowYm = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0');
-  if (ym === nowYm) {
-    try {
-      const filters2 = encodeURIComponent(JSON.stringify({provincia:'NEUQUEN'}));
-      const urlV = ENERGIA_API + '?resource_id=' + RES_VIGENTE + '&filters=' + filters2 + '&limit=1000';
-      const rV = await fetch(urlV);
-      if (rV.ok) {
-        const dV = await rV.json();
-        const recs = (dV?.result?.records || []).filter(rec => {
-          const prod = String(rec.producto || '').toUpperCase();
-          const prodMatch = prod.includes('GASOIL') || prod.includes('GAS OIL');
-          const gradeMatch = productName.includes('Grado 2') ? prod.includes('GRADO 2') || prod.includes('G2') : prod.includes('GRADO 3') || prod.includes('G3');
-          return isACA(rec) && prodMatch && gradeMatch;
-        });
-        const avg = avgPrice(recs);
-        if (avg) return { ym, value: avg, pct: null, publishedAt: lastDayStr,
-          note: 'ACA Neuquén · vigente Sec. Energía',
-          sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor' };
-      }
-    } catch(e) { console.warn('fetchFuelVig', idxId, ym, e); }
-  }
-
-  return null;
-}
-
-// ═══════════════ AI SEARCH ═══════════════
-let _tasks = [];
+// ═══════════════ AI BULK SEARCH ═══════════════
+let _tasks=[];
 
 async function startAISearch(){
-  const from=document.getElementById('ctrlFrom').value, to=document.getElementById('ctrlTo').value;
-  if(!from||!to||from>to){ toast('Aplicá un rango válido primero','er'); return; }
-  
-  const defs=IDX_CATALOG.filter(d=>d.cat!=='mo'&&_selectedIdx.has(d.id));
-  if(!defs.length){ toast('Seleccioná al menos un índice','er'); return; }
-  
+  const from=document.getElementById('ctrlFrom').value;
+  const to=document.getElementById('ctrlTo').value;
+  if(!from||!to||from>to){toast('Aplicá un rango válido primero','er');return;}
   const months=_months.length?_months:buildRange(from,to);
+
+  // Build tasks: non-MO indexes × missing months
   _tasks=[];
-  defs.forEach(def=>{ 
-    months.forEach(ym=>{ 
-      const ex=idxGet(def.id,ym); 
-      if(!ex||(ex.pct==null&&ex.value==null)) 
-        _tasks.push({def,ym,status:'pending',found:null,via:null}); 
-    }); 
+  IDX_CATALOG.filter(d=>d.cat!=='mo').forEach(def=>{
+    months.forEach(ym=>{
+      const ex=idxGet(def.id,ym);
+      if(!ex||(ex.pct==null&&ex.value==null))
+        _tasks.push({def,ym,status:'pending',found:null});
+    });
   });
-  
-  if(!_tasks.length){ toast('No hay períodos faltantes','ok'); return; }
-  
-  document.getElementById('aiPanel').classList.add('vis');
+
+  if(!_tasks.length){toast('No hay períodos faltantes para buscar','ok');return;}
+
+  const panel=document.getElementById('aiPanel');
+  panel.classList.add('vis');
   document.getElementById('btnStop').style.display='';
   document.getElementById('btnAI').disabled=true;
-  document.getElementById('aiSub').textContent='· '+_tasks.length+' búsquedas';
+  document.getElementById('aiSub').textContent=`· ${_tasks.length} búsquedas pendientes`;
   document.getElementById('aiBar').style.width='0%';
   document.getElementById('aiLog').innerHTML='';
   _aiStop=false;
-  
-  let done=0,found=0,manual=0,official=0,ai=0;
-  
-  for(let ti=0;ti<_tasks.length;ti++){
-    const t=_tasks[ti];
-    if(_aiStop) break;
-    
-    t.status='running'; 
-    renderLog();
-    
+
+  let done=0,found=0,manual=0;
+
+  for(const t of _tasks){
+    if(_aiStop)break;
+    t.status='running';renderLog();
+
     try{
-      let result=null, via=null;
-      
-      // USD
-      if(t.def.cat==='usd'){ 
-        result=await fetchUsdYm(t.ym); 
-        via='api'; 
-      }
-      // FUEL
-      else if(t.def.cat==='fuel'){ 
-        result=await fetchFuelACAYm(t.def.id,t.ym); 
-        if(result) via='api';
-        
-        // Fallback Gemini si API Energía falla
-        if(!result){
-          const txt=await callGemini(buildPrompt(t.def,t.ym));
-          result=parseJSON(txt);
-          via=result?'ai':null;
-        }
-        
-        // Retry agresivo
-        if(!result){
-          const txt2=await callGemini(buildPromptAggressive(t.def,t.ym));
-          result=parseJSON(txt2);
-          via=result?'ai':null;
-        }
-      }
-      // INDEC
-      else if(t.def.src==='INDEC'){
-        try{ 
-          result=await fetchIndecYm(t.def,t.ym); 
-          if(result) via='api'; 
-        }catch(e){ console.warn('fetchIndec',e); }
-        
-        // Fallback Gemini standard
-        if(!result){ 
-          const txt=await callGemini(buildPrompt(t.def,t.ym)); 
-          result=parseJSON(txt); 
-          via=result?'ai':null; 
-        }
-        
-        // Retry agresivo si aún null
-        if(!result){
-          const txt2=await callGemini(buildPromptAggressive(t.def,t.ym));
-          result=parseJSON(txt2);
-          via=result?'ai':null;
-        }
-      } 
-      // Otros (FADEAAC, DPEyC NQN)
-      else { 
-        const txt=await callGemini(buildPrompt(t.def,t.ym)); 
-        result=parseJSON(txt); 
-        via=result?'ai':null; 
-        
-        // Retry agresivo
-        if(!result){
-          const txt2=await callGemini(buildPromptAggressive(t.def,t.ym));
-          result=parseJSON(txt2);
-          via=result?'ai':null;
-        }
+      let result=null;
+      if(t.def.cat==='usd'){
+        result=await fetchUsdYm(t.ym);
+      } else if(t.def.cat==='fuel'){
+        result=await fetchFuelACAYm(t.def.id,t.ym);
+      } else {
+        const txt=await callGemini(buildPrompt(t.def,t.ym));
+        result=parseJSON(txt);
       }
 
       if(result&&(result.pct!=null||result.value!=null)){
@@ -809,167 +420,499 @@ async function startAISearch(){
           ym:result.ym||t.ym,
           pct:result.pct!=null?Number(result.pct):null,
           value:result.value!=null?Number(result.value):null,
-          seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,
-          seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,
-          seriesId:result.seriesId||null,
-          calcMethod:result.calcMethod||null,
-          confirmed:false,
-          status:'updated',
-          source:t.def.src,
-          note:result.note||'',
+          confirmed:false,status:'updated',
+          source:t.def.src,note:result.note||'',
           publishedAt:result.publishedAt||null,
           sourceUrl:result.sourceUrl||null
         });
-        _meta[t.def.id+'_'+t.ym]=via==='api'?'api':'ai';
-        t.status='found'; 
-        t.found=result; 
-        t.via=via; 
-        found++;
-        if(via==='api')official++; else ai++;
-        liveCellOk(t.def,t.ym,result,via);
-      } else { 
-        console.warn('⚠️ NO DATA:', t.def.id, '('+t.def.name+')', t.ym, '| via:', via, '| result:', result);
-        t.status='manual'; 
-        t.via='manual'; 
-        _meta[t.def.id+'_'+t.ym]='manual'; 
-        manual++; 
-        liveCellManual(t.def,t.ym); 
+        _meta[t.def.id+'_'+t.ym]='ai';
+        t.status='found';t.found=result;found++;
+        liveCellOk(t.def,t.ym,result);
+      } else {
+        t.status='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+        liveCellManual(t.def,t.ym);
       }
-    }catch(e){ 
-      console.error('❌ TASK FAILED:', t.def.id, '('+t.def.name+')', t.ym, '| via:', via, '| error:', e); 
-      t.status='manual'; 
-      t.via='manual'; 
-      _meta[t.def.id+'_'+t.ym]='manual'; 
-      manual++; 
-      liveCellManual(t.def,t.ym); 
+    }catch(e){
+      console.warn('ai task',t.def.id,t.ym,e);
+      t.status='manual';_meta[t.def.id+'_'+t.ym]='manual';manual++;
+      liveCellManual(t.def,t.ym);
     }
-    
+
     done++;
     document.getElementById('aiBar').style.width=Math.round(done/_tasks.length*100)+'%';
-    updateAIStats(found,manual,done,_tasks.length,official,ai);
+    updateAIStats(found,manual,done,_tasks.length);
     renderLog();
-    await sleep(220);
+    await sleep(350);
   }
-  
+
   document.getElementById('btnStop').style.display='none';
   document.getElementById('btnAI').disabled=false;
-  document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales';
-  
-  if(found>0){ 
-    toast('Actualización: '+found+' · '+manual+' manuales','ai'); 
-    await saveToSupabase(); 
-  } else toast('Sin datos · '+manual+' manuales','er');
-  
-  renderAll();
+  document.getElementById('aiSub').textContent=`· Listo: ${found} encontrados, ${manual} manuales`;
+  refreshNeedCount();
+  updateAllAcum();
+  if(found>0){toast(`IA: ${found} encontrados · ${manual} para carga manual`,'ai');await saveToSupabase();}
+  else toast(`Sin datos automáticos · ${manual} requieren carga manual`,'er');
 }
 
-function stopAI(){
-  _aiStop=true;
-  document.getElementById('btnStop').style.display='none';
-  toast('Detenido','er');
+function buildPrompt(def,ym){
+  return `Sos un asistente experto en estadísticas económicas argentinas oficiales.
+
+Necesito el valor OFICIAL PUBLICADO del índice "${def.name}" (fuente: ${def.src}) para el período ${ym} (${fmtMF(ym)}).
+
+REGLAS ESTRICTAS:
+- Si el dato de ${ym} fue publicado oficialmente: devolvé ese valor exacto.
+- Si ${ym} aún NO fue publicado: devolvé null en pct y value.
+- NUNCA inventes, estimes o extrapoles datos.
+- Para IPC e IPIM: "pct" = variación porcentual mensual, "value" = null.
+- Para FADEAAC: "pct" = variación porcentual mensual.
+- Para combustibles: "value" = precio en ARS por litro, "pct" = null.
+
+Respondé ÚNICAMENTE con JSON válido (sin markdown, sin texto extra):
+{"ym":"${ym}","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url o null","note":"máx 60 caracteres"}`;
 }
 
-// ═══════════════ LOG & STATS ═══════════════
+// Cache para no llamar la API 2 veces (divisa y billete en el mismo lote)
+const _usdCache = {};
+
+async function fetchUsdYm(ym, idxId){
+  // argentinadatos.com expone endpoint por casa — usamos 'oficial' (BNA tipo vendedor)
+  // para DIVISA (transferencia bancaria) y 'oficial' también para BILLETE.
+  // La diferencia divisa/billete en BNA es mínima (~0.5%) y la API no la distingue.
+  // El dólar 'solidario' y 'turista' son oficial + 30% impuesto PAIS — NO usar.
+
+  const cacheKey = ym;
+  if (_usdCache[cacheKey]) {
+    return _usdCache[cacheKey];
+  }
+
+  const [y, m] = ym.split('-').map(Number);
+  const lastDay    = new Date(y, m, 0);
+  const lastDayStr = lastDay.toISOString().substring(0, 10);
+  const firstDayStr = ym + '-01';
+
+  // Endpoint específico por casa — evita mezclar tipos con 30% PAIS
+  const BASE = 'https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial';
+
+  try {
+    const r = await fetch(BASE);
+    if (!r.ok) throw new Error('API ' + r.status);
+    const data = await r.json();
+
+    // Filtramos registros dentro del mes pedido
+    const inMonth = data.filter(x => {
+      if (!x || !x.fecha) return false;
+      const f = x.fecha.substring(0, 10);
+      return f >= firstDayStr && f <= lastDayStr;
+    }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+    if (!inMonth.length) {
+      // Si no hay datos en ese mes exacto, tomamos el último anterior al mes
+      const before = data
+        .filter(x => x && x.fecha && x.fecha.substring(0,10) < firstDayStr)
+        .sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const last = before[before.length - 1];
+      if (last && last.venta) {
+        const result = {
+          ym, value: Number(last.venta), pct: null,
+          publishedAt: last.fecha.substring(0, 10),
+          note: 'USD Oficial BNA vendedor (último previo al mes)',
+          sourceUrl: 'https://argentinadatos.com'
+        };
+        _usdCache[cacheKey] = result;
+        return result;
+      }
+      return null;
+    }
+
+    // Tomamos el último registro del mes (precio del último día hábil)
+    const last = inMonth[inMonth.length - 1];
+    const result = {
+      ym,
+      value: Number(last.venta),
+      pct: null,
+      publishedAt: last.fecha.substring(0, 10),
+      note: 'USD Oficial BNA vendedor (argentinadatos.com)',
+      sourceUrl: 'https://argentinadatos.com'
+    };
+    _usdCache[cacheKey] = result;
+    return result;
+
+  } catch(e) {
+    console.warn('fetchUsdYm', ym, e);
+    return null;
+  }
+}
+
+// ═══════════════ FUEL API — Secretaría de Energía ═══════════════
+const FUEL_PRODUCT = { go_g2:'Gasoil Grado 2', go_g3:'Gasoil Grado 3' };
+const RES_HIST    = 'f8dda0d5-2a9f-4d34-b79b-4e63de3995df';
+const RES_VIGENTE = '80ac25de-a44a-4445-9215-090cf55cfda5';
+const ENERGIA_API = 'https://datos.energia.gob.ar/api/3/action/datastore_search';
+
+async function fetchFuelACAYm(idxId, ym) {
+  const productName = FUEL_PRODUCT[idxId]; // 'Gasoil Grado 2' o 'Gasoil Grado 3'
+  if (!productName) return null;
+
+  const [y, mo] = ym.split('-').map(Number);
+  const lastDay    = new Date(y, mo, 0);
+  const lastDayStr = lastDay.toISOString().substring(0, 10);
+  const firstDayStr = ym + '-01';
+  const grade = idxId === 'go_g2' ? '2' : '3';
+
+  // ── Helper: parsear precio ──────────────────────────────────────────────
+  function toPrice(v) {
+    const n = parseFloat(String(v||'').replace(',','.'));
+    return (n > 50) ? n : null; // descarta valores claramente erróneos
+  }
+  function avgOf(recs, field) {
+    const prices = recs.map(r => toPrice(r[field])).filter(Boolean);
+    if (!prices.length) return null;
+    return Math.round(prices.reduce((a,b)=>a+b,0)/prices.length * 100) / 100;
+  }
+
+  // ── 1. API Secretaría de Energía — recurso histórico ────────────────────
+  // Intentamos múltiples variantes del nombre de producto porque la BD no es consistente
+  const prodVariants = [
+    productName,
+    productName.toUpperCase(),
+    'GAS OIL GRADO ' + grade,
+    'Gas Oil Grado ' + grade,
+    'GASOIL G' + grade,
+    'Diesel Grado ' + grade,
+    'DIESEL GRADO ' + grade,
+  ];
+
+  for (const res of [RES_HIST, RES_VIGENTE]) {
+    for (const prod of prodVariants) {
+      try {
+        const filters = encodeURIComponent(JSON.stringify({provincia: 'NEUQUEN', producto: prod}));
+        const url = ENERGIA_API + '?resource_id=' + res + '&filters=' + filters + '&limit=500';
+        const r = await fetch(url);
+        if (!r.ok) continue;
+        const d = await r.json();
+        let recs = d?.result?.records || [];
+        // Filtro de fecha solo para recurso histórico
+        if (res === RES_HIST) {
+          recs = recs.filter(rec => {
+            const fd = String(rec.fecha_desde_vigencia || rec.indice_tiempo || '').substring(0,10);
+            return fd >= firstDayStr && fd <= lastDayStr;
+          });
+        }
+        const avg = avgOf(recs, 'precio') || avgOf(recs, 'precio_por_litro');
+        if (avg) {
+          const last = recs[recs.length-1] || {};
+          return {
+            ym, value: avg, pct: null,
+            publishedAt: String(last.fecha_desde_vigencia || lastDayStr).substring(0,10),
+            note: prod + ' · Sec. Energía (prom. Neuquén)',
+            sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor'
+          };
+        }
+      } catch(_e) { /* try next variant */ }
+    }
+  }
+
+  // ── 2. API Sec. Energía — búsqueda full-text como fallback ──────────────
+  for (const res of [RES_HIST, RES_VIGENTE]) {
+    try {
+      const url = ENERGIA_API + '?resource_id=' + res
+        + '&q=' + encodeURIComponent('gasoil grado ' + grade + ' neuquen')
+        + '&limit=500';
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const d = await r.json();
+      let recs = (d?.result?.records || []).filter(rec => {
+        const prov = String(rec.provincia || '').toUpperCase();
+        const prod = String(rec.producto  || '').toUpperCase().replace(/\s+/g,'');
+        return prov.includes('NEUQU')
+          && (prod.includes('GASOIL') || prod.includes('GASOILG') || prod.includes('DIESEL'))
+          && prod.includes(grade);
+      });
+      if (res === RES_HIST) {
+        recs = recs.filter(rec => {
+          const fd = String(rec.fecha_desde_vigencia || '').substring(0,10);
+          return fd >= firstDayStr && fd <= lastDayStr;
+        });
+      }
+      const avg = avgOf(recs, 'precio') || avgOf(recs, 'precio_por_litro');
+      if (avg) return {
+        ym, value: avg, pct: null, publishedAt: lastDayStr,
+        note: 'Gasoil G' + grade + ' · Sec. Energía full-text (prom. Neuquén)',
+        sourceUrl: 'https://datos.energia.gob.ar/dataset/precios-en-surtidor'
+      };
+    } catch(_e) { /* continue */ }
+  }
+
+  // ── 3. Gemini con prompt especializado ──────────────────────────────────
+  // El prompt pide el precio exacto con contexto específico de Neuquén
+  try {
+    const nomProd = idxId === 'go_g2'
+      ? 'Gasoil Grado 2 (diesel común, YPF D500 o equivalente)'
+      : 'Gasoil Grado 3 (diesel premium, YPF Infinia Diesel o equivalente)';
+    const gemPrompt =
+`Necesito el precio en pesos argentinos (ARS) por litro del ${nomProd} en las estaciones de servicio de Neuquén capital, Argentina, para el mes ${ym}.
+
+Fuentes de referencia: YPF, Shell, PUMA, AXION en Neuquén. Todos tienen precios muy similares.
+Si hubo cambios de precio durante el mes, usá el valor vigente al último día del mes.
+El valor debe ser el precio final al público en surtidor (incluye impuestos).
+
+Respondé ÚNICAMENTE con este JSON (sin markdown):
+{"ym":"${ym}","value":PRECIO_NUMERO,"pct":null,"publishedAt":"YYYY-MM-DD","note":"marca y fuente usada","sourceUrl":"url si disponible"}
+
+Si no tenés datos confiables para ese mes exacto, devolvé value:null.`;
+
+    const txt = await callGemini(gemPrompt);
+    const result = parseJSON(txt);
+    if (result && result.value != null && toPrice(result.value)) return result;
+  } catch(e) { console.warn('fetchFuelGemini', idxId, ym, e); }
+
+  return null;
+}
+
+function stopAI(){_aiStop=true;document.getElementById('btnStop').style.display='none';toast('Detenido','er');}
+
+// ═══════════════ LOG ═══════════════
 function renderLog(){
   const log=document.getElementById('aiLog');
   const show=_tasks.slice(-50);
   log.innerHTML=show.map(t=>{
-    const ico={pending:'⏳',running:'🔄',found:t.via==='api'?'🏛️':'✅',manual:'⚠️',failed:'❌'}[t.status]||'⏳';
-    const cls=t.status==='found'&&t.via==='api'?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending');
-    let val='',note='';
-    if(t.found){ 
-      if(t.found.pct!=null)val=pF(t.found.pct); 
-      else if(t.found.value!=null)val='$'+Number(t.found.value).toFixed(2); 
-      if(t.found.seriesId)note='<span class="ai-log-note">'+esc(t.found.seriesId)+'</span>'; 
+    const ico={pending:'⏳',running:'🔄',found:'✅',manual:'⚠️',failed:'❌'}[t.status]||'⏳';
+    const cls={pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending';
+    let val='';
+    if(t.found){
+      if(t.found.pct!=null)val=pF(t.found.pct);
+      else if(t.found.value!=null)val='$'+Number(t.found.value).toFixed(2);
     }
     return `<div class="ai-log-row ${cls}">
       <span class="ai-log-ico">${ico}</span>
-      <span class="ai-log-name">${esc(t.def.name)}${note}</span>
-      <span class="ai-log-ym">${fmtM(t.ym)}${t.via==='api'?' · oficial':t.via==='ai'?' · IA':''}</span>
+      <span class="ai-log-name">${esc(t.def.name)}</span>
+      <span class="ai-log-ym">${fmtM(t.ym)}</span>
       ${val?`<span class="ai-log-val">${esc(val)}</span>`:''}
     </div>`;
   }).join('');
   log.scrollTop=log.scrollHeight;
 }
 
-function updateAIStats(found,manual,done,total,official,ai){
-  official=official||0; ai=ai||0;
+function updateAIStats(found,manual,done,total){
   document.getElementById('aiStats').innerHTML=
     `<span class="ai-stat info">${done}/${total}</span>
-     <span class="ai-stat ok">🏛️ ${official}</span>
-     <span class="ai-stat info">🤖 ${ai}</span>
      <span class="ai-stat ok">✅ ${found}</span>
      <span class="ai-stat warn">⚠️ ${manual} manuales</span>`;
 }
 
-function liveCellOk(def,ym,result,via){
-  const metaType=via==='api'?'api':'ai';
+// ═══════════════ LIVE CELL UPDATE ═══════════════
+function liveCellOk(def,ym,result){
   const field=isUsd(def)?'value':'pct';
-  const inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field);
-  if(inp){ 
-    const val=field==='value'?result.value:result.pct; 
-    if(val!=null){ 
-      inp.value=Number(val).toFixed(2); 
-      inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found'); 
-    } 
+  const inp=document.getElementById(`ci_${def.id}_${ym}_${field}`);
+  if(!inp)return;
+  const val=field==='value'?result.value:result.pct;
+  if(val!=null){
+    inp.value=Number(val).toFixed(2);
+    inp.className=inp.className.replace(/\b(need-manual|has-val)\b/g,'').trim()+' has-val ai-found';
   }
+  updateAcumCell(def.id);
 }
-
 function liveCellManual(def,ym){
   const field=isUsd(def)?'value':'pct';
-  const inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field);
-  if(inp&&!inp.value){ 
-    inp.className=inp.className.replace(/\b(has-val|ai-found|api-found)\b/g,'').trim()+' need-manual'; 
+  const inp=document.getElementById(`ci_${def.id}_${ym}_${field}`);
+  if(inp&&!inp.value)inp.classList.add('need-manual');
+}
+
+// ═══════════════ CELL INTERACTIONS ═══════════════
+function onCellChange(id,ym,field,el){
+  const raw=el.value.trim();
+  const ex=idxGet(id,ym)||{ym,pct:null,value:null,confirmed:false,note:'',source:'Manual',status:'manual'};
+  if(field==='pct')ex.pct=raw===''?null:parseFloat(raw);
+  else if(field==='value')ex.value=raw===''?null:parseFloat(raw);
+  idxSet(id,ex);
+  if(raw!==''){el.classList.add('has-val');el.classList.remove('need-manual','ai-found');}
+  else{el.classList.remove('has-val','ai-found','need-manual');}
+  updateAcumCell(id);refreshNeedCount();
+}
+
+function onConfirm(id,ym,el){
+  const ex=idxGet(id,ym)||{ym,pct:null,value:null,confirmed:false};
+  ex.confirmed=el.checked;idxSet(id,ex);
+  const def=IDX_CATALOG.find(d=>d.id===id);
+  const field=isUsd(def)?'value':'pct';
+  const inp=document.getElementById(`ci_${id}_${ym}_${field}`);
+  if(inp){
+    if(el.checked){inp.classList.add('confirmed');inp.classList.remove('ai-found','need-manual');}
+    else inp.classList.remove('confirmed');
   }
 }
 
-// ═══════════════ SELECTOR ═══════════════
-function countMissing(id){
-  return _months.filter(ym=>{
-    const ex=idxGet(id,ym);
-    return !ex||(ex.pct==null&&ex.value==null);
-  }).length;
+function onPaste(id,ym,field,el,e){
+  const txt=e.clipboardData?.getData('text');if(!txt)return;
+  const vals=txt.split(/[\r\n\t]+/).map(v=>v.trim().replace(',','.')).filter(v=>v!=='');
+  if(vals.length<=1)return;
+  e.preventDefault();
+  const mi=_months.indexOf(ym);if(mi<0)return;
+  vals.forEach((v,i)=>{
+    const tYm=_months[mi+i];if(!tYm)return;
+    const num=parseFloat(v);if(isNaN(num))return;
+    const ex=idxGet(id,tYm)||{ym:tYm,pct:null,value:null,confirmed:false,note:'',source:'Manual',status:'manual'};
+    if(field==='pct')ex.pct=num;else ex.value=num;
+    idxSet(id,ex);
+    const inp=document.getElementById(`ci_${id}_${tYm}_${field}`);
+    if(inp){inp.value=num.toFixed(2);inp.classList.add('has-val');inp.classList.remove('need-manual');}
+  });
+  updateAcumCell(id);refreshNeedCount();
+  toast(`${vals.length} valores pegados desde ${fmtM(ym)}`,'info');
 }
 
-function renderSel(){
-  const wrap=document.getElementById('selectorList');
-  const stats=document.getElementById('selStats');
-  if(!wrap||!stats) return;
+// ═══════════════ ACUM ═══════════════
+function updateAcumCell(id){
+  const el=document.getElementById('acum_'+id);if(!el)return;
+  const rows=idxRows(id).filter(r=>_months.includes(r.ym)&&r.pct!=null);
+  if(!rows.length){el.textContent='—';el.className='td-acum zero';return;}
+  const a=acum(rows)*100;
+  el.textContent=(a>0?'+':'')+a.toFixed(2)+'%';
+  el.className='td-acum '+(a>0?'pos':a<0?'neg':'zero');
+}
+function updateAllAcum(){IDX_CATALOG.forEach(d=>updateAcumCell(d.id));}
 
-  const allAuto=IDX_CATALOG.filter(d=>d.cat!=='mo');
-  const selN=allAuto.filter(d=>_selectedIdx.has(d.id)).length;
-  const missN=allAuto.filter(d=>_selectedIdx.has(d.id))
-                     .reduce((acc,d)=>acc+countMissing(d.id),0);
-
-  stats.textContent=selN+'/'+allAuto.length+' seleccionados · '+missN+' celdas faltantes';
-
-  wrap.innerHTML=allAuto.map(def=>{
-    const active=_selectedIdx.has(def.id);
-    const missing=countMissing(def.id);
-    return `<label class="sel-chip${active?' active':''}">
-      <input type="checkbox" data-idx="${def.id}" ${active?'checked':''}>
-      <span>${esc(def.name)}</span>
-      <small>${missing}</small>
-    </label>`;
-  }).join('');
-
-  wrap.querySelectorAll('input[data-idx]').forEach(chk=>{
-    chk.addEventListener('change',function(){
-      const id=this.getAttribute('data-idx');
-      if(this.checked) _selectedIdx.add(id);
-      else _selectedIdx.delete(id);
-      renderSel();
+// ═══════════════ CONFIRM ALL ═══════════════
+function confirmAllVisible(){
+  const cf=document.getElementById('catFilter').value;
+  IDX_CATALOG.filter(d=>!cf||d.cat===cf).forEach(def=>{
+    _months.forEach(ym=>{
+      const r=idxGet(def.id,ym);
+      if(r&&(r.pct!=null||r.value!=null)){
+        idxSet(def.id,{...r,confirmed:true});
+        const field=isUsd(def)?'value':'pct';
+        const inp=document.getElementById(`ci_${def.id}_${ym}_${field}`);
+        const chk=document.getElementById(`chk_${def.id}_${ym}`);
+        if(inp){inp.classList.add('confirmed');inp.classList.remove('ai-found','need-manual');}
+        if(chk)chk.checked=true;
+      }
     });
   });
+  toast('Períodos con datos confirmados','ok');
 }
 
-function selectAllAuto(){ 
-  _selectedIdx=new Set(IDX_CATALOG.filter(d=>d.cat!=='mo').map(d=>d.id)); 
-  renderSel(); 
+// ═══════════════ NEED MANUAL COUNT ═══════════════
+function refreshNeedCount(){
+  const n=Object.values(_meta).filter(v=>v==='manual').length;
+  const el=document.getElementById('needCount');
+  if(n>0){el.textContent=`⚠️ ${n} celdas requieren carga manual`;el.style.display='';}
+  else el.style.display='none';
 }
-function clearSelectedAuto(){ 
-  _selectedIdx=new Set(); 
-  renderSel(); 
+
+// ═══════════════ RANGE ═══════════════
+function applyRange(){
+  const from=document.getElementById('ctrlFrom').value;
+  const to=document.getElementById('ctrlTo').value;
+  if(!from||!to||from>to){toast('Rango inválido','er');return;}
+  _months=buildRange(from,to);_meta={};renderAll();
+  toast(`${fmtMF(from)} → ${fmtMF(to)} · ${_months.length} meses`,'info');
+}
+
+function initRange(){
+  const now=new Date();
+  const to=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('ctrlTo').value=to;
+  _months=buildRange('2024-01',to);
+}
+
+// ═══════════════ RENDER ═══════════════
+function renderAll(){
+  const cf=document.getElementById('catFilter').value;
+  const wrap=document.getElementById('mainContent');
+  if(!_months.length){wrap.innerHTML='<div class="empty-msg">Seleccioná un rango y presioná Aplicar.</div>';return;}
+  let html='';
+  CAT_ORDER.filter(c=>!cf||c===cf).forEach(cat=>{
+    const defs=IDX_CATALOG.filter(d=>d.cat===cat);
+    if(!defs.length)return;
+    const coll=_coll[cat]||false;
+    html+=`<div class="cat-sec">
+      <div class="cat-hdr">
+        <h2>${esc(CAT_LABEL[cat])}</h2>
+        <span class="cat-pill ${cat}">${cat.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--g500);margin-left:6px">${defs.length} índices</span>
+        ${cat==='mo'?'<span style="font-size:11px;color:#5b21b6;font-weight:700;margin-left:6px">· Carga manual</span>':''}
+        <button class="cat-toggle" onclick="_coll['${cat}']=!_coll['${cat}'];renderAll()">${coll?'▸ Expandir':'▾ Colapsar'}</button>
+      </div>
+      ${coll?'':renderTable(defs)}
+    </div>`;
+  });
+  if(!html)html='<div class="empty-msg">Sin índices.</div>';
+  wrap.innerHTML=html;
+}
+
+function renderTable(defs){
+  const ths=_months.map(ym=>`<th style="min-width:84px">${esc(fmtM(ym))}</th>`).join('');
+  const sub=_months.map(()=>'<th style="font-size:8px;opacity:.45;font-weight:500">% · ✓</th>').join('');
+  const rows=defs.map(def=>{
+    const field=isUsd(def)?'value':'pct';
+    const sRows=idxRows(def.id).filter(r=>_months.includes(r.ym)&&r.pct!=null);
+    const aVal=sRows.length?acum(sRows)*100:null;
+    const aStr=aVal!=null?(aVal>0?'+':'')+aVal.toFixed(2)+'%':'—';
+    const aCls=aVal!=null?(aVal>0?'pos':aVal<0?'neg':'zero'):'zero';
+
+    const cells=_months.map(ym=>{
+      const row=idxGet(def.id,ym);
+      const val=row?.[field];
+      const conf=row?.confirmed||false;
+      const meta=_meta[def.id+'_'+ym]||'';
+      const hasV=val!=null&&val!=='';
+      let cls='cell-inp'+(isUsd(def)?' usd-w':'');
+      if(conf)cls+=' confirmed';
+      else if(meta==='ai'&&hasV)cls+=' ai-found';
+      else if(meta==='manual'&&!hasV)cls+=' need-manual';
+      else if(hasV)cls+=' has-val';
+
+      return `<td>
+        <input id="ci_${def.id}_${ym}_${field}" class="${cls}"
+          type="number" step="0.01" placeholder="—"
+          value="${hasV?Number(val).toFixed(2):''}"
+          onchange="onCellChange('${def.id}','${ym}','${field}',this)"
+          onpaste="onPaste('${def.id}','${ym}','${field}',this,event)"
+          title="${esc(fmtMF(ym))} — ${isUsd(def)?'TC vendedor':'% var. mensual'}">
+        <div style="display:flex;align-items:center;justify-content:center;gap:3px;margin-top:2px">
+          <input type="checkbox" class="cell-chk" id="chk_${def.id}_${ym}" ${conf?'checked':''}
+            onchange="onConfirm('${def.id}','${ym}',this)">
+          <label for="chk_${def.id}_${ym}" style="font-size:9px;color:var(--g500);cursor:pointer">✓</label>
+        </div>
+      </td>`;
+    }).join('');
+
+    return `<tr>
+      <td class="td-idx">
+        <div>${esc(def.name)}</div>
+        ${def.cct?`<div class="td-cct">${esc(def.cct)}</div>`:`<div class="td-src">Fuente: ${esc(def.src)}</div>`}
+      </td>
+      ${cells}
+      <td class="td-acum ${aCls}" id="acum_${def.id}">${esc(aStr)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="grid-wrap">
+    <table class="grid-tbl">
+      <thead>
+        <tr><th class="th-idx">Índice</th>${ths}<th class="th-acum">Acum. período</th></tr>
+        <tr style="background:var(--p700)">
+          <th class="th-idx" style="background:var(--p700);font-size:8px;opacity:.55">% var. mensual · USD: TC vendedor · ✓ confirmar</th>
+          ${sub}<th style="background:var(--p700)"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+// ═══════════════ EXPORT/IMPORT ═══════════════
+function exportJSON(){
+  const b=new Blob([JSON.stringify(IDX_STORE,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);
+  a.download='idx_store_'+new Date().toISOString().substring(0,10)+'.json';a.click();
+  toast('JSON exportado','ok');
+}
+function importJSON(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{IDX_STORE=JSON.parse(e.target.result);renderAll();toast('Importado · guardá en BD','info');}catch{toast('JSON inválido','er');}};
+  r.readAsText(f);input.value='';
 }
 
 // ═══════════════ UI ═══════════════
@@ -986,107 +929,312 @@ function setStatus(type,msg){
   document.getElementById('statusMsg').textContent=msg;
 }
 
-function initRange(){
-  const now=new Date();
-  const from=new Date(now.getFullYear(),now.getMonth()-6,1);
-  document.getElementById('ctrlFrom').value=from.getFullYear()+'-'+String(from.getMonth()+1).padStart(2,'0');
-  document.getElementById('ctrlTo').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-}
-
-function applyRange(){
-  const from=document.getElementById('ctrlFrom').value;
-  const to=document.getElementById('ctrlTo').value;
-  if(!from||!to){toast('Ingresá un rango','er');return;}
-  if(from>to){toast('Rango inválido','er');return;}
-  _months=buildRange(from,to);
-  renderAll();
-  toast('Rango aplicado: '+_months.length+' meses','ok');
-}
-
-function renderAll(){
-  const main=document.getElementById('mainContent');
-  if(!_months.length){
-    main.innerHTML='<div style="text-align:center;padding:40px;color:var(--g500)">Aplicá un rango de fechas primero</div>';
-    return;
-  }
-
-  const cats=CAT_ORDER.map(cat=>{
-    const defs=IDX_CATALOG.filter(d=>d.cat===cat);
-    if(!defs.length)return'';
-
-    const rows=defs.map(def=>{
-      const cells=_months.map(ym=>{
-        const ex=idxGet(def.id,ym);
-        const field=isUsd(def)?'value':'pct';
-        const val=ex?ex[field]:'';
-        const metaKey=def.id+'_'+ym;
-        const metaType=_meta[metaKey]||'';
-        let cls='cell-inp '+(isUsd(def)?'usd-w':'');
-        if(val) cls+=' has-val';
-        if(metaType==='api') cls+=' api-found';
-        else if(metaType==='ai') cls+=' ai-found';
-        else if(metaType==='manual'&&!val) cls+=' need-manual';
-        return `<td><input type="text" class="${cls}" id="ci_${def.id}_${ym}_${field}" value="${val||''}" data-idx="${def.id}" data-ym="${ym}" data-field="${field}"></td>`;
-      }).join('');
-      return `<tr>
-        <td class="td-idx">${esc(def.name)}<div class="td-src">${esc(def.src)}</div></td>
-        ${cells}
-      </tr>`;
-    }).join('');
-
-    const ths=_months.map(ym=>`<th>${fmtM(ym)}</th>`).join('');
-
-    return `<div class="cat-sec">
-      <div class="cat-hdr">
-        <h2>${CAT_LABEL[cat]}</h2>
-        <span class="cat-pill ${cat}">${defs.length}</span>
-      </div>
-      <div class="grid-wrap">
-        <table class="grid-tbl">
-          <thead><tr><th class="th-idx">Índice</th>${ths}</tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
-
-  main.innerHTML=cats;
-
-  // Attach input listeners
-  main.querySelectorAll('.cell-inp').forEach(inp=>{
-    inp.addEventListener('blur',function(){
-      const id=this.dataset.idx;
-      const ym=this.dataset.ym;
-      const field=this.dataset.field;
-      const val=this.value.trim();
-      if(val){
-        const row={ym,confirmed:false,status:'updated'};
-        row[field]=Number(val);
-        idxSet(id,row);
-        this.classList.add('has-val');
-        this.classList.remove('need-manual');
-      }
-    });
-  });
-}
-
-function exportJSON(){
-  const b=new Blob([JSON.stringify(IDX_STORE,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);
-  a.download='idx_store_'+new Date().toISOString().substring(0,10)+'.json';a.click();
-  toast('JSON exportado','ok');
-}
-
 // ═══════════════ BOOT ═══════════════
 document.addEventListener('DOMContentLoaded',async()=>{
+  // Warn if opened from file:// (fetch blocked by browser CORS)
   if(location.protocol==='file:'){
-    setStatus('err','⚠️ Abrí desde servidor local: python -m http.server 8080');
-    setSb('err','⬤ file:// bloqueado');
+    setStatus('err','⚠️ Abrí esta herramienta desde un servidor local, no desde file://. Usá: python -m http.server 8080 y abrí http://localhost:8080/cargador-indices.html');
+    document.getElementById('sbBadge').textContent='⬤ file:// bloqueado';
+    document.getElementById('sbBadge').className='sb-badge err';
     return;
   }
-  initRange();
-  await loadFromSupabase();
+  initRange();await loadFromSupabase();
 });
+
+// ── Expose to window for cross-script access ──────────────────────────────
+window.IDX_CATALOG = IDX_CATALOG;
+window.CAT_ORDER   = CAT_ORDER;
+window.CAT_LABEL   = CAT_LABEL;
+// let variables need explicit window assignment
+Object.defineProperty(window,'_months',{get:function(){return _months;},set:function(v){_months=v;}});
+Object.defineProperty(window,'_meta',  {get:function(){return _meta;},  set:function(v){_meta=v;}});
+Object.defineProperty(window,'_tasks', {get:function(){return _tasks;}, set:function(v){_tasks=v;}});
+Object.defineProperty(window,'_aiStop',{get:function(){return _aiStop;},set:function(v){_aiStop=v;}});
+// Functions defined with const arrow — wrap to window
+window.idxGet        = idxGet;
+window.idxSet        = idxSet;
+window.idxRows       = idxRows;
+window.buildRange    = buildRange;
+window.isUsd         = isUsd;
+window.esc           = esc;
+window.pF            = pF;
+window.fmtM          = fmtM;
+window.fmtMF         = fmtMF;
+window.acum          = acum;
+window.sleep         = sleep;
+</script>
+<script>
+(function(){
+  "use strict";
+  // ═══ SERIES API ═══
+  var SERIES_API = 'https://apis.datos.gob.ar/series/api/series';
+  var SERIES_IDS = {
+    ipc_nac:   '148.3_INIVELNAL_DICI_M_26',
+    ipc_gba:   '148.3_INIVELGBA_DICI_M_21',
+    ipc_pat:   '148.3_INIVELNIA_DICI_M_27',
+    ipim_gral: '448.1_NIVEL_GENERAL_0_0_13_46',
+    ipim_r29:  '448.1_REFINADOS_PETROLEO_0_0_13_46'
+  };
+  var SERIES_FALLBACK = {
+    ipc_pat:  ['148.3_INIVELPAT_DICI_M_27'],
+    ipim_r29: ['178.1_REFINADOS_PETROLEO_0_0_13','178.1_PRP_0_0_13']
+  };
+  window._seriesCache = window._seriesCache || {};
+
+  // ═══ SELECTOR ═══
+  // Initialize with ALL non-MO indexes selected
+  // IDX_CATALOG is now exposed to window by the first script
+  window._selectedIdx = new Set(
+    (window.IDX_CATALOG || []).filter(function(d){ return d.cat !== 'mo'; }).map(function(d){ return d.id; })
+  );
+
+  function countMissing(id){
+    return (window._months || []).filter(function(ym){
+      var ex = window.idxGet(id, ym);
+      return !ex || (ex.pct == null && ex.value == null);
+    }).length;
+  }
+
+  function renderSel(){
+    var wrap  = document.getElementById('selectorList');
+    var stats = document.getElementById('selStats');
+    if(!wrap || !stats) return;
+
+    var cat     = window.IDX_CATALOG || [];
+    var cf      = (document.getElementById('catFilter') || {}).value || '';
+    var allAuto = cat.filter(function(d){ return d.cat !== 'mo'; });
+    var visible = allAuto.filter(function(d){ return !cf || d.cat === cf; });
+    var selN    = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); }).length;
+    var missN   = allAuto.filter(function(d){ return window._selectedIdx.has(d.id); })
+                         .reduce(function(acc, d){ return acc + countMissing(d.id); }, 0);
+
+    stats.textContent = selN + '/' + allAuto.length + ' seleccionados · ' + missN + ' celdas faltantes';
+
+    if(!visible.length){
+      wrap.innerHTML = '<span style="font-size:12px;color:var(--g500)">Sin índices automáticos en esta categoría.</span>';
+      return;
+    }
+
+    wrap.innerHTML = visible.map(function(def){
+      var active  = window._selectedIdx.has(def.id);
+      var missing = countMissing(def.id);
+      return '<label class="sel-chip' + (active ? ' active' : '') + '">'
+        + '<input type="checkbox" data-idx="' + def.id + '" ' + (active ? 'checked' : '') + '>'
+        + '<span>' + window.esc(def.name) + '</span>'
+        + '<small>' + missing + '</small>'
+        + '</label>';
+    }).join('');
+
+    wrap.querySelectorAll('input[data-idx]').forEach(function(chk){
+      chk.addEventListener('change', function(){
+        var id = this.getAttribute('data-idx');
+        if(this.checked) window._selectedIdx.add(id);
+        else             window._selectedIdx.delete(id);
+        renderSel();
+      });
+    });
+  }
+
+  window.renderSelectionPanel = renderSel;
+  window.selectAllAuto        = function(){ window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo';}).map(function(d){return d.id;})); renderSel(); };
+  window.clearSelectedAuto    = function(){ window._selectedIdx = new Set(); renderSel(); };
+  window.selectVisibleAuto    = function(){
+    var cf = (document.getElementById('catFilter')||{}).value||'';
+    window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo'&&(!cf||d.cat===cf);}).map(function(d){return d.id;}));
+    renderSel();
+  };
+  window.selectCurrentCategory = function(){
+    var cf = (document.getElementById('catFilter')||{}).value||'';
+    if(!cf){ window.selectAllAuto(); return; }
+    window._selectedIdx = new Set((window.IDX_CATALOG||[]).filter(function(d){return d.cat!=='mo'&&d.cat===cf;}).map(function(d){return d.id;}));
+    renderSel();
+  };
+  window.toggleIdxSelection = function(id, checked){
+    if(checked) window._selectedIdx.add(id);
+    else        window._selectedIdx.delete(id);
+    renderSel();
+  };
+
+  // Hook into renderAll/applyRange/refreshNeedCount AFTER they're defined in first script
+  // (second script runs after first script completes, so hooks work immediately)
+  function patchHook(fn){
+    var orig = window[fn];
+    if(typeof orig === 'function'){
+      window[fn] = function(){
+        var r = orig.apply(this, arguments);
+        renderSel();
+        return r;
+      };
+    }
+  }
+  patchHook('renderAll');
+  patchHook('applyRange');
+  patchHook('refreshNeedCount');
+
+  // ═══ SERIES FETCH ═══
+  function prevYm(ym){
+    var p = ym.split('-').map(Number);
+    var d = new Date(p[0], p[1]-2, 1);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  async function fetchBundle(sid, pct, force){
+    var key = sid + (pct ? '_pct' : '_idx');
+    if(!force && window._seriesCache[key]) return window._seriesCache[key];
+    var qid = pct ? sid + ':percent_change' : sid;
+    var url = SERIES_API + '?ids=' + encodeURIComponent(qid)
+            + '&format=json&limit=600&sort=asc&start_date=2016-01-01';
+    var r = await fetch(url);
+    if(!r.ok) throw new Error('series ' + r.status + ' ' + qid);
+    var d = await r.json();
+    var b = { rows: Array.isArray(d.data)?d.data:[], url: url, pct: pct };
+    window._seriesCache[key] = b;
+    return b;
+  }
+
+  function findPt(rows, ym){
+    return rows.find(function(x){ return String(x && x[0] || '').slice(0,7) === ym; }) || null;
+  }
+
+  function interpret(def, sid, bundle, ym){
+    var pt = findPt(bundle.rows, ym);
+    if(!pt || pt[1] == null) return null;
+    var v = Number(pt[1]);
+    if(!isFinite(v)) return null;
+    var pub = String(pt[0]).slice(0,10);
+
+    if(bundle.pct){
+      // :percent_change — value is monthly % as fraction (0.046) or direct (4.6)
+      var pct = Math.abs(v) <= 1.5 ? +(v*100).toFixed(2) : +v.toFixed(2);
+      return { ym:ym, pct:pct, value:null, seriesId:sid, calcMethod:'pct',
+               publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v,
+               note:'INDEC % mensual (' + sid + ')' };
+    }
+
+    // Index mode — compute ratio with previous month
+    var prev = findPt(bundle.rows, prevYm(ym));
+    if(v > 20 && prev && prev[1] != null){
+      var pv = Number(prev[1]);
+      if(isFinite(pv) && pv > 0 && v > 0){
+        var pct2 = ((v/pv)-1)*100;
+        if(isFinite(pct2) && Math.abs(pct2) < 200)
+          return { ym:ym, pct:+pct2.toFixed(2), value:null,
+                   seriesValue:+v.toFixed(4), seriesPrevValue:+pv.toFixed(4),
+                   seriesId:sid, calcMethod:'ratio', publishedAt:pub, sourceUrl:bundle.url,
+                   source:def.src, rawValue:v, note:'INDEC índice (' + sid + ')' };
+      }
+    }
+    if(Math.abs(v) <= 1.5) return { ym:ym, pct:+(v*100).toFixed(2), value:null, seriesId:sid, calcMethod:'frac', publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v, note:'INDEC frac' };
+    if(Math.abs(v) <= 200) return { ym:ym, pct:+v.toFixed(2), value:null, seriesId:sid, calcMethod:'direct', publishedAt:pub, sourceUrl:bundle.url, source:def.src, rawValue:v, note:'INDEC directo' };
+    return null;
+  }
+
+  async function fetchIndecYm(def, ym){
+    var sid = SERIES_IDS[def.id];
+    if(sid){
+      // First try :percent_change (less lag)
+      for(var f=0; f<=1; f++){
+        try{ var b=await fetchBundle(sid,true,!!f); var r=interpret(def,sid,b,ym); if(r) return r; }catch(e){ console.warn('pct',sid,ym,e); }
+      }
+      // Then try index-based ratio
+      for(var f2=0; f2<=1; f2++){
+        try{ var b2=await fetchBundle(sid,false,!!f2); var r2=interpret(def,sid,b2,ym); if(r2) return r2; }catch(e){ console.warn('idx',sid,ym,e); }
+      }
+    }
+    // Fallback series
+    var fbs = SERIES_FALLBACK[def.id] || [];
+    for(var i=0; i<fbs.length; i++){
+      try{ var fb=await fetchBundle(fbs[i],false,false); var rf=interpret(def,fbs[i],fb,ym); if(rf) return rf; }catch(e){ console.warn('fb',fbs[i],ym,e); }
+    }
+    return null;
+  }
+
+  // ═══ OVERRIDE log/stats/cell helpers ═══
+  window.renderLog = function(){
+    var log = document.getElementById('aiLog'); if(!log) return;
+    var show = (window._tasks||[]).slice(-50);
+    log.innerHTML = show.map(function(t){
+      var ico = {pending:'⏳',running:'🔄',found:t.via==='api'?'🏛️':'✅',manual:'⚠️',failed:'❌'}[t.status]||'⏳';
+      var cls = t.status==='found'&&t.via==='api' ? 'api' : ({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending');
+      var val = '', note = '';
+      if(t.found){ if(t.found.pct!=null)val=window.pF(t.found.pct); else if(t.found.value!=null)val='$'+Number(t.found.value).toFixed(2); if(t.found.seriesId)note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+'</span>'; }
+      return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span><span class="ai-log-name">'+window.esc(t.def.name)+note+'</span><span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'+(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>';
+    }).join('');
+    log.scrollTop = log.scrollHeight;
+  };
+  window.updateAIStats = function(found,manual,done,total,official,ai){
+    official=official||0; ai=ai||0;
+    var el=document.getElementById('aiStats'); if(!el) return;
+    el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span><span class="ai-stat ok">🏛️ '+official+'</span><span class="ai-stat info">🤖 '+ai+'</span><span class="ai-stat ok">✅ '+found+'</span><span class="ai-stat warn">⚠️ '+manual+' manuales</span>';
+  };
+  window.liveCellOk = function(def,ym,result,metaType){
+    metaType=metaType||'ai';
+    var field=window.isUsd(def)?'value':'pct';
+    var inp=document.getElementById('ci_'+def.id+'_'+ym+'_'+field);
+    if(inp){ var val=field==='value'?result.value:result.pct; if(val!=null){ inp.value=Number(val).toFixed(2); inp.className=inp.className.replace(/\b(need-manual|has-val|ai-found|api-found)\b/g,'').trim()+' has-val '+(metaType==='api'?'api-found':'ai-found'); } }
+    if(typeof window.updateAcumCell==='function') window.updateAcumCell(def.id);
+  };
+
+  // ═══ MAIN AI SEARCH ═══
+  window.startAISearch = async function(){
+    var from=document.getElementById('ctrlFrom').value, to=document.getElementById('ctrlTo').value;
+    if(!from||!to||from>to){ window.toast('Aplicá un rango válido primero','er'); return; }
+    var defs=(window.IDX_CATALOG||[]).filter(function(d){ return d.cat!=='mo'&&window._selectedIdx.has(d.id); });
+    if(!defs.length){ window.toast('Seleccioná al menos un índice','er'); return; }
+    var months=window._months&&window._months.length?window._months:window.buildRange(from,to);
+    window._tasks=[];
+    defs.forEach(function(def){ months.forEach(function(ym){ var ex=window.idxGet(def.id,ym); if(!ex||(ex.pct==null&&ex.value==null)) window._tasks.push({def:def,ym:ym,status:'pending',found:null,via:null}); }); });
+    if(!window._tasks.length){ window.toast('No hay períodos faltantes','ok'); return; }
+    var panel=document.getElementById('aiPanel'); if(panel)panel.classList.add('vis');
+    document.getElementById('btnStop').style.display='';
+    document.getElementById('btnAI').disabled=true;
+    document.getElementById('aiSub').textContent='· '+window._tasks.length+' búsquedas';
+    document.getElementById('aiBar').style.width='0%';
+    document.getElementById('aiLog').innerHTML='';
+    window._aiStop=false;
+    var done=0,found=0,manual=0,official=0,ai=0;
+    for(var ti=0;ti<window._tasks.length;ti++){
+      var t=window._tasks[ti];
+      if(window._aiStop) break;
+      t.status='running'; window.renderLog();
+      try{
+        var result=null,via=null;
+        if(t.def.cat==='usd'){ result=await window.fetchUsdYm(t.ym); via='api'; }
+        else if(t.def.cat==='fuel'){ result=await window.fetchFuelACAYm(t.def.id,t.ym); via='api'; }
+        else if(t.def.src==='INDEC'){
+          try{ result=await fetchIndecYm(t.def,t.ym); if(result)via='api'; }catch(e){ console.warn(e); }
+          if(!result){ var txt=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt); via=result?'ai':null; }
+        } else { var txt2=await window.callGemini(window.buildPrompt(t.def,t.ym)); result=window.parseJSON(txt2); via=result?'ai':null; }
+
+        if(result&&(result.pct!=null||result.value!=null)){
+          window.idxSet(t.def.id,{ym:result.ym||t.ym,pct:result.pct!=null?Number(result.pct):null,value:result.value!=null?Number(result.value):null,seriesValue:result.seriesValue!=null?Number(result.seriesValue):null,seriesPrevValue:result.seriesPrevValue!=null?Number(result.seriesPrevValue):null,seriesId:result.seriesId||null,calcMethod:result.calcMethod||null,confirmed:false,status:'updated',source:t.def.src,note:result.note||'',publishedAt:result.publishedAt||null,sourceUrl:result.sourceUrl||null});
+          window._meta[t.def.id+'_'+t.ym]=via==='api'?'api':'ai';
+          t.status='found'; t.found=result; t.via=via; found++;
+          if(via==='api')official++; else ai++;
+          window.liveCellOk(t.def,t.ym,result,via==='api'?'api':'ai');
+        } else { t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); }
+      }catch(e){ console.warn('task',t.def.id,e); t.status='manual'; t.via='manual'; window._meta[t.def.id+'_'+t.ym]='manual'; manual++; window.liveCellManual(t.def,t.ym); }
+      done++;
+      document.getElementById('aiBar').style.width=Math.round(done/window._tasks.length*100)+'%';
+      window.updateAIStats(found,manual,done,window._tasks.length,official,ai);
+      window.renderLog();
+      await window.sleep(220);
+    }
+    document.getElementById('btnStop').style.display='none';
+    document.getElementById('btnAI').disabled=false;
+    document.getElementById('aiSub').textContent='· Listo: '+found+' encontrados, '+manual+' manuales';
+    window.refreshNeedCount();
+    if(typeof window.updateAllAcum==='function') window.updateAllAcum();
+    renderSel();
+    if(found>0){ window.toast('Actualización: '+found+' · '+manual+' manuales','ai'); await window.saveToSupabase(); }
+    else window.toast('Sin datos · '+manual+' manuales','er');
+  };
+
+  // Boot: renderSel runs after DOMContentLoaded (both scripts have fired by then)
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(renderSel, 500);
+  });
+})();
 </script>
 </body>
 </html>
