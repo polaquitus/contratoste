@@ -480,7 +480,22 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
  <div class="sb-foot"><button id="sbLogoutBtn" class="btn sb-logout" type="button" style="display:none" onclick="logoutApp()">⎋ Cerrar sesión</button></div>
 </aside>
 <main class="mn">
-<header class="tb"><h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span></h1><div class="tba" id="pgA"><div style="position:relative;width:100%;max-width:400px;"><input type="text" id="fuzzy-search-input" placeholder="Buscar contratos... (presiona /)" style="padding-left:32px;width:100%;font-size:13px;" oninput="handleFuzzySearch(this.value)"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--g500);font-size:14px;">🔍</span><div id="fuzzy-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--w);border-radius:var(--rad);box-shadow:var(--shm);max-height:400px;overflow-y:auto;z-index:999;border:1px solid var(--g200);"></div></div><button class="btn btn-p" onclick="go('form')">➕ Nuevo</button></div></header>
+<header class="tb">
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span></h1>
+  <div class="tba" id="pgA">
+    <div style="position:relative;width:100%;max-width:400px;">
+      <input 
+        type="text" 
+        id="fuzzy-search-input" 
+        placeholder="🔍 Buscar contratos... (presiona /)" 
+        style="padding-left:12px;width:100%;font-size:13px;" 
+        oninput="handleFuzzySearch(this.value)"
+      >
+      <div id="fuzzy-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--w);border-radius:var(--rad);box-shadow:var(--shm);max-height:400px;overflow-y:auto;z-index:999;border:1px solid var(--g200);"></div>
+    </div>
+    <button class="btn btn-p" onclick="go('form')">➕ Nuevo</button>
+  </div>
+</header>
 <div class="ct">
 
 <!-- LIST -->
@@ -883,6 +898,13 @@ async function initApp(__fromLogin) {
 
   hideLoader();
   buildPoly(); renderList(); updNav();
+  
+  // Init features FASE 1
+  setTimeout(function(){
+    initFuzzySearch();
+    loadSavedFilters();
+    renderSavedFiltersDropdown();
+  }, 500);
 }
 
 // ─── PUBLIC API (called throughout app) ──────
@@ -6198,8 +6220,7 @@ function handleFuzzySearch(query) {
 
 function selectFuzzyResult(contractId) {
   window.detId = contractId;
-  if (typeof go === 'function') go('det');
-  if (typeof showView === 'function') showView('det');
+  if (typeof go === 'function') go('detail');
   
   const resultsDiv = document.getElementById('fuzzy-results');
   if (resultsDiv) resultsDiv.style.display = 'none';
@@ -6223,7 +6244,9 @@ function initKeyboardShortcuts() {
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
-      go('form');
+      e.stopPropagation();
+      if (typeof go === 'function') go('form');
+      return false;
     }
 
     if (e.key === '/') {
@@ -6277,8 +6300,7 @@ function focusSearchInput() {
 function showContractEditor() {
   var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (cc) {
-    if (typeof showView === 'function') showView('det');
-    if (typeof go === 'function') go('det');
+    if (typeof go === 'function') go('detail');
     setTimeout(function(){
       const editBtn = document.querySelector('[onclick*="editCont"]');
       if (editBtn) editBtn.click();
@@ -6345,8 +6367,7 @@ function copyContractAsTemplate() {
   if (typeof save === 'function') save();
   
   toast('Contrato duplicado como borrador', 'ok');
-  if (typeof showView === 'function') showView('det');
-  if (typeof go === 'function') go('det');
+  if (typeof go === 'function') go('detail');
 }
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
@@ -6437,8 +6458,7 @@ function renderSavedFiltersDropdown() {
 // ═══════════════ INIT ═══════════════
 window.addEventListener('DOMContentLoaded', function() {
   initKeyboardShortcuts();
-  initFuzzySearch();
-  loadSavedFilters();
+  // fuzzy y filters se inician después de cargar DB
 });
 
 </script>
