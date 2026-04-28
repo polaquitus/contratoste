@@ -6196,13 +6196,22 @@ window.initFuzzySearch = function() {
     return;
   }
   
+  var hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  
   _searchCache = window.DB.map(function(c){
+    var fin = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00') : null;
+    var estado = 'Borrador';
+    if (fin) {
+      estado = fin >= hoy ? 'Activo' : 'Vencido';
+    }
+    
     return {
       id: c.id,
       proveedor: c.cont || '',
       numero: c.num || '',
       objeto: c.det || '',
-      estado: c.estado || '',
+      estado: estado,
       monto: c.tot || 0
     };
   });
