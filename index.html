@@ -6,7 +6,7 @@
 <title>Gestión de Contratos TA</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+<script src="https://unpkg.com/fuse.js@6.6.2/dist/fuse.min.js"></script>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -6135,16 +6135,20 @@ var _fuseInstance = null;
 var _searchCache = [];
 
 function initFuzzySearch() {
-  const db = getDB();
-  _searchCache = (db.contratos || []).map(function(c){
+  if (!window.DB || !Array.isArray(window.DB)) {
+    _searchCache = [];
+    _fuseInstance = null;
+    return;
+  }
+  
+  _searchCache = window.DB.map(function(c){
     return {
       id: c.id,
-      proveedor: c.proveedor || '',
-      numero: c.numero || '',
-      objeto: c.objeto || '',
+      proveedor: c.cont || '',
+      numero: c.num || '',
+      objeto: c.det || '',
       estado: c.estado || '',
-      monto: c.tot || 0,
-      plazo: c.plazo_meses || c.plazo || 0
+      monto: c.tot || 0
     };
   });
 
@@ -6185,16 +6189,17 @@ function handleFuzzySearch(query) {
   }
   
   resultsDiv.innerHTML = results.map(function(c){
-    var estClass = c.estado === 'Activo' ? 'ok' : (c.estado === 'Borrador' ? 'war' : 'in');
-    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">$' + fmtNum(c.monto) + '</span></div></div>';
+    var estClass = c.estado === 'Activo' ? 'act' : (c.estado === 'Borrador' ? 'pend' : 'exp');
+    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">$' + fN(c.monto) + '</span></div></div>';
   }).join('');
   
   resultsDiv.style.display = 'block';
 }
 
 function selectFuzzyResult(contractId) {
-  _cid = contractId;
-  showView('det');
+  window.detId = contractId;
+  if (typeof go === 'function') go('det');
+  if (typeof showView === 'function') showView('det');
   
   const resultsDiv = document.getElementById('fuzzy-results');
   if (resultsDiv) resultsDiv.style.display = 'none';
@@ -6231,12 +6236,12 @@ function initKeyboardShortcuts() {
       closeAllModals();
     }
 
-    if (e.key === 'e' && _cid) {
+    if (e.key === 'e' && window.detId) {
       e.preventDefault();
       showContractEditor();
     }
 
-    if (e.key === 'Delete' && _cid) {
+    if (e.key === 'Delete' && window.detId) {
       e.preventDefault();
       confirmDeleteContract();
     }
@@ -6270,22 +6275,23 @@ function focusSearchInput() {
 }
 
 function showContractEditor() {
-  var cc = currentContract();
+  var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (cc) {
-    showView('det');
+    if (typeof showView === 'function') showView('det');
+    if (typeof go === 'function') go('det');
     setTimeout(function(){
-      const editBtn = document.querySelector('[onclick*="editContract"]');
+      const editBtn = document.querySelector('[onclick*="editCont"]');
       if (editBtn) editBtn.click();
     }, 100);
   }
 }
 
 function confirmDeleteContract() {
-  var cc = currentContract();
+  var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (!cc) return;
   
-  if (confirm('¿Eliminar contrato ' + cc.numero + ' - ' + cc.proveedor + '?')) {
-    delContract(cc.id);
+  if (confirm('¿Eliminar contrato ' + (cc.num||'') + ' - ' + (cc.cont||'') + '?')) {
+    if (typeof delContract === 'function') delContract(cc.id);
   }
 }
 
@@ -6312,17 +6318,19 @@ function toggleShortcutHelp() {
 
 // ═══════════════ COPY CONTRACT TEMPLATE ═══════════════
 function copyContractAsTemplate() {
-  var cc = currentContract();
+  var cc = window.DB ? window.DB.find(function(c){ return c.id === window.detId; }) : null;
   if (!cc) {
-    safeToast('Selecciona un contrato primero', 'er');
+    toast('Selecciona un contrato primero', 'er');
     return;
   }
   
   var newContract = JSON.parse(JSON.stringify(cc));
   
   newContract.id = 'c_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  newContract.num = '';
   newContract.numero = '';
   newContract.fecha = '';
+  newContract.fechaIni = '';
   newContract.estado = 'Borrador';
   newContract.createdAt = new Date().toISOString();
   newContract.updatedAt = new Date().toISOString();
@@ -6330,15 +6338,15 @@ function copyContractAsTemplate() {
   newContract.aves = [];
   newContract.ops = [];
   
-  var db = getDB();
-  db.contratos = db.contratos || [];
-  db.contratos.push(newContract);
+  if (!window.DB) window.DB = [];
+  window.DB.push(newContract);
   
-  _cid = newContract.id;
-  save();
+  window.detId = newContract.id;
+  if (typeof save === 'function') save();
   
-  safeToast('Contrato duplicado como borrador', 'ok');
-  showView('det');
+  toast('Contrato duplicado como borrador', 'ok');
+  if (typeof showView === 'function') showView('det');
+  if (typeof go === 'function') go('det');
 }
 
 // ═══════════════ FILTROS GUARDADOS ═══════════════
@@ -6377,7 +6385,7 @@ function saveCurrentFilter() {
   
   _savedFilters.push(filter);
   saveFiltersList();
-  safeToast('Filtro "' + name + '" guardado', 'ok');
+  toast('Filtro "' + name + '" guardado', 'ok');
   renderSavedFiltersDropdown();
 }
 
@@ -6402,14 +6410,14 @@ function applySavedFilter(filterId) {
   }
   
   if (typeof renderList === 'function') renderList();
-  safeToast('Filtro "' + filter.name + '" aplicado', 'ok');
+  toast('Filtro "' + filter.name + '" aplicado', 'ok');
 }
 
 function deleteSavedFilter(filterId) {
   _savedFilters = _savedFilters.filter(function(f){ return f.id !== filterId; });
   saveFiltersList();
   renderSavedFiltersDropdown();
-  safeToast('Filtro eliminado', 'ok');
+  toast('Filtro eliminado', 'ok');
 }
 
 function renderSavedFiltersDropdown() {
