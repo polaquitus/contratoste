@@ -1,1 +1,153 @@
+name: Contratos TA — Test automatico
 
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ── 1. Verificar error handlers ──────────────────────────────────────
+      - name: Verificar window.onerror presente
+        run: |
+          if grep -q "window.onerror" index.html; then
+            echo "✓ window.onerror encontrado"
+          else
+            echo "✗ FALTA window.onerror en index.html"
+            exit 1
+          fi
+
+      - name: Verificar unhandledrejection presente
+        run: |
+          if grep -q "unhandledrejection" index.html; then
+            echo "✓ unhandledrejection encontrado"
+          else
+            echo "✗ FALTA unhandledrejection en index.html"
+            exit 1
+          fi
+
+      # ── 2. Verificar estructura básica HTML ──────────────────────────────
+      - name: Verificar estructura HTML basica
+        run: |
+          grep -q "<script" index.html && echo "✓ tag script presente" || (echo "✗ No se encontro tag script" && exit 1)
+          grep -q "supabase" index.html && echo "✓ referencia a supabase presente" || echo "⚠ No se encontro referencia a supabase"
+          grep -q "APP_VERSION" index.html && echo "✓ APP_VERSION presente" || echo "⚠ APP_VERSION no encontrado"
+
+      # ── 3. Setup Node + Playwright ───────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      # ── 4. Test headless: cargar app y capturar errores JS ───────────────
+      - name: Cargar app y capturar errores JS
+        run: |
+          node -e "
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ args: ['--no-sandbox'] });
+            const context = await browser.newContext();
+            const page = await context.newPage();
+
+            const jsErrors = [];
+            const consoleErrors = [];
+            const networkErrors = [];
+
+            page.on('pageerror', err => {
+              jsErrors.push({ msg: err.message, stack: err.stack });
+            });
+
+            page.on('console', msg => {
+              if (msg.type() === 'error') {
+                consoleErrors.push(msg.text());
+              }
+            });
+
+            page.on('requestfailed', req => {
+              const url = req.url();
+              if (!url.includes('analytics') && !url.includes('fonts')) {
+                networkErrors.push(url + ' — ' + req.failure().errorText);
+              }
+            });
+
+            console.log('Cargando https://polaquitus.github.io/contratoste/ ...');
+
+            try {
+              await page.goto('https://polaquitus.github.io/contratoste/', {
+                waitUntil: 'networkidle',
+                timeout: 30000
+              });
+            } catch(e) {
+              console.log('Timeout esperando networkidle, continuando...');
+            }
+
+            await page.waitForTimeout(5000);
+
+            console.log('');
+            console.log('=== RESULTADOS ===');
+
+            if (jsErrors.length === 0) {
+              console.log('✓ Sin errores JS detectados');
+            } else {
+              console.log('✗ Errores JS (' + jsErrors.length + '):');
+              jsErrors.forEach((e, i) => {
+                console.log('  [' + (i+1) + '] ' + e.msg);
+                if (e.stack) console.log('      ' + e.stack.split('\n').slice(0,3).join('\n      '));
+              });
+            }
+
+            if (consoleErrors.length === 0) {
+              console.log('✓ Sin errores de consola');
+            } else {
+              console.log('⚠ Errores de consola (' + consoleErrors.length + '):');
+              consoleErrors.forEach((e, i) => console.log('  [' + (i+1) + '] ' + e));
+            }
+
+            if (networkErrors.length === 0) {
+              console.log('✓ Sin errores de red');
+            } else {
+              console.log('⚠ Recursos que fallaron (' + networkErrors.length + '):');
+              networkErrors.forEach((e, i) => console.log('  [' + (i+1) + '] ' + e));
+            }
+
+            await browser.close();
+
+            if (jsErrors.length > 0) {
+              console.log('');
+              console.log('FALLO: Se encontraron errores JS criticos.');
+              process.exit(1);
+            }
+
+            console.log('');
+            console.log('OK: App cargada sin errores JS criticos.');
+          })().catch(err => {
+            console.error('Error en el test:', err.message);
+            process.exit(1);
+          });
+          "
+
+      # ── 5. Resumen final ─────────────────────────────────────────────────
+      - name: Resumen
+        if: always()
+        run: |
+          echo ""
+          echo "============================================"
+          echo "  Contratos TA — Test completado"
+          echo "  Repo: polaquitus/contratoste"
+          echo "  Commit: ${{ github.sha }}"
+          echo "  Rama: ${{ github.ref_name }}"
+          echo "============================================"
