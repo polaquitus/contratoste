@@ -8524,7 +8524,12 @@ function renderKoHistorial() {
     container.innerHTML = '<div style="color:var(--g500);padding:8px;">Error cargando historial</div>';
   }
 }
-
+window.onerror = (msg, src, line, col, err) => {
+  window.parent?.postMessage({type:'APP_ERROR',msg,src,line,col,stack:err?.stack},'*');
+};
+window.addEventListener('unhandledrejection', e => {
+  window.parent?.postMessage({type:'APP_ERROR',msg:e.reason?.message||String(e.reason),src:'Promise',line:null,col:null,stack:e.reason?.stack},'*');
+});
 </script>
 
 <!-- MODAL CALCULADORA KO -->
