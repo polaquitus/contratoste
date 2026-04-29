@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cargador de Índices - Clean</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p900:#14303a;--p800:#1c4252;--p700:#24566c;--p600:#3E8095;--p500:#4c96ad;
+  --p400:#6db1c4;--p300:#92c8d6;--p200:#AED0DD;--p100:#d6e9f0;--p50:#eef6f9;
+  --r500:#dc3545;--r100:#fde8ea;--g600:#198754;--g100d:#d1f5e0;
+  --a500:#f59e0b;--a100:#fef3cd;--b500:#3b82f6;--b100:#dbeafe;
+  --pur:#7c3aed;--pur100:#ede9fe;
+  --w:#fff;--g50:#f8f9fa;--g100:#f1f3f5;--g200:#e9ecef;--g300:#dee2e6;
+  --g400:#ced4da;--g500:#adb5bd;--g600c:#6c757d;--g700:#495057;--g800:#343a40;--g900:#212529;
+  --rad:8px;--radl:14px;--sh:0 2px 8px rgba(0,0,0,.06);--shm:0 4px 16px rgba(0,0,0,.10)
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--g100);color:var(--g900);min-height:100vh}
+
+.topbar{background:linear-gradient(135deg,var(--p900) 0%,var(--p700) 100%);color:var(--w);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:200;box-shadow:0 2px 16px rgba(0,0,0,.25)}
+.tb-left{display:flex;align-items:center;gap:12px}
+.tb-logo{width:34px;height:34px;background:var(--p500);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.tb-title{font-size:15px;font-weight:700;line-height:1.2}
+.tb-title span{font-size:10.5px;font-weight:400;opacity:.55;display:block;margin-top:1px}
+.tb-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sb-badge{font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.2)}
+.sb-badge.ok{background:rgba(25,135,84,.3);color:#6ee7b7}
+.sb-badge.err{background:rgba(220,53,69,.3);color:#fca5a5}
+.sb-badge.warn{background:rgba(245,158,11,.25);color:#fcd34d}
+
+.ctrl-bar{background:var(--w);border-bottom:2px solid var(--g200);padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.ctrl-lbl{font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px}
+input[type=month]{font-family:inherit;font-size:13px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900);outline:none;transition:.12s}
+input[type=month]:focus{border-color:var(--p500);box-shadow:0 0 0 3px rgba(62,128,149,.1)}
+.ctrl-sep{color:var(--g400);font-size:14px}
+.ctrl-divider{width:1px;height:26px;background:var(--g200);flex-shrink:0}
+select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900);outline:none;cursor:pointer}
+
+.status-bar{padding:7px 24px;font-size:12px;display:flex;align-items:center;gap:8px;display:none}
+.status-bar.ok{background:var(--g100d);color:#166534;display:flex}
+.status-bar.err{background:var(--r100);color:var(--r500);display:flex}
+.status-bar.info{background:var(--p50);color:var(--p700);display:flex}
+.status-bar.warn{background:var(--a100);color:#92400e);display:flex}
+.status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ok .status-dot{background:var(--g600)}.err .status-dot{background:var(--r500)}.info .status-dot{background:var(--p500)}.warn .status-dot{background:var(--a500)}
+
+.btn{font-family:inherit;font-size:12px;font-weight:600;padding:8px 16px;border:none;border-radius:6px;cursor:pointer;transition:.12s;display:inline-flex;align-items:center;gap:6px}
+.btn-p{background:var(--p500);color:var(--w)}
+.btn-p:hover{background:var(--p600)}
+.btn-g{background:var(--g600);color:var(--w)}
+.btn-g:hover{background:#157347}
+.btn-w{background:var(--w);color:var(--g900);border:1px solid var(--g300)}
+.btn-w:hover{background:var(--g50)}
+.btn-r{background:var(--r500);color:var(--w)}
+.btn-r:hover{background:#b91c1c}
+.btn-sm{font-size:11px;padding:5px 12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.loader-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:9999}
+.loader-ov.show{display:flex}
+.loader-box{background:var(--w);padding:32px 48px;border-radius:var(--radl);box-shadow:var(--shm);text-align:center}
+.loader-spinner{width:48px;height:48px;border:4px solid var(--g200);border-top-color:var(--p500);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-msg{font-size:14px;font-weight:600;color:var(--g700)}
+
+.toast{position:fixed;top:24px;right:24px;background:var(--w);padding:14px 20px;border-radius:var(--rad);box-shadow:var(--shm);border-left:4px solid var(--p500);font-size:13px;font-weight:600;z-index:10000;animation:slideIn .2s ease-out;max-width:320px}
+.toast.ok{border-left-color:var(--g600)}
+.toast.er{border-left-color:var(--r500)}
+.toast.ai{border-left-color:var(--pur)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+#statusBar{display:none}
+#statusBar.show{display:flex}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">📊</div>
+    <div class="tb-title">
+      Cargador de Índices
+      <span>Herramienta standalone · Supabase + Gemini AI</span>
+    </div>
+  </div>
+  <div class="tb-right">
+    <span class="sb-badge" id="sbBadge">⬤ Desconectado</span>
+    <button class="btn btn-p btn-sm" onclick="AI.searchBatch()">🤖 Búscar IA</button>
+    <button class="btn btn-g btn-sm" onclick="DB.save()">💾 Guardar en BD</button>
+    <button class="btn btn-w btn-sm" onclick="DIAG.run()">🔍 Diagnóstico</button>
+  </div>
+</div>
+
+<div class="ctrl-bar">
+  <span class="ctrl-lbl">Período</span>
+  <input type="month" id="ctrlFrom" value="2026-03">
+  <span class="ctrl-sep">→</span>
+  <input type="month" id="ctrlTo" value="2026-03">
+  <button class="btn btn-p btn-sm" onclick="UI.applyRange()">Aplicar</button>
+  <div class="ctrl-divider"></div>
+  <span class="ctrl-lbl">Categoría</span>
+  <select class="ctrl-sel" id="ctrlCat" onchange="UI.renderAll()">
+    <option value="">Todas</option>
+    <option value="ipc">IPC</option>
+    <option value="ipim">IPIM</option>
+    <option value="fuel">Combustible</option>
+    <option value="usd">USD</option>
+  </select>
+</div>
+
+<div id="statusBar" class="status-bar">
+  <span class="status-dot"></span>
+  <span id="statusMsg"></span>
+</div>
+
+<div id="app" style="padding:24px;">
+  <div id="selectionPanel"></div>
+  <div id="resultPanel"></div>
+</div>
+
+<div class="loader-ov" id="loaderOv">
+  <div class="loader-box">
+    <div class="loader-spinner"></div>
+    <div class="loader-msg" id="loaderMsg">Cargando...</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// INDICES_CLEAN.HTML - Arquitectura Modular
+// Version: 2.0 - Reingeniería completa
+// ═══════════════════════════════════════════════════════════════
+
+'use strict';
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 1: CONFIGURACIÓN Y CONSTANTES
+// ────────────────────────────────────────────────────────────────
+
+const CONFIG = {
+  SB_URL: 'https://upxsqroxbvzwudcaklvn.supabase.co',
+  SB_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweHNxcm94YnZ6d3VkY2FrbHZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTg4NjYsImV4cCI6MjA5MTIzNDg2Nn0.EgXWuLg3ip66PnuCvK01XFj3QDMZDu7PDG21BwkzkNo',
+  GEMINI_PROXY: null, // Se configura después
+  
+  INDEC_SERIES_API: 'https://apis.datos.gob.ar/series/api/series',
+  INDEC_SEARCH_API: 'https://apis.datos.gob.ar/series/api/search',
+  
+  BNA_TC_API: 'https://apis.datos.gob.ar/series/api/series?ids=168.1_T_CAMBIOR_D_0_0_26&format=json',
+  
+  IDX_CATALOG: [
+    {id:'ipc_nac', name:'IPC Nacional (Nivel General)', cat:'ipc', src:'INDEC'},
+    {id:'ipc_gba', name:'IPC GBA (Nivel General)', cat:'ipc', src:'INDEC'},
+    {id:'ipc_pat', name:'IPC Patagonia (Nivel General)', cat:'ipc', src:'INDEC'},
+    {id:'ipc_nqn', name:'IPC NQN (Nivel General)', cat:'ipc', src:'DPEyC NQN'},
+    {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)', cat:'ipc', src:'DPEyC NQN'},
+    {id:'ipim_gral', name:'IPIM (Nivel General)', cat:'ipim', src:'INDEC'},
+    {id:'ipim_r29', name:'IPIM R29 (Refinados Petróleo)', cat:'ipim', src:'INDEC'},
+    {id:'fadeaac', name:'FADEAAC (Equipo Vial)', cat:'mo', src:'FADEAAC'},
+    {id:'go_g3', name:'Gas Oil Grado 3 YPF NQN', cat:'fuel', src:'S.Energía'},
+    {id:'go_g2', name:'Gas Oil Grado 2 YPF NQN', cat:'fuel', src:'S.Energía'},
+    {id:'usd_div', name:'USD DIVISA (TC Vendedor)', cat:'usd', src:'BCRA'},
+    {id:'usd_bill', name:'USD BILLETE (TC Vendedor)', cat:'usd', src:'BCRA'}
+  ]
+};
+
+CONFIG.GEMINI_PROXY = `${CONFIG.SB_URL}/functions/v1/gemini-proxy`;
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 2: ESTADO GLOBAL
+// ────────────────────────────────────────────────────────────────
+
+const STATE = {
+  IDX_STORE: {},
+  sbRowId: null,
+  sbOk: false,
+  months: [],
+  selectedIdx: new Set(),
+  meta: {}, // {idxId_ym: 'api'|'ai'|'manual'}
+  tasks: [],
+  aiStop: false,
+  seriesCache: {}
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 3: UTILIDADES
+// ────────────────────────────────────────────────────────────────
+
+const UTILS = {
+  fmtMonth(ym) {
+    if (!ym) return '—';
+    try {
+      const [y, m] = ym.split('-');
+      return new Date(+y, +m - 1, 1).toLocaleDateString('es-AR', {month: 'short', year: '2-digit'}).replace(' ', '\'');
+    } catch {
+      return ym;
+    }
+  },
+  
+  fmtPercent(v) {
+    if (v == null || v === '') return '';
+    return (+v > 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+  },
+  
+  buildRange(from, to) {
+    const out = [];
+    let c = new Date(from + '-01');
+    const e = new Date(to + '-01');
+    while (c <= e) {
+      out.push(c.getFullYear() + '-' + String(c.getMonth() + 1).padStart(2, '0'));
+      c.setMonth(c.getMonth() + 1);
+    }
+    return out;
+  },
+  
+  previousYm(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  },
+  
+  sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  },
+  
+  esc(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 4: GESTIÓN DE DATOS (IDX_STORE)
+// ────────────────────────────────────────────────────────────────
+
+const DATA = {
+  rows(id) {
+    return (STATE.IDX_STORE[id] || {}).rows || [];
+  },
+  
+  get(id, ym) {
+    return this.rows(id).find(r => r.ym === ym) || null;
+  },
+  
+  set(id, row) {
+    if (!STATE.IDX_STORE[id]) STATE.IDX_STORE[id] = {rows: []};
+    if (!Array.isArray(STATE.IDX_STORE[id].rows)) STATE.IDX_STORE[id].rows = [];
+    
+    const idx = STATE.IDX_STORE[id].rows.findIndex(r => r.ym === row.ym);
+    if (idx >= 0) {
+      STATE.IDX_STORE[id].rows[idx] = {...STATE.IDX_STORE[id].rows[idx], ...row};
+    } else {
+      STATE.IDX_STORE[id].rows.push(row);
+      STATE.IDX_STORE[id].rows.sort((a, b) => a.ym.localeCompare(b.ym));
+    }
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 5: SUPABASE
+// ────────────────────────────────────────────────────────────────
+
+const DB = {
+  async fetch(table, method, body, filter = '') {
+    const headers = {
+      'apikey': CONFIG.SB_KEY,
+      'Authorization': 'Bearer ' + CONFIG.SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
+    
+    const r = await fetch(`${CONFIG.SB_URL}/rest/v1/${table}${filter}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    
+    if (!r.ok) throw new Error('Supabase ' + r.status);
+    return r.json();
+  },
+  
+  async load() {
+    UI.showLoader('Cargando desde Supabase...');
+    try {
+      const rows = await this.fetch('indices', 'GET', null, '?select=id,datos&limit=1');
+      if (rows.length > 0) {
+        STATE.sbRowId = rows[0].id;
+        const data = JSON.parse(rows[0].datos);
+        delete data.__sbId;
+        STATE.IDX_STORE = data;
+        STATE.sbOk = true;
+        UI.setSBStatus(true);
+        UI.setStatus('ok', '✅ Conectado a Supabase (ID: ' + STATE.sbRowId + ')');
+      }
+    } catch (e) {
+      UI.setStatus('err', 'Error al cargar: ' + e.message);
+      STATE.sbOk = false;
+      UI.setSBStatus(false);
+    }
+    UI.hideLoader();
+  },
+  
+  async save() {
+    UI.showLoader('Validando datos...');
+    
+    // VALIDACIÓN
+    const errors = [];
+    
+    if (!STATE.IDX_STORE.usd_div || !STATE.IDX_STORE.usd_div.rows || STATE.IDX_STORE.usd_div.rows.length < 20) {
+      errors.push('⚠️ USD DIVISA tiene pocos datos');
+    }
+    
+    const indicesSerie = ['ipc_nac', 'ipc_gba', 'ipc_pat', 'ipc_nqn', 'ipim_gral'];
+    indicesSerie.forEach(codigo => {
+      if (STATE.IDX_STORE[codigo] && STATE.IDX_STORE[codigo].rows) {
+        const sinValue = STATE.IDX_STORE[codigo].rows.filter(r => r.pct != null && r.value == null);
+        if (sinValue.length > 0) {
+          errors.push(`⚠️ ${codigo}: ${sinValue.length} períodos sin value (serie)`);
+        }
+      }
+    });
+    
+    if (errors.length > 0) {
+      UI.hideLoader();
+      const confirm = window.confirm('⚠️ PROBLEMAS DETECTADOS:\n\n' + errors.join('\n') + '\n\n¿Guardar de todas formas?');
+      if (!confirm) {
+        UI.setStatus('warn', 'Guardado cancelado');
+        return;
+      }
+    }
+    
+    UI.showLoader('Guardando en Supabase...');
+    try {
+      const payload = {datos: JSON.stringify(STATE.IDX_STORE)};
+      
+      if (STATE.sbRowId) {
+        await this.fetch('indices', 'PATCH', payload, `?id=eq.${STATE.sbRowId}`);
+      } else {
+        const r = await this.fetch('indices', 'POST', payload);
+        if (r && r[0]) STATE.sbRowId = r[0].id;
+      }
+      
+      STATE.sbOk = true;
+      UI.setSBStatus(true);
+      UI.setStatus('ok', '✅ Guardado correctamente (ID: ' + STATE.sbRowId + ')');
+      UI.toast('Guardado en Supabase', 'ok');
+    } catch (e) {
+      UI.setStatus('err', 'Error al guardar: ' + e.message);
+      UI.toast('Error al guardar', 'er');
+    }
+    UI.hideLoader();
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 6: API INDEC
+// ────────────────────────────────────────────────────────────────
+
+const INDEC_API = {
+  seriesConfig: {},
+  
+  async fetchYm(def, ym) {
+    const seriesId = await this.resolveSeriesId(def);
+    if (!seriesId) return null;
+    
+    const bundle = await this.fetchSeriesBundle(seriesId);
+    return this.interpretValue(def, seriesId, bundle, ym);
+  },
+  
+  async resolveSeriesId(def) {
+    const cfg = this.getConfig(def);
+    if (cfg.id) return cfg.id;
+    
+    // Buscar en API
+    const dyn = await this.searchSeriesId(def);
+    if (dyn) {
+      cfg.id = dyn;
+      return dyn;
+    }
+    
+    return null;
+  },
+  
+  async searchSeriesId(def) {
+    const query = def.name + ' mensual INDEC';
+    try {
+      const url = CONFIG.INDEC_SEARCH_API + '?q=' + encodeURIComponent(query) + '&catalog_id=sspm&limit=50';
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      
+      const d = await r.json();
+      const rows = Array.isArray(d?.data) ? d.data : [];
+      
+      let best = null;
+      for (const item of rows) {
+        const id = item?.id || item?.serie_id;
+        if (!id) continue;
+        
+        const txt = [item?.title, item?.description].filter(Boolean).join(' ').toLowerCase();
+        let score = 0;
+        
+        if (/indec/.test(txt)) score += 20;
+        if (/mensual/.test(txt)) score += 20;
+        if (/nivel general/.test(txt)) score += 25;
+        
+        if (def.id === 'ipc_nac' && /nacional/.test(txt)) score += 40;
+        if (def.id === 'ipc_gba' && /gba/.test(txt)) score += 40;
+        if (def.id === 'ipim_gral' && /ipim/.test(txt)) score += 40;
+        
+        if (!best || score > best.score) {
+          best = {id, score};
+        }
+      }
+      
+      return best?.id || null;
+    } catch {
+      return null;
+    }
+  },
+  
+  async fetchSeriesBundle(seriesId) {
+    if (STATE.seriesCache[seriesId]) return STATE.seriesCache[seriesId];
+    
+    const url = CONFIG.INDEC_SERIES_API + '?ids=' + encodeURIComponent(seriesId) + '&format=json&metadata=full';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('series api ' + r.status);
+    
+    const d = await r.json();
+    const bundle = {
+      rows: Array.isArray(d?.data) ? d.data : [],
+      meta: Array.isArray(d?.meta) ? d.meta : [],
+      url
+    };
+    
+    STATE.seriesCache[seriesId] = bundle;
+    return bundle;
+  },
+  
+  interpretValue(def, seriesId, bundle, ym) {
+    const point = bundle.rows.find(x => String(x?.[0] || '').slice(0, 7) === ym);
+    if (!point || point[1] == null) return null;
+    
+    const prev = bundle.rows.find(x => String(x?.[0] || '').slice(0, 7) === UTILS.previousYm(ym));
+    const v = Number(point[1]);
+    if (!Number.isFinite(v)) return null;
+    
+    // Detectar si es índice de serie (valor >20)
+    if (v > 20 && prev && prev[1] != null) {
+      const pv = Number(prev[1]);
+      if (Number.isFinite(pv) && pv > 0 && v > 0) {
+        const pct = ((v / pv) - 1) * 100;
+        if (Number.isFinite(pct) && Math.abs(pct) < 1000) {
+          return {
+            ym,
+            pct: Number(pct.toFixed(2)),
+            value: Number(v.toFixed(4)), // ✅ FIX: Guardar serie en value
+            seriesValue: Number(v.toFixed(4)),
+            seriesPrevValue: Number(pv.toFixed(4)),
+            seriesId,
+            calcMethod: 'series_ratio',
+            publishedAt: String(point[0]).slice(0, 10),
+            sourceUrl: bundle.url,
+            note: 'Serie oficial INDEC (' + seriesId + ')',
+            source: def.src
+          };
+        }
+      }
+    }
+    
+    // Porcentaje directo
+    if (Math.abs(v) <= 1000) {
+      return {
+        ym,
+        pct: Number(v.toFixed(2)),
+        value: null,
+        seriesValue: Number(v.toFixed(4)),
+        publishedAt: String(point[0]).slice(0, 10),
+        sourceUrl: bundle.url,
+        note: 'Serie INDEC % directo (' + seriesId + ')',
+        source: def.src
+      };
+    }
+    
+    return null;
+  },
+  
+  getConfig(def) {
+    if (!this.seriesConfig[def.id]) this.seriesConfig[def.id] = {};
+    return this.seriesConfig[def.id];
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 7: API USD (BNA/BCRA)
+// ────────────────────────────────────────────────────────────────
+
+const USD_API = {
+  cache: null,
+  
+  async load() {
+    if (this.cache) return this.cache;
+    
+    try {
+      const r = await fetch(CONFIG.BNA_TC_API);
+      if (!r.ok) throw new Error('BNA API ' + r.status);
+      
+      const d = await r.json();
+      this.cache = Array.isArray(d?.data) ? d.data : [];
+      return this.cache;
+    } catch {
+      return [];
+    }
+  },
+  
+  async fetchYm(ym) {
+    const data = await this.load();
+    const point = data.find(x => String(x?.[0] || '').slice(0, 7) === ym);
+    
+    if (point && point[1] != null) {
+      return {
+        ym,
+        pct: null,
+        value: Number(point[1]),
+        publishedAt: String(point[0]).slice(0, 10),
+        sourceUrl: 'BNA TC vendedor - argentinadatos.com',
+        note: 'oficial',
+        source: 'BCRA'
+      };
+    }
+    
+    return null;
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 8: GEMINI AI
+// ────────────────────────────────────────────────────────────────
+
+const AI = {
+  async call(prompt) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(CONFIG.GEMINI_PROXY, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + CONFIG.SB_KEY
+          },
+          body: JSON.stringify({parts: [{text: prompt}]})
+        });
+        
+        if (r.status === 502 || r.status === 503) {
+          await UTILS.sleep(2000);
+          continue;
+        }
+        
+        if (!r.ok) throw new Error('proxy ' + r.status);
+        
+        const d = await r.json();
+        return (d?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('\n').trim();
+      } catch (e) {
+        if (i === 2) throw e;
+        await UTILS.sleep(1200);
+      }
+    }
+  },
+  
+  parseJSON(txt) {
+    if (!txt) return null;
+    let raw = txt.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    
+    try {
+      let c = m[0].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+      return JSON.parse(c);
+    } catch {
+      return null;
+    }
+  },
+  
+  async searchBatch() {
+    const from = document.getElementById('ctrlFrom').value;
+    const to = document.getElementById('ctrlTo').value;
+    
+    if (!from || !to || from > to) {
+      UI.toast('Aplicá un rango válido primero', 'er');
+      return;
+    }
+    
+    const defs = CONFIG.IDX_CATALOG.filter(d => d.cat !== 'mo' && STATE.selectedIdx.has(d.id));
+    if (!defs.length) {
+      UI.toast('Seleccioná al menos un índice', 'er');
+      return;
+    }
+    
+    const months = STATE.months.length ? STATE.months : UTILS.buildRange(from, to);
+    
+    STATE.tasks = [];
+    STATE.aiStop = false;
+    
+    defs.forEach(def => {
+      months.forEach(ym => {
+        const ex = DATA.get(def.id, ym);
+        const miss = !ex || (ex.pct == null && ex.value == null);
+        if (miss) {
+          STATE.tasks.push({def, ym, status: 'pending'});
+        }
+      });
+    });
+    
+    if (!STATE.tasks.length) {
+      UI.toast('No hay períodos faltantes', 'ok');
+      return;
+    }
+    
+    UI.showLoader(`Buscando ${STATE.tasks.length} períodos...`);
+    
+    let found = 0, manual = 0, official = 0;
+    
+    for (const t of STATE.tasks) {
+      if (STATE.aiStop) break;
+      
+      t.status = 'running';
+      
+      try {
+        let result = null;
+        let via = null;
+        
+        // USD
+        if (t.def.cat === 'usd') {
+          result = await USD_API.fetchYm(t.ym);
+          via = result ? 'api' : null;
+        }
+        // INDEC
+        else if (t.def.src === 'INDEC') {
+          try {
+            result = await INDEC_API.fetchYm(t.def, t.ym);
+            via = result ? 'api' : null;
+          } catch (err) {
+            console.warn('INDEC error', t.def.id, t.ym, err);
+          }
+        }
+        
+        if (result && (result.pct != null || result.value != null)) {
+          DATA.set(t.def.id, {
+            ym: result.ym || t.ym,
+            pct: result.pct != null ? Number(result.pct) : null,
+            value: result.value != null ? Number(result.value) : null,
+            seriesValue: result.seriesValue != null ? Number(result.seriesValue) : null,
+            seriesPrevValue: result.seriesPrevValue != null ? Number(result.seriesPrevValue) : null,
+            seriesId: result.seriesId || null,
+            calcMethod: result.calcMethod || null,
+            confirmed: false,
+            status: 'updated',
+            source: t.def.src,
+            note: result.note || '',
+            publishedAt: result.publishedAt || null,
+            sourceUrl: result.sourceUrl || null
+          });
+          
+          STATE.meta[t.def.id + '_' + t.ym] = via || 'ai';
+          t.status = 'found';
+          found++;
+          if (via === 'api') official++;
+        } else {
+          t.status = 'manual';
+          STATE.meta[t.def.id + '_' + t.ym] = 'manual';
+          manual++;
+        }
+        
+        await UTILS.sleep(220);
+      } catch (e) {
+        console.warn('Task error', t.def.id, t.ym, e);
+        t.status = 'manual';
+        manual++;
+      }
+    }
+    
+    UI.hideLoader();
+    
+    if (found > 0) {
+      UI.toast(`Encontrados: ${found} · Manuales: ${manual}`, 'ai');
+      await DB.save();
+    } else {
+      UI.toast(`Sin datos automáticos · ${manual} manuales`, 'er');
+    }
+    
+    UI.renderAll();
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 9: DIAGNÓSTICO
+// ────────────────────────────────────────────────────────────────
+
+const DIAG = {
+  run() {
+    console.clear();
+    console.log('%c═══════════════ DIAGNÓSTICO ÍNDICES ═══════════════', 'background: #3b82f6; color: white; font-size: 14px; padding: 4px 8px;');
+    
+    const report = {
+      total: 0,
+      conDatos: 0,
+      sinDatos: 0,
+      conSerie: 0,
+      sinSerie: 0,
+      problemas: []
+    };
+    
+    Object.entries(STATE.IDX_STORE).forEach(([codigo, data]) => {
+      if (!data.rows || !Array.isArray(data.rows)) {
+        report.problemas.push(`❌ ${codigo}: estructura inválida`);
+        return;
+      }
+      
+      report.total++;
+      const rows = data.rows;
+      const conPct = rows.filter(r => r.pct != null).length;
+      const conValue = rows.filter(r => r.value != null).length;
+      
+      if (rows.length === 0) {
+        report.sinDatos++;
+        report.problemas.push(`⚠️ ${codigo}: sin datos`);
+      } else {
+        report.conDatos++;
+      }
+      
+      if (['ipc_nac', 'ipc_gba', 'ipc_pat', 'ipc_nqn', 'ipc_nqnab', 'ipim_gral', 'ipim_r29'].includes(codigo)) {
+        if (conValue > 0) {
+          report.conSerie++;
+        } else {
+          report.sinSerie++;
+          report.problemas.push(`⚠️ ${codigo}: ${conPct} pct pero 0 value`);
+        }
+        
+        rows.forEach(r => {
+          if (r.pct === 1 && r.ym === '2026-02' && codigo === 'ipim_gral') {
+            report.problemas.push(`❌ ${codigo} ${r.ym}: pct=1 incorrecto`);
+          }
+          if (r.pct != null && Math.abs(r.pct) > 100) {
+            report.problemas.push(`⚠️ ${codigo} ${r.ym}: pct=${r.pct}%`);
+          }
+        });
+      }
+      
+      console.log(`%c${codigo}`, 'font-weight: bold', {total: rows.length, conPct, conValue, ultimo: rows[rows.length - 1]});
+    });
+    
+    console.log('\n%c═══ RESUMEN ═══', 'background: #10b981; color: white; font-size: 13px; padding: 3px 6px;');
+    console.table({
+      'Total índices': report.total,
+      'Con datos': report.conDatos,
+      'Sin datos': report.sinDatos,
+      'Con serie': report.conSerie,
+      'Sin serie': report.sinSerie,
+      'Problemas': report.problemas.length
+    });
+    
+    if (report.problemas.length > 0) {
+      console.log('\n%c═══ PROBLEMAS ═══', 'background: #ef4444; color: white; font-size: 13px; padding: 3px 6px;');
+      report.problemas.forEach(p => console.warn(p));
+    } else {
+      console.log('\n✅ Sin problemas');
+    }
+    
+    UI.toast('Diagnóstico completo - ver console (F12)', 'ok');
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// MÓDULO 10: UI
+// ────────────────────────────────────────────────────────────────
+
+const UI = {
+  showLoader(msg) {
+    document.getElementById('loaderMsg').textContent = msg;
+    document.getElementById('loaderOv').classList.add('show');
+  },
+  
+  hideLoader() {
+    document.getElementById('loaderOv').classList.remove('show');
+  },
+  
+  toast(msg, type = 'ok') {
+    const div = document.createElement('div');
+    div.className = 'toast ' + type;
+    div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+  },
+  
+  setStatus(type, msg) {
+    const bar = document.getElementById('statusBar');
+    bar.className = 'status-bar ' + type + ' show';
+    document.getElementById('statusMsg').textContent = msg;
+  },
+  
+  setSBStatus(ok) {
+    const badge = document.getElementById('sbBadge');
+    badge.className = 'sb-badge ' + (ok ? 'ok' : 'err');
+    badge.textContent = ok ? '⬤ Conectado' : '⬤ Desconectado';
+  },
+  
+  applyRange() {
+    const from = document.getElementById('ctrlFrom').value;
+    const to = document.getElementById('ctrlTo').value;
+    
+    if (from && to) {
+      STATE.months = UTILS.buildRange(from, to);
+      this.toast(`Rango aplicado: ${STATE.months.length} meses`, 'ok');
+      this.renderAll();
+    }
+  },
+  
+  renderAll() {
+    const panel = document.getElementById('selectionPanel');
+    
+    let html = '<div style="background:var(--w);padding:20px;border-radius:var(--rad);margin-bottom:20px;">';
+    html += '<h2 style="margin-bottom:16px;">Seleccionar Índices</h2>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;">';
+    
+    CONFIG.IDX_CATALOG.forEach(def => {
+      const selected = STATE.selectedIdx.has(def.id);
+      const rows = DATA.rows(def.id);
+      
+      html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border:1px solid var(--g200);border-radius:6px;${selected ? 'background:var(--p50);border-color:var(--p500);' : ''}">`;
+      html += `<input type="checkbox" ${selected ? 'checked' : ''} onchange="UI.toggleIdx('${def.id}')">`;
+      html += `<span>${UTILS.esc(def.name)} <small>(${rows.length})</small></span>`;
+      html += '</label>';
+    });
+    
+    html += '</div></div>';
+    
+    panel.innerHTML = html;
+  },
+  
+  toggleIdx(id) {
+    if (STATE.selectedIdx.has(id)) {
+      STATE.selectedIdx.delete(id);
+    } else {
+      STATE.selectedIdx.add(id);
+    }
+    this.renderAll();
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// INICIO DE LA APLICACIÓN
+// ────────────────────────────────────────────────────────────────
+
+async function init() {
+  console.log('Inicializando indices_clean.html...');
+  
+  // Cargar desde Supabase
+  await DB.load();
+  
+  // Inicializar rango
+  const today = new Date();
+  const ym = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+  document.getElementById('ctrlFrom').value = ym;
+  document.getElementById('ctrlTo').value = ym;
+  
+  UI.applyRange();
+  UI.renderAll();
+  
+  console.log('✅ Listo');
+}
+
+// Ejecutar al cargar
+window.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
