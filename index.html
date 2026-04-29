@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42-idx-update</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v43-idx-fixes</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1574,7 +1574,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v42-idx-update</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v43-idx-fixes</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3406,7 +3406,7 @@ const IDX_CATALOG = [
   {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNAL_DICI_M_26'},
   {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELGBA_DICI_M_21'},
   {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNIA_DICI_M_27'},
-  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual'},
+  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual'},
   {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual'},
   // ── IPIM ─────────────────────────────────────────────────────────
   {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46'},
@@ -3699,7 +3699,7 @@ function renderIdxDash(){
   const target=idxTargetYm();
   let updated=0, pending=0, withAny=0;
   IDX_CATALOG.forEach(def=>{ const rows=idxRows(def.id); if(rows.length) withAny++; const exact=rows.find(r=>r.ym===target); if(exact) updated++; else pending++; });
-  box.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><h2 style="font-size:17px;font-weight:700;color:var(--p900)">📊 Master de Índices</h2><p style="font-size:12px;color:var(--g500);margin-top:2px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset total</button></div></div><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
+  box.innerHTML=`<p style="font-size:12px;color:var(--g500);margin-bottom:14px">Objetivo: <strong>${formatMonth(target)}</strong> · si el período no fue publicado se usa el último oficial disponible anterior</p><div class="idx-dash-row" style="grid-template-columns:repeat(4,1fr)"><div class="idx-kpi-box"><div class="kl">Total índices</div><div class="kv">${totalIdx}</div><div class="ks">${withAny} con historial</div></div><div class="idx-kpi-box" style="border-color:var(--g600)"><div class="kl">✅ Actualizados ${formatMonth(target)}</div><div class="kv" style="color:var(--g600)">${updated}</div><div class="ks">con dato en el período objetivo</div></div><div class="idx-kpi-box" style="border-color:${pending>0?'var(--r500)':'var(--g600)'}"><div class="kl">⏳ Pendientes</div><div class="kv" style="color:${pending>0?'var(--r500)':'var(--g600)'}">${pending}</div><div class="ks">sin dato del objetivo</div></div><div class="idx-kpi-box"><div class="kl">📚 Historial</div><div class="kv">${withAny}</div><div class="ks">con datos previos cargados</div></div></div>`;
 }
 function renderIdxCards(){
   const box=document.getElementById('idxCardsGrid');if(!box)return;
@@ -3836,9 +3836,13 @@ function openEntryModal(idxId, ym){
           <input type="month" id="em_ym" value="${defaultYm}" ${existing?'disabled':''}>
         </div>
         <div class="fgrp">
-          <label>% Variación mensual <span class="req">*</span></label>
+          <label>% Variación mensual</label>
           <input type="number" id="em_pct" step="0.01" placeholder="Ej: 2.35" value="${existing?.pct??''}">
         </div>
+      </div>
+      <div class="fgrp" style="margin-bottom:14px">
+        <label>Valor absoluto <span style="font-size:11px;color:var(--g400)">(precio, cotización, índice — usar en lugar de % si aplica)</span></label>
+        <input type="number" id="em_value" step="0.01" placeholder="Ej: 1250.50" value="${existing?.value??''}">
       </div>
       <div class="fgrp" style="margin-bottom:14px">
         <label>Nota / Link de referencia</label>
@@ -3892,9 +3896,10 @@ async function saveEntryModal(idxId, editYm){
   const ym=editYm||document.getElementById('em_ym')?.value;
   if(!ym){toast('Seleccioná el período','er');return;}
   const pctRaw=document.getElementById('em_pct')?.value;
-  if(pctRaw===''||pctRaw===null){toast('Ingresá el % de variación','er');return;}
-  const pct=parseFloat(pctRaw);
-  if(isNaN(pct)){toast('El valor debe ser numérico','er');return;}
+  const valRaw=document.getElementById('em_value')?.value;
+  const pct=pctRaw!==''&&pctRaw!=null?parseFloat(pctRaw):null;
+  const value=valRaw!==''&&valRaw!=null?parseFloat(valRaw):null;
+  if((pct===null||isNaN(pct))&&(value===null||isNaN(value))){toast('Ingresá al menos % de variación o valor absoluto','er');return;}
   const note=document.getElementById('em_note')?.value.trim()||'';
   if(!IDX_STORE[idxId])IDX_STORE[idxId]={};
   if(!IDX_STORE[idxId].rows)IDX_STORE[idxId].rows=[];
@@ -3902,12 +3907,12 @@ async function saveEntryModal(idxId, editYm){
   // Merge files: keep existing + add new
   const existingFiles=existing?.files||[];
   const allFiles=[...existingFiles,..._entryFiles];
-  const row={ym,pct,note,files:allFiles,confirmed:existing?.confirmed||false};
+  const row={ym,pct:isNaN(pct)?null:pct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false};
   if(existing){Object.assign(existing,row);}
   else{IDX_STORE[idxId].rows.push(row);IDX_STORE[idxId].rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
   await saveIdx();
   closeIdxModal();
-  toast(formatMonth(ym)+': '+pctStr(pct)+' guardado','ok');
+  toast(formatMonth(ym)+': '+(value!=null?'$'+value.toFixed(2):pctStr(pct))+' guardado','ok');
   renderIdxView();
 }
 
