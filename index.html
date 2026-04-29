@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v48-idx-chart</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v49-bugfixes</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1600,7 +1600,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v48-idx-chart</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v49-bugfixes</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1775,9 +1775,9 @@ async function guardar(){
     trigC:document.getElementById('f_trigC').checked,
     trigCmes:parseInt(gv('f_trigCmes'))||null,
     // Tarifario / historiales: preservar siempre lo existente si el formulario no los edita
-    tarifarios:old?.tarifarios||c?.tarifarios||[],
-    enmiendas:old?.enmiendas||c?.enmiendas||[],
-    aves:old?.aves||c?.aves||[],
+    tarifarios:old?.tarifarios||[],
+    enmiendas:old?.enmiendas||[],
+    aves:old?.aves||[],
     createdAt:old?.createdAt||new Date().toISOString(),
     updatedAt:new Date().toISOString()
   };
@@ -1836,7 +1836,8 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_plazo','f_trigBpct','f_trigCmes'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
   document.getElementById('f_dd').checked=true;document.getElementById('l_dd').textContent='Sí';
@@ -1883,7 +1884,7 @@ function isContractComplete(cc){
   if(!cc.fromSAP)return true;
   return !!(cc.tipo&&cc.resp&&cc.btar&&cc.tcontr&&cc.rtec&&cc.cprov);
 }
-function getTotal(c){return c.monto+(c.aves||[]).reduce((s,a)=>s+(a.monto||0),0);}
+function getTotal(c){const base=c.montoBase||c.monto||0;return base+(c.aves||[]).reduce((s,a)=>s+(a.monto||0),0);}
 function fD(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:00:00':d));return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fDf(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:00:00':d));return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fN(n){if(n==null||n==='')return'—';return Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -2089,7 +2090,7 @@ function renderDossierHtml(c){
 +'<div class="sc"><div class="slbl">Contrato N\u00b0</div><div class="sval" style="font-size:11px">'+_e(c.num||'\u2014')+'</div><div class="ssub">'+_e(c.cont||'\u2014')+'</div></div>'
 +'<div class="sc"><div class="slbl">Valor Header</div><div class="sval">'+_m(c.monto)+'</div><div class="ssub">'+_e(c.mon||'ARS')+' \u00b7 TC '+_m(tcc)+'</div></div>'
 +'<div class="sc"><div class="slbl">Valor Total c/AVEs</div><div class="sval g">'+_m(totalConAVE)+'</div><div class="ssub">'+_e(c.mon||'ARS')+'</div></div>'
-+'<div class="sc"><div class="slbl">Vigencia</div><div class="sval o" style="font-size:11px">'+_d(c.fechaIni)+' \u2192 '+_d(c.fechaFin)+'</div><div class="ssub">'+(c.plazo?c.plazo+' d\u00edas':'\u2014')+'</div></div>'
++'<div class="sc"><div class="slbl">Vigencia</div><div class="sval o" style="font-size:11px">'+_d(c.fechaIni)+' \u2192 '+_d(c.fechaFin)+'</div><div class="ssub">'+(c.plazo_meses||c.plazo?(c.plazo_meses||c.plazo)+' meses':'\u2014')+'</div></div>'
 +'</div>'
 +'<div class="sh"><span class="ico">&#x1F4CB;</span>Enmiendas<span class="ct">'+enms.length+' registradas</span></div>'
 +'<table><thead><tr><th>#</th><th>N\u00b0 Enm.</th><th>Fecha</th><th>Tipo</th><th>Descripci\u00f3n</th><th>Monto</th></tr></thead><tbody>'+enmRows+'</tbody></table>'
@@ -2905,7 +2906,7 @@ function calcPolyAve(){
   const dDesde=new Date(desde+'-01');
   const dIni=new Date(c.fechaIni+'T00:00:00');
   const dFin=new Date(c.fechaFin+'T00:00:00');
-  const totalMeses=Math.max(c.plazo||((dFin.getFullYear()-dIni.getFullYear())*12+(dFin.getMonth()-dIni.getMonth())),1);
+  const totalMeses=Math.max(c.plazo_meses||c.plazo||monthDiffInclusive(c.fechaIni,c.fechaFin),1);
   const mesesTranscurridos=Math.max((dDesde.getFullYear()-dIni.getFullYear())*12+(dDesde.getMonth()-dIni.getMonth()),0);
   const mesesRestantes=Math.max(totalMeses-mesesTranscurridos,0);
   // Monto aplicable = monto_inicial * mesesRestantes/totalMeses * (pct/100)
@@ -2927,7 +2928,7 @@ function delAve(aid){
   save();renderDet();renderList();toast('AVE eliminado','ok');
 }
 
-function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;editId=id;
+function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document.getElementById('formErrBanner')?.remove();editId=id;
   populateProvSelect();
   setTimeout(function(){
     document.getElementById('f_cont').value=c.cont||'';
@@ -2967,7 +2968,7 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;editId=i
   files=(c.adj||[]).map(a=>({...a}));renderFL();go('form');
 }
 
-async function delCont(id){if(!confirm('¿Eliminar contrato?'))return;const c=window.DB.find(x=>x.id===id);if(c&&SB_OK)await sbDeleteItem('contratos',c.__sbId);else if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(window.DB));window.DB=window.DB.filter(x=>x.id!==id);renderList();updNav();toast('Eliminado','ok');if(window.detId===id)go('list');if(typeof window.initFuzzySearch==='function')window.initFuzzySearch();}
+async function delCont(id){if(!confirm('¿Eliminar contrato?'))return;const c=window.DB.find(x=>x.id===id);if(c&&SB_OK)await sbDeleteItem('contratos',c.__sbId);window.DB=window.DB.filter(x=>x.id!==id);if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(window.DB));renderList();updNav();toast('Eliminado','ok');if(window.detId===id)go('list');if(typeof window.initFuzzySearch==='function')window.initFuzzySearch();}
 
 // ===================== ME2N SYSTEM =====================
 // ME2N data structure: { "4600005730": ["VENDOR NAME", "EUR", [[po,YYYY-MM,plant,nov,still,nItems,shortText],...]], ... }
