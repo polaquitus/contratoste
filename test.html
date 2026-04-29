@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test INDEC Directo</title></head>
+<body>
+<h1>Test INDEC API Directo</h1>
+<button onclick="testAPI()">TEST</button>
+<pre id="output"></pre>
+
+<script>
+async function testAPI() {
+  const out = document.getElementById('output');
+  out.textContent = 'Ejecutando...\n\n';
+  
+  try {
+    // 1. Fetch directo
+    const seriesId = '148.3_INIVELNAL_DICI_M_26';
+    const url = `https://apis.datos.gob.ar/series/api/series?ids=${seriesId}&format=json&start_date=2026-01`;
+    
+    out.textContent += `1. Consultando API INDEC...\n`;
+    out.textContent += `   URL: ${url}\n\n`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    out.textContent += `2. Respuesta:\n`;
+    out.textContent += `   data.data.length: ${data.data.length}\n\n`;
+    
+    // Mostrar últimos 5
+    out.textContent += `3. Últimos 5 valores:\n`;
+    const ultimos = data.data.slice(-5);
+    ultimos.forEach((item, i) => {
+      out.textContent += `   [${i}] ${item[0]} → ${item[1]}\n`;
+    });
+    
+    // Buscar 2026-03
+    out.textContent += `\n4. Buscando 2026-03...\n`;
+    const mar2026 = data.data.find(x => x[0].startsWith('2026-03'));
+    
+    if (mar2026) {
+      out.textContent += `   ✅ ENCONTRADO: ${mar2026[0]} → ${mar2026[1]}\n`;
+      
+      // Calcular pct
+      const feb2026 = data.data.find(x => x[0].startsWith('2026-02'));
+      if (feb2026) {
+        const pct = ((mar2026[1] / feb2026[1]) - 1) * 100;
+        out.textContent += `   ✅ PCT calculado: ${pct.toFixed(2)}%\n`;
+      }
+    } else {
+      out.textContent += `   ❌ NO ENCONTRADO\n`;
+      out.textContent += `\n5. Todas las fechas en data.data:\n`;
+      data.data.forEach((item, i) => {
+        if (i < 10) out.textContent += `   ${item[0]}\n`;
+      });
+    }
+    
+  } catch (err) {
+    out.textContent += `\n❌ ERROR: ${err.message}\n${err.stack}`;
+  }
+}
+</script>
+</body>
+</html>
