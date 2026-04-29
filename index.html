@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v45-dossier-fix</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v46-dashboard</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -591,11 +591,16 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
     </div>
     
     <!-- KPIs -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px;background:var(--g50);">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding:20px;background:var(--g50);">
       <div class="kpi-card">
         <div class="kpi-icon" style="background:#e0f2fe;color:#0284c7;">📋</div>
         <div class="kpi-value" id="kpiActivos">0</div>
         <div class="kpi-label">Contratos Activos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;">🔢</div>
+        <div class="kpi-value" id="kpiTotal">0</div>
+        <div class="kpi-label" id="kpiTotalLbl">Total · 0 USD · 0 ARS</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-icon" style="background:#dcfce7;color:#16a34a;">💰</div>
@@ -1574,7 +1579,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v45-dossier-fix</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v46-dashboard</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6555,17 +6560,26 @@ function renderDashboard() {
   
   const alertasCriticas = calcularAlertas().criticas.length;
   
+  const fM=n=>Math.round(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});
+
   document.getElementById('kpiActivos').textContent = activos.length;
-  
+
+  // Total contratos breakdown
+  const totalContr = window.DB.length;
+  const enUSD = window.DB.filter(c=>c.mon==='USD').length;
+  const enARS = window.DB.filter(c=>c.mon!=='USD').length;
+  document.getElementById('kpiTotal').textContent = totalContr;
+  document.getElementById('kpiTotalLbl').textContent = 'Total · '+enUSD+' USD · '+enARS+' ARS';
+
   const grandTotal = montoTotalARS + (montoTotalUSD * tcUSD);
-  
-  document.getElementById('kpiMonto').innerHTML = 
-    '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">Total: ARS $' + fN(grandTotal) + '</div>' +
+
+  document.getElementById('kpiMonto').innerHTML =
+    '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">ARS $' + fM(grandTotal) + '</div>' +
     '<div style="font-size:13px;color:var(--g600c);display:flex;flex-direction:column;gap:2px;">' +
-    '<span>ARS $' + fN(montoTotalARS) + '</span>' +
-    '<span>USD $' + fN(montoTotalUSD) + ' (× ' + fN(tcUSD) + ')</span>' +
+    '<span>ARS $' + fM(montoTotalARS) + '</span>' +
+    '<span>USD $' + fM(montoTotalUSD) + ' (× ' + Math.round(tcUSD).toLocaleString('es-AR') + ')</span>' +
     '</div>';
-  
+
   document.getElementById('kpiProxVencer').textContent = proxVencer;
   document.getElementById('kpiAlertas').textContent = alertasCriticas;
   
