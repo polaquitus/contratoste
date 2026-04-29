@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Completar USD Faltante</title>
+<title>Completar USD - ArgentinaDatos API</title>
 <style>
 body{font-family:system-ui;padding:40px;max-width:800px;margin:0 auto;background:#f5f5f5}
 .card{background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:20px}
@@ -10,146 +10,69 @@ h1{margin:0 0 8px;font-size:22px}
 button{background:#0066cc;color:#fff;border:none;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-right:8px}
 button:hover{background:#0052a3}
 button:disabled{opacity:.5;cursor:not-allowed}
-.log{background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:16px;font-family:monospace;font-size:12px;max-height:400px;overflow-y:auto;white-space:pre-wrap}
-.info{background:#d1ecf1;border-left:4px solid:#0c5460;padding:12px;margin:12px 0;border-radius:4px;font-size:13px;color:#0c5460}
-.warn{background:#fff3cd;border-left:4px solid:#856404;padding:12px;margin:12px 0;border-radius:4px;font-size:13px;color:#856404}
+.log{background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:16px;font-family:monospace;font-size:12px;max-height:500px;overflow-y:auto;white-space:pre-wrap}
+.info{background:#d1ecf1;border-left:4px solid #0c5460;padding:12px;margin:12px 0;border-radius:4px;font-size:13px;color:#0c5460}
+.stat{display:inline-block;padding:8px 16px;background:#f8f9fa;border-radius:6px;margin-right:8px;font-size:13px}
+.stat strong{color:#0066cc;font-size:18px}
 </style>
 </head>
 <body>
 
 <div class="card">
-  <h1>🔄 Completar USD Faltante (Abr 2024 → Hoy)</h1>
+  <h1>🔄 Completar USD - API ArgentinaDatos</h1>
   
   <div class="info">
-    <strong>Problema detectado:</strong> USD DIVISA solo tiene datos hasta Mar 2024.<br>
-    <strong>Solución:</strong> Gemini AI buscará los valores faltantes mes a mes.
+    <strong>Fuente:</strong> api.argentinadatos.com (datos oficiales BNA/BCRA)<br>
+    <strong>Histórico:</strong> Completo desde 2011 hasta hoy<br>
+    <strong>Cobertura:</strong> USD Oficial (compra/venta) - sin necesidad de IA
   </div>
   
-  <button onclick="completarUSD()" id="btnStart">▶️ Completar USD con IA</button>
+  <div style="margin:16px 0">
+    <span class="stat">Encontrados: <strong id="statFound">0</strong></span>
+    <span class="stat">Procesados: <strong id="statProc">0</strong></span>
+    <span class="stat">Total mes: <strong id="statMonth">0</strong></span>
+  </div>
+  
+  <button onclick="cargarUSD()" id="btnStart">▶️ Cargar USD desde ArgentinaDatos</button>
   <button onclick="guardarBD()" id="btnSave" disabled>💾 Guardar en Supabase</button>
 </div>
 
 <div class="card">
   <h2 style="margin:0 0 12px;font-size:16px">📋 Log</h2>
-  <div class="log" id="log">Esperando...</div>
+  <div class="log" id="log">Esperando inicio...</div>
 </div>
 
 <script>
 const CONFIG = {
   SB_URL: 'https://upxsqroxbvzwudcaklvn.supabase.co',
   SB_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweHNxcm94YnZ6d3VkY2FrbHZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTg4NjYsImV4cCI6MjA5MTIzNDg2Nn0.EgXWuLg3ip66PnuCvK01XFj3QDMZDu7PDG21BwkzkNo',
-  GEMINI_PROXY: 'https://upxsqroxbvzwudcaklvn.supabase.co/functions/v1/gemini-proxy'
+  
+  // API ArgentinaDatos - Histórico oficial
+  API_USD_OFICIAL: 'https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial'
 };
 
 let STORE = {};
-let nuevosRows = 0;
 
 function log(msg, type = 'info') {
   const el = document.getElementById('log');
   const time = new Date().toLocaleTimeString();
-  const icon = type === 'ok' ? '✅' : type === 'err' ? '❌' : 'ℹ️';
+  const icon = type === 'ok' ? '✅' : type === 'err' ? '❌' : type === 'warn' ? '⚠️' : 'ℹ️';
   el.textContent += `[${time}] ${icon} ${msg}\n`;
   el.scrollTop = el.scrollHeight;
 }
 
-async function callGemini(prompt) {
-  for (let retry = 0; retry < 3; retry++) {
-    try {
-      const r = await fetch(CONFIG.GEMINI_PROXY, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + CONFIG.SB_KEY
-        },
-        body: JSON.stringify({parts: [{text: prompt}]})
-      });
-      
-      if (r.status === 502 || r.status === 503) {
-        await new Promise(res => setTimeout(res, 2000));
-        continue;
-      }
-      
-      if (!r.ok) throw new Error('Gemini ' + r.status);
-      
-      const data = await r.json();
-      return (data?.candidates?.[0]?.content?.parts || [])
-        .map(p => p.text || '')
-        .join('\n')
-        .trim();
-    } catch (err) {
-      if (retry === 2) throw err;
-      await new Promise(res => setTimeout(res, 1200));
-    }
-  }
+function updateStat(id, val) {
+  document.getElementById(id).textContent = val;
 }
 
-function parseJSON(txt) {
-  if (!txt) return null;
-  let raw = txt.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try {
-    return JSON.parse(m[0].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']'));
-  } catch {
-    return null;
-  }
-}
-
-async function fetchUSDforMonth(ym) {
-  const [year, month] = ym.split('-');
-  const monthName = new Date(+year, +month - 1, 1).toLocaleDateString('es-AR', {month: 'long'});
-  
-  const prompt = `Necesito el tipo de cambio USD DIVISA (vendedor) oficial del BCRA para ${monthName} ${year} (${ym}).
-
-Busca el valor OFICIAL publicado por el Banco Central de la República Argentina (BCRA) para el último día hábil del mes.
-
-Responde ÚNICAMENTE con JSON:
-{
-  "ym": "${ym}",
-  "value": <número con 2 decimales>,
-  "note": "BCRA - última cotización del mes"
-}
-
-Si no encuentras el dato exacto, responde: {"ym":"${ym}","value":null,"note":"No disponible"}`;
-
-  log(`  Buscando USD ${ym} vía IA...`);
-  
-  try {
-    const response = await callGemini(prompt);
-    const data = parseJSON(response);
-    
-    if (!data || data.value === null) {
-      log(`  ❌ No encontrado para ${ym}`, 'err');
-      return null;
-    }
-    
-    log(`  ✅ ${ym}: $${data.value}`);
-    
-    return {
-      ym,
-      pct: null,
-      value: Number(data.value),
-      seriesValue: Number(data.value),
-      publishedAt: null,
-      source: 'AI',
-      note: data.note || 'Gemini AI',
-      confirmed: false
-    };
-    
-  } catch (err) {
-    log(`  ❌ Error ${ym}: ${err.message}`, 'err');
-    return null;
-  }
-}
-
-async function completarUSD() {
+async function cargarUSD() {
   document.getElementById('btnStart').disabled = true;
   document.getElementById('log').textContent = '';
   
-  log('🚀 Iniciando completado USD...');
+  log('🚀 Iniciando carga USD desde ArgentinaDatos...');
   
-  // 1. Cargar datos actuales
-  log('📥 Cargando datos actuales...');
+  // 1. Cargar datos actuales de Supabase
+  log('\n📥 Paso 1: Cargando estado actual...');
   try {
     const headers = {
       'apikey': CONFIG.SB_KEY,
@@ -165,55 +88,119 @@ async function completarUSD() {
     }
     
     STORE = JSON.parse(rows[0].datos);
-    log(`✅ Cargado ID: ${rows[0].id}`);
-    
-    const usdRows = STORE.usd_div?.rows || [];
-    log(`📊 USD actual: ${usdRows.length} períodos`);
-    
-    if (usdRows.length > 0) {
-      const ultimo = usdRows[usdRows.length - 1];
-      log(`   Último: ${ultimo.ym} = $${ultimo.value}`);
-    }
+    log(`✅ Cargado registro ID: ${rows[0].id}`);
+    log(`   USD actual: ${STORE.usd_div?.rows?.length || 0} períodos`);
     
   } catch (err) {
-    log(`❌ Error cargando: ${err.message}`, 'err');
+    log(`❌ Error: ${err.message}`, 'err');
     return;
   }
   
-  // 2. Generar meses faltantes
-  const inicio = new Date('2024-04-01');
-  const hoy = new Date();
-  const mesesFaltantes = [];
+  // 2. Llamar API ArgentinaDatos
+  log('\n📡 Paso 2: Consultando API ArgentinaDatos...');
+  log(`   URL: ${CONFIG.API_USD_OFICIAL}`);
   
-  let current = new Date(inicio);
-  while (current <= hoy) {
-    const ym = current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0');
-    mesesFaltantes.push(ym);
-    current.setMonth(current.getMonth() + 1);
-  }
-  
-  log(`\n🔍 Buscando ${mesesFaltantes.length} meses faltantes...`);
-  
-  // 3. Buscar con IA
-  for (const ym of mesesFaltantes) {
-    const row = await fetchUSDforMonth(ym);
+  let datos;
+  try {
+    const r = await fetch(CONFIG.API_USD_OFICIAL);
+    if (!r.ok) throw new Error('API status ' + r.status);
+    datos = await r.json();
     
-    if (row) {
-      if (!STORE.usd_div) STORE.usd_div = {rows: []};
-      STORE.usd_div.rows.push(row);
-      nuevosRows++;
+    log(`✅ Recibidos ${datos.length} registros`);
+    
+    // Mostrar muestra
+    if (datos.length > 0) {
+      const ultimo = datos[datos.length - 1];
+      log(`   Último: ${ultimo.fecha} → Compra ${ultimo.compra} / Venta ${ultimo.venta}`);
+      
+      const primero = datos[0];
+      log(`   Primero: ${primero.fecha} → Compra ${primero.compra} / Venta ${primero.venta}`);
     }
     
-    await new Promise(r => setTimeout(r, 1000)); // Rate limit
+  } catch (err) {
+    log(`❌ Error API: ${err.message}`, 'err');
+    log('   Probando con timestamp para evitar caché...');
+    
+    try {
+      const r = await fetch(CONFIG.API_USD_OFICIAL + '?t=' + Date.now());
+      if (!r.ok) throw new Error('API status ' + r.status);
+      datos = await r.json();
+      log(`✅ Recibidos ${datos.length} registros`);
+    } catch (err2) {
+      log(`❌ Error definitivo: ${err2.message}`, 'err');
+      return;
+    }
   }
   
-  log(`\n🎉 COMPLETADO`);
-  log(`   Nuevos períodos: ${nuevosRows}`);
-  log(`   Total USD ahora: ${STORE.usd_div.rows.length}`);
+  // 3. Procesar - agrupar por mes (último día del mes)
+  log('\n🔄 Paso 3: Procesando datos...');
   
-  if (nuevosRows > 0) {
-    document.getElementById('btnSave').disabled = false;
+  // Filtrar desde Dic 2023
+  const desde = '2023-12';
+  const filtrados = datos.filter(d => d.fecha && d.fecha >= desde + '-01');
+  log(`   Filtrados desde ${desde}: ${filtrados.length} registros diarios`);
+  
+  // Agrupar por mes y tomar último valor de cada mes
+  const porMes = {};
+  filtrados.forEach(d => {
+    const ym = d.fecha.slice(0, 7);
+    if (!porMes[ym] || d.fecha > porMes[ym].fecha) {
+      porMes[ym] = d;
+    }
+  });
+  
+  const meses = Object.keys(porMes).sort();
+  log(`   Meses únicos: ${meses.length}`);
+  updateStat('statMonth', meses.length);
+  
+  // 4. Construir nueva estructura USD
+  log('\n📊 Paso 4: Construyendo IDX_STORE.usd_div...');
+  
+  const nuevosRows = [];
+  meses.forEach((ym, i) => {
+    const d = porMes[ym];
+    const venta = Number(d.venta);
+    
+    if (!Number.isFinite(venta)) {
+      log(`   ⚠️ Saltando ${ym} - venta inválida`, 'warn');
+      return;
+    }
+    
+    nuevosRows.push({
+      ym,
+      pct: null,
+      value: Number(venta.toFixed(2)),
+      seriesValue: Number(venta.toFixed(2)),
+      publishedAt: d.fecha,
+      source: 'BNA',
+      note: `BNA/BCRA - ${d.fecha} (compra ${d.compra} / venta ${venta})`,
+      confirmed: false
+    });
+    
+    updateStat('statProc', i + 1);
+  });
+  
+  log(`✅ Construidos ${nuevosRows.length} períodos USD`);
+  
+  // Mostrar muestra
+  if (nuevosRows.length > 0) {
+    log(`\n📋 Muestra de datos:`);
+    log(`   Primero: ${nuevosRows[0].ym} → $${nuevosRows[0].value}`);
+    log(`   Mitad:   ${nuevosRows[Math.floor(nuevosRows.length/2)].ym} → $${nuevosRows[Math.floor(nuevosRows.length/2)].value}`);
+    log(`   Último:  ${nuevosRows[nuevosRows.length-1].ym} → $${nuevosRows[nuevosRows.length-1].value}`);
   }
+  
+  // 5. Reemplazar usd_div completo
+  STORE.usd_div = {rows: nuevosRows};
+  STORE.usd_bill = {rows: nuevosRows.map(r => ({...r}))}; // Copia para usd_bill
+  
+  updateStat('statFound', nuevosRows.length);
+  
+  log(`\n🎉 LISTO PARA GUARDAR`);
+  log(`   USD DIVISA: ${nuevosRows.length} períodos (${nuevosRows[0]?.ym} → ${nuevosRows[nuevosRows.length-1]?.ym})`);
+  log(`   USD BILLETE: ${nuevosRows.length} períodos (mismo dato)`);
+  
+  document.getElementById('btnSave').disabled = false;
 }
 
 async function guardarBD() {
@@ -244,6 +231,7 @@ async function guardarBD() {
     log('✅ Guardado exitoso', 'ok');
     log('\n🎊 PROCESO COMPLETO');
     log('   → Recargá index.html para ver los cambios');
+    log('   → USD debe mostrar hasta el mes actual');
     
   } catch (err) {
     log(`❌ Error: ${err.message}`, 'err');
