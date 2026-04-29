@@ -52,8 +52,11 @@ jobs:
           npm install playwright
           npx playwright install chromium --with-deps
 
-      # ── 4. Test headless: cargar app y capturar errores JS ───────────────
-      - name: Cargar app y capturar errores JS
+      # ── 4. Test headless: login + navegación por módulos ────────────────────
+      - name: Login y navegar módulos
+        env:
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           node -e "
           const { chromium } = require('playwright');
@@ -63,82 +66,151 @@ jobs:
             const context = await browser.newContext();
             const page = await context.newPage();
 
-            const jsErrors = [];
-            const consoleErrors = [];
-            const networkErrors = [];
-
+            // ── Errores globales ──────────────────────────────────────────────
+            const globalErrors = [];
             page.on('pageerror', err => {
-              jsErrors.push({ msg: err.message, stack: err.stack });
+              globalErrors.push({ modulo: 'global', msg: err.message, stack: err.stack });
             });
 
-            page.on('console', msg => {
-              if (msg.type() === 'error') {
-                consoleErrors.push(msg.text());
-              }
-            });
-
-            page.on('requestfailed', req => {
-              const url = req.url();
-              if (!url.includes('analytics') && !url.includes('fonts')) {
-                networkErrors.push(url + ' — ' + req.failure().errorText);
-              }
-            });
-
-            console.log('Cargando https://polaquitus.github.io/contratoste/ ...');
-
+            // ── STEP 1: Login ─────────────────────────────────────────────────
+            console.log('→ Abriendo https://polaquitus.github.io/contratoste/ ...');
             try {
               await page.goto('https://polaquitus.github.io/contratoste/', {
                 waitUntil: 'networkidle',
                 timeout: 30000
               });
             } catch(e) {
-              console.log('Timeout esperando networkidle, continuando...');
+              console.log('  networkidle timeout, continuando...');
             }
 
-            await page.waitForTimeout(5000);
+            try {
+              await page.waitForSelector('#lgUser', { timeout: 20000 });
+            } catch(e) {
+              console.error('LOGIN FALLIDO: #lgUser no apareció en 20s');
+              await browser.close();
+              process.exit(1);
+            }
 
-            console.log('');
-            console.log('=== RESULTADOS ===');
+            await page.fill('#lgUser', process.env.ADMIN_USER || '');
+            await page.fill('#lgPass', process.env.ADMIN_PASSWORD || '');
+            await page.click('button:has-text(\"Ingresar\")');
 
-            if (jsErrors.length === 0) {
-              console.log('✓ Sin errores JS detectados');
-            } else {
-              console.log('✗ Errores JS (' + jsErrors.length + '):');
-              jsErrors.forEach((e, i) => {
-                console.log('  [' + (i+1) + '] ' + e.msg);
-                if (e.stack) console.log('      ' + e.stack.split('\n').slice(0,3).join('\n      '));
+            try {
+              await page.waitForFunction(
+                () => {
+                  const overlay = document.getElementById('loginOverlay');
+                  return !overlay || overlay.style.display === 'none' || overlay.classList.contains('hidden') || getComputedStyle(overlay).display === 'none';
+                },
+                { timeout: 20000 }
+              );
+            } catch(e) {
+              console.error('LOGIN FALLIDO: loginOverlay no desapareció en 20s');
+              await page.screenshot({ path: 'screenshot-login-fallo.png' });
+              await browser.close();
+              process.exit(1);
+            }
+
+            const loggedIn = await page.evaluate(() =>
+              !!(document.getElementById('vList') || document.getElementById('vDashboard'))
+            );
+            if (!loggedIn) {
+              console.error('LOGIN FALLIDO: no se encontró #vList ni #vDashboard');
+              await page.screenshot({ path: 'screenshot-login-fallo.png' });
+              await browser.close();
+              process.exit(1);
+            }
+            console.log('✓ Login exitoso');
+
+            // ── STEP 2: Navegar módulos ───────────────────────────────────────
+            const modulos = [
+              { nombre: 'Contratos',   selector: \"[data-mod='list']\"      },
+              { nombre: 'Indices',     selector: \"[data-mod='idx']\"       },
+              { nombre: 'Dashboard',   selector: \"[data-mod='dashboard']\" },
+              { nombre: 'Proveedores', selector: \"[data-mod='prov']\"      }
+            ];
+
+            const resultados = [];
+
+            for (const mod of modulos) {
+              const modErrors = [];
+              const modConsole = [];
+
+              const onPageError = err => modErrors.push(err.message);
+              const onConsole = msg => {
+                if (msg.type() === 'error') modConsole.push(msg.text());
+              };
+
+              page.on('pageerror', onPageError);
+              page.on('console', onConsole);
+
+              try {
+                console.log('  → Navegando: ' + mod.nombre + ' (' + mod.selector + ')');
+                await page.click(mod.selector, { timeout: 8000 });
+                await page.waitForTimeout(3000);
+                await page.screenshot({ path: 'screenshot-' + mod.nombre.toLowerCase() + '.png' });
+                console.log('    ✓ Screenshot capturado');
+              } catch(e) {
+                modErrors.push('Error al navegar: ' + e.message);
+                console.log('    ✗ Error: ' + e.message);
+                try { await page.screenshot({ path: 'screenshot-' + mod.nombre.toLowerCase() + '-error.png' }); } catch(_) {}
+              }
+
+              page.removeListener('pageerror', onPageError);
+              page.removeListener('console', onConsole);
+
+              resultados.push({
+                nombre: mod.nombre,
+                jsErrors: modErrors,
+                consoleErrors: modConsole
               });
-            }
-
-            if (consoleErrors.length === 0) {
-              console.log('✓ Sin errores de consola');
-            } else {
-              console.log('⚠ Errores de consola (' + consoleErrors.length + '):');
-              consoleErrors.forEach((e, i) => console.log('  [' + (i+1) + '] ' + e));
-            }
-
-            if (networkErrors.length === 0) {
-              console.log('✓ Sin errores de red');
-            } else {
-              console.log('⚠ Recursos que fallaron (' + networkErrors.length + '):');
-              networkErrors.forEach((e, i) => console.log('  [' + (i+1) + '] ' + e));
             }
 
             await browser.close();
 
-            if (jsErrors.length > 0) {
-              console.log('');
-              console.log('FALLO: Se encontraron errores JS criticos.');
-              process.exit(1);
+            // ── STEP 3: Reporte final ─────────────────────────────────────────
+            console.log('');
+            console.log('=== REPORTE FINAL ===');
+            let totalErrores = 0;
+
+            for (const r of resultados) {
+              const errCount = r.jsErrors.length + r.consoleErrors.length;
+              totalErrores += errCount;
+              if (errCount === 0) {
+                console.log('✓ ' + r.nombre + ': sin errores');
+              } else {
+                console.log('✗ ' + r.nombre + ': ' + errCount + ' error(es)');
+                r.jsErrors.forEach(e => console.log('    [JS] ' + e));
+                r.consoleErrors.forEach(e => console.log('    [console] ' + e));
+              }
+            }
+
+            if (globalErrors.length > 0) {
+              console.log('✗ Errores globales: ' + globalErrors.length);
+              globalErrors.forEach(e => console.log('    ' + e.msg));
+              totalErrores += globalErrors.length;
             }
 
             console.log('');
-            console.log('OK: App cargada sin errores JS criticos.');
+            if (totalErrores > 0) {
+              console.error('FALLO: ' + totalErrores + ' error(es) JS encontrados.');
+              process.exit(1);
+            }
+            console.log('✓ Todos los módulos OK — ' + resultados.length + ' módulos visitados sin errores JS.');
+            process.exit(0);
           })().catch(err => {
-            console.error('Error en el test:', err.message);
+            console.error('Error inesperado en el test:', err.message);
             process.exit(1);
           });
           "
+
+      # ── 5. Upload screenshots ─────────────────────────────────────────────
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshot-*.png
+          if-no-files-found: ignore
 
       # ── 5. Resumen final ─────────────────────────────────────────────────
       - name: Resumen
