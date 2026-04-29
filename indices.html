@@ -161,6 +161,7 @@ select.ctrl-sel{font-family:inherit;font-size:12.5px;padding:7px 10px;border:1.5
     <button class="btn btn-ai" id="btnAI" onclick="startAISearch()">🤖 Buscar con IA</button>
     <button class="btn btn-s btn-sm" onclick="loadFromSupabase()">🔄 Recargar</button>
     <button class="btn btn-g btn-sm" onclick="saveToSupabase()">💾 Guardar en BD</button>
+    <button class="btn btn-w btn-sm" onclick="runDiagnostics()">🔍 Diagnóstico</button>
     <button class="btn btn-s btn-sm" onclick="exportJSON()">⬇ JSON</button>
     <button class="btn btn-s btn-sm" onclick="document.getElementById('importFile').click()">⬆ Importar</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(this)">
@@ -332,13 +333,55 @@ async function loadFromSupabase(){
 }
 
 async function saveToSupabase(){
+  showLoader('Validando datos...');
+  
+  // VALIDACIÓN PRE-GUARDADO
+  const errors = [];
+  
+  // Validar USD tiene datos
+  if (!IDX_STORE.usd_div || !IDX_STORE.usd_div.rows || IDX_STORE.usd_div.rows.length < 20) {
+    errors.push('⚠️ USD DIVISA tiene pocos datos (' + (IDX_STORE.usd_div?.rows?.length || 0) + ' meses)');
+  }
+  
+  // Validar IPC/IPIM tienen pct Y value (serie)
+  const indicesSerie = ['ipc_nac', 'ipc_gba', 'ipc_pat', 'ipc_nqn', 'ipim_gral'];
+  indicesSerie.forEach(codigo => {
+    if (IDX_STORE[codigo] && IDX_STORE[codigo].rows) {
+      const sinValue = IDX_STORE[codigo].rows.filter(r => r.pct != null && r.value == null);
+      if (sinValue.length > 0) {
+        errors.push('⚠️ ' + codigo + ' tiene ' + sinValue.length + ' períodos sin valor de serie (solo pct)');
+      }
+    }
+  });
+  
+  // Validar Feb 2026 IPIM específicamente (bug conocido)
+  if (IDX_STORE.ipim_gral && IDX_STORE.ipim_gral.rows) {
+    const feb2026 = IDX_STORE.ipim_gral.rows.find(r => r.ym === '2026-02');
+    if (feb2026 && feb2026.pct === 1) {
+      errors.push('❌ IPIM Feb 2026 tiene pct=1 (incorrecto, debería ser ~0.98%)');
+    }
+  }
+  
+  if (errors.length > 0) {
+    hideLoader();
+    const confirm = window.confirm(
+      '⚠️ SE DETECTARON PROBLEMAS:\n\n' + 
+      errors.join('\n') + 
+      '\n\n¿Guardar de todas formas?'
+    );
+    if (!confirm) {
+      setStatus('warn', 'Guardado cancelado por el usuario');
+      return;
+    }
+  }
+  
   showLoader('Guardando en Supabase...');
   try{
     const payload={datos:JSON.stringify(IDX_STORE)};
     if(SB_ROW_ID)await sbFetch('indices','PATCH',payload,`?id=eq.${SB_ROW_ID}`);
     else{const r=await sbFetch('indices','POST',payload);if(r&&r[0])SB_ROW_ID=r[0].id;}
     SB_OK=true;setSb('ok','⬤ Conectado');
-    setStatus('ok','✅ Guardado correctamente en Supabase');
+    setStatus('ok','✅ Guardado correctamente en Supabase (ID: ' + SB_ROW_ID + ')');
     toast('Guardado en Supabase','ok');
   }catch(e){setStatus('err','Error al guardar: '+e.message);toast('Error al guardar','er');}
   hideLoader();
@@ -886,6 +929,75 @@ window.renderAll      = renderAll;
 window.applyRange     = applyRange;
 window.refreshNeedCount = refreshNeedCount;
 window.saveToSupabase = saveToSupabase;
+
+// ═══════════════ DIAGNÓSTICO ═══════════════
+function runDiagnostics() {
+  console.clear();
+  console.log('%c═══════════════ DIAGNÓSTICO ÍNDICES ═══════════════', 'background: #3b82f6; color: white; font-size: 14px; padding: 4px 8px;');
+  
+  const report = {
+    total: 0,
+    conDatos: 0,
+    sinDatos: 0,
+    conSerie: 0,
+    sinSerie: 0,
+    problemas: []
+  };
+  
+  Object.entries(IDX_STORE).forEach(([codigo, data]) => {
+    if (!data.rows || !Array.isArray(data.rows)) {
+      report.problemas.push(`❌ ${codigo}: estructura inválida`);
+      return;
+    }
+    
+    report.total++;
+    const rows = data.rows;
+    const conPct = rows.filter(r => r.pct != null).length;
+    const conValue = rows.filter(r => r.value != null).length;
+    
+    if (rows.length === 0) {
+      report.sinDatos++;
+      report.problemas.push(`⚠️ ${codigo}: sin datos`);
+    } else {
+      report.conDatos++;
+    }
+    
+    if (['ipc_nac', 'ipc_gba', 'ipc_pat', 'ipc_nqn', 'ipc_nqnab', 'ipim_gral', 'ipim_r29'].includes(codigo)) {
+      if (conValue > 0) {
+        report.conSerie++;
+      } else {
+        report.sinSerie++;
+        report.problemas.push(`⚠️ ${codigo}: tiene ${conPct} pct pero 0 value`);
+      }
+      
+      rows.forEach(r => {
+        if (r.pct === 1 && r.ym === '2026-02' && codigo === 'ipim_gral') {
+          report.problemas.push(`❌ ${codigo} ${r.ym}: pct=1 incorrecto`);
+        }
+        if (r.pct != null && Math.abs(r.pct) > 100) {
+          report.problemas.push(`⚠️ ${codigo} ${r.ym}: pct=${r.pct}%`);
+        }
+      });
+    }
+    
+    console.log(`%c${codigo}`, 'font-weight: bold', {total: rows.length, conPct, conValue, ultimo: rows[rows.length - 1]});
+  });
+  
+  console.log('\n%c═══ RESUMEN ═══', 'background: #10b981; color: white; font-size: 13px; padding: 3px 6px;');
+  console.table({'Total índices': report.total, 'Con datos': report.conDatos, 'Sin datos': report.sinDatos, 'Con serie': report.conSerie, 'Sin serie': report.sinSerie, 'Problemas': report.problemas.length});
+  
+  if (report.problemas.length > 0) {
+    console.log('\n%c═══ PROBLEMAS ═══', 'background: #ef4444; color: white; font-size: 13px; padding: 3px 6px;');
+    report.problemas.forEach(p => console.warn(p));
+  } else {
+    console.log('\n✅ Sin problemas');
+  }
+  
+  toast('Diagnóstico completo - ver console (F12)', 'ok');
+}
+
+window.runDiagnostics = runDiagnostics;
+
 window.fetchUsdYm     = fetchUsdYm;
 window.fetchFuelACAYm = fetchFuelACAYm;
 window.startAISearch  = startAISearch;
@@ -962,7 +1074,77 @@ window.startAISearch  = startAISearch;
   async function fetchSeriesBundleById(seriesId){ if(window._seriesCache[seriesId]) return window._seriesCache[seriesId]; const url=SERIES_API+'?ids='+encodeURIComponent(seriesId)+'&format=json&metadata=full'; const r=await fetch(url); if(!r.ok) throw new Error('series api '+r.status); const d=await r.json(); const rows=Array.isArray(d?.data)?d.data:[]; const meta=Array.isArray(d?.meta)?d.meta:[]; window._seriesCache[seriesId]={rows,meta,url}; return window._seriesCache[seriesId]; }
   function findSeriesPoint(rows,ym){ return rows.find(x=>String(x?.[0]||'').slice(0,7)===ym)||null; }
   function metaText(bundle){ return (bundle?.meta||[]).map(x=>JSON.stringify(x)).join(' ').toLowerCase(); }
-  function interpretSeriesValue(def,seriesId,bundle,ym){ const point=findSeriesPoint(bundle.rows,ym); if(!point||point[1]==null)return null; const prev=findSeriesPoint(bundle.rows,previousYm(ym)); const metaTxt=metaText(bundle); const v=Number(point[1]); if(!Number.isFinite(v)) return null; const looksIndex=/índice|indice|2004=100|1993=100|2015=100|2016/.test(metaTxt)||v>20; if(looksIndex&&prev&&prev[1]!=null){ const pv=Number(prev[1]); if(Number.isFinite(pv)&&pv>0&&v>0){ const pct=((v/pv)-1)*100; if(Number.isFinite(pct)&&Math.abs(pct)<1000){ return {ym,pct:Number(pct.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:Number(pv.toFixed(4)),seriesId,calcMethod:'series_ratio',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie oficial INDEC ('+seriesId+')',source:def.src,rawValue:v}; } } } if(Math.abs(v)<=1.5){ return {ym,pct:Number((v*100).toFixed(2)),value:null,seriesValue:Number(v.toFixed(6)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(6)):null,seriesId,calcMethod:'series_fraction',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % fraccional ('+seriesId+')',source:def.src,rawValue:v}; } if(Math.abs(v)<=1000){ return {ym,pct:Number(v.toFixed(2)),value:null,seriesValue:Number(v.toFixed(4)),seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(4)):null,seriesId,calcMethod:'series_percent_direct',publishedAt:String(point[0]).slice(0,10),sourceUrl:bundle.url,note:'Serie INDEC % directo ('+seriesId+')',source:def.src,rawValue:v}; } return null; }
+  function interpretSeriesValue(def,seriesId,bundle,ym){ 
+    const point=findSeriesPoint(bundle.rows,ym); 
+    if(!point||point[1]==null)return null; 
+    const prev=findSeriesPoint(bundle.rows,previousYm(ym)); 
+    const metaTxt=metaText(bundle); 
+    const v=Number(point[1]); 
+    if(!Number.isFinite(v)) return null; 
+    const looksIndex=/índice|indice|2004=100|1993=100|2015=100|2016/.test(metaTxt)||v>20; 
+    
+    // CASO 1: Valor de serie índice (ej: IPC = 11077.06)
+    if(looksIndex&&prev&&prev[1]!=null){ 
+      const pv=Number(prev[1]); 
+      if(Number.isFinite(pv)&&pv>0&&v>0){ 
+        const pct=((v/pv)-1)*100; 
+        if(Number.isFinite(pct)&&Math.abs(pct)<1000){ 
+          return {
+            ym,
+            pct:Number(pct.toFixed(2)),
+            value:Number(v.toFixed(4)),  // ✅ FIX: Guardar serie en value
+            seriesValue:Number(v.toFixed(4)),
+            seriesPrevValue:Number(pv.toFixed(4)),
+            seriesId,
+            calcMethod:'series_ratio',
+            publishedAt:String(point[0]).slice(0,10),
+            sourceUrl:bundle.url,
+            note:'Serie oficial INDEC ('+seriesId+')',
+            source:def.src,
+            rawValue:v
+          }; 
+        } 
+      } 
+    } 
+    
+    // CASO 2: Valor fraccional (ej: 0.0338 = 3.38%)
+    if(Math.abs(v)<=1.5){ 
+      return {
+        ym,
+        pct:Number((v*100).toFixed(2)),
+        value:null,
+        seriesValue:Number(v.toFixed(6)),
+        seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(6)):null,
+        seriesId,
+        calcMethod:'series_fraction',
+        publishedAt:String(point[0]).slice(0,10),
+        sourceUrl:bundle.url,
+        note:'Serie INDEC % fraccional ('+seriesId+')',
+        source:def.src,
+        rawValue:v
+      }; 
+    } 
+    
+    // CASO 3: Porcentaje directo (ej: 3.38)
+    if(Math.abs(v)<=1000){ 
+      return {
+        ym,
+        pct:Number(v.toFixed(2)),
+        value:null,
+        seriesValue:Number(v.toFixed(4)),
+        seriesPrevValue:prev&&prev[1]!=null?Number(Number(prev[1]).toFixed(4)):null,
+        seriesId,
+        calcMethod:'series_percent_direct',
+        publishedAt:String(point[0]).slice(0,10),
+        sourceUrl:bundle.url,
+        note:'Serie INDEC % directo ('+seriesId+')',
+        source:def.src,
+        rawValue:v
+      }; 
+    } 
+    
+    return null; 
+  }
   async function fetchIndecYm(def,ym){ const seriesId=await resolveIndecSeriesId(def); if(!seriesId)return null; const bundle=await fetchSeriesBundleById(seriesId); return interpretSeriesValue(def,seriesId,bundle,ym); }
   window.renderLog=function(){ const log=document.getElementById('aiLog'); if(!log)return; const show=(window._tasks||[]).slice(-50); log.innerHTML=show.map(t=>{ const ico={pending:'⏳',running:'🔄',found:(t.via==='api'?'🏛️':'✅'),manual:'⚠️',failed:'❌'}[t.status]||'⏳'; const cls=(t.status==='found'&&t.via==='api')?'api':({pending:'pending',running:'running',found:'found',manual:'manual',failed:'failed'}[t.status]||'pending'); let val=''; let note=''; if(t.found){ if(t.found.pct!=null) val=window.pF(t.found.pct); else if(t.found.value!=null) val='$'+Number(t.found.value).toFixed(2); if(t.found.seriesId) note='<span class="ai-log-note">'+window.esc(t.found.seriesId)+' · serie '+(t.found.rawValue!=null?Number(t.found.rawValue).toFixed(2):'')+'</span>'; } return '<div class="ai-log-row '+cls+'"><span class="ai-log-ico">'+ico+'</span><span class="ai-log-name">'+window.esc(t.def.name)+note+'</span><span class="ai-log-ym">'+window.fmtM(t.ym)+(t.via==='api'?' · oficial':t.via==='ai'?' · IA':'')+'</span>'+(val?'<span class="ai-log-val">'+window.esc(val)+'</span>':'')+'</div>'; }).join(''); log.scrollTop=log.scrollHeight; };
   window.updateAIStats=function(found,manual,done,total,official=0,ai=0){ const el=document.getElementById('aiStats'); if(!el)return; el.innerHTML='<span class="ai-stat info">'+done+'/'+total+'</span><span class="ai-stat ok">🏛️ '+official+'</span><span class="ai-stat info">🤖 '+ai+'</span><span class="ai-stat ok">✅ '+found+'</span><span class="ai-stat warn">⚠️ '+manual+' manuales</span>'; };
