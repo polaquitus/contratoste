@@ -3450,7 +3450,19 @@ const IDX_OFFICIAL_SEED = {
 };
 function ymCompare(a,b){return String(a||'').localeCompare(String(b||''));}
 function idxResolveOfficial(def,targetYm){const rows=(IDX_OFFICIAL_SEED[def.id]||[]).slice().sort((a,b)=>ymCompare(a.ym,b.ym));if(!rows.length)return null;let chosen=null;for(const row of rows){if(ymCompare(row.ym,targetYm)<=0)chosen=row;}if(!chosen)chosen=rows[rows.length-1];return {ym:chosen.ym,pct:chosen.pct!=null?Number(chosen.pct):null,value:chosen.value!=null?Number(chosen.value):null,publishedAt:chosen.publishedAt||null,sourceUrl:chosen.sourceUrl||null,status:chosen.ym===targetYm?'updated':'waiting_release',note:(chosen.note||def.name)+(chosen.ym===targetYm?'':' · último oficial disponible'),source:chosen.source||def.src};}
-function idxMergeOfficialSeeds(){Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{(rows||[]).forEach(row=>{const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});}});});}
+function idxMergeOfficialSeeds(){
+  Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{
+    // SKIP USD indices - siempre usar datos de Supabase
+    if(id === 'usd_div' || id === 'usd_bill') return;
+    
+    (rows||[]).forEach(row=>{
+      const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);
+      if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){
+        idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});
+      }
+    });
+  });
+}
 function loadIdx(){
   // No-op: IDX_STORE is loaded by initApp() from Supabase.
   // Called only as fallback from within initApp catch block (already handled there).
@@ -6271,21 +6283,23 @@ function renderDashboard() {
   let tcUSD = 1050;
   
   const tcInput = document.getElementById('tcInput');
-  if (tcInput && tcInput.value) {
-    tcUSD = Number(tcInput.value) || 1050;
-  } else {
-    // Intentar obtener de IDX_STORE directamente
+  const currentInputValue = tcInput ? Number(tcInput.value) : 0;
+  
+  // Si el input está en valor default (1050) o vacío, intentar obtener de BD
+  if (!currentInputValue || currentInputValue === 1050) {
     const tcFromStore = getTCFromStore();
     
     if (tcFromStore) {
       tcUSD = tcFromStore;
-      console.log('[Dashboard] TC obtenido de IDX_STORE:', tcUSD);
+      if (tcInput) tcInput.value = tcUSD;
+      console.log('[Dashboard] TC obtenido de IDX_STORE y aplicado:', tcUSD);
     } else {
       console.warn('[Dashboard] No se encontró TC en IDX_STORE, usando fallback:', tcUSD);
     }
-    
-    // Actualizar input con el valor obtenido
-    if (tcInput) tcInput.value = tcUSD;
+  } else {
+    // Usuario modificó el input manualmente
+    tcUSD = currentInputValue;
+    console.log('[Dashboard] TC manual del usuario:', tcUSD);
   }
   
   console.log('[Dashboard] TC USD utilizado:', tcUSD);
