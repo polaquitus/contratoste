@@ -373,6 +373,19 @@ const INDEC_API = {
     const cfg = this.getConfig(def);
     if (cfg.id) return cfg.id;
     
+    // Series conocidas (hardcoded para velocidad)
+    const KNOWN_SERIES = {
+      'ipc_nac': '148.3_INIVELNAL_DICI_M_26',
+      'ipc_gba': '148.3_INIVELEGBA_DICI_M_19',
+      'ipc_pat': '148.3_INIVELREG1_DICI_M_30',
+      'ipim_gral': '137.1_INGNACIONALES_0_M_26'
+    };
+    
+    if (KNOWN_SERIES[def.id]) {
+      cfg.id = KNOWN_SERIES[def.id];
+      return cfg.id;
+    }
+    
     // Buscar en API
     const dyn = await this.searchSeriesId(def);
     if (dyn) {
