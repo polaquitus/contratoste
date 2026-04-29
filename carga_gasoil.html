@@ -58,12 +58,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
 const CONFIG = {
   SB_URL: 'https://upxsqroxbvzwudcaklvn.supabase.co',
   SB_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweHNxcm94YnZ6d3VkY2FrbHZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTg4NjYsImV4cCI6MjA5MTIzNDg2Nn0.EgXWuLg3ip66PnuCvK01XFj3QDMZDu7PDG21BwkzkNo',
-  GEMINI_PROXY: 'https://upxsqroxbvzwudcaklvn.supabase.co/functions/v1/gemini-proxy',
-  
-  // CSVs DIRECTOS Secretaría de Energía - actualizado 23/04/2026
-  CSV_HISTORICO: 'http://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/f8dda0d5-2a9f-4d34-b79b-4e63de3995df/download/precios-historicos.csv',
-  CSV_VIGENTES:  'http://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/80ac25de-a44a-4445-9215-090cf55cfda5/download/precios-en-surtidor-resolucin-3142016.csv',
-  
+  GEMINI_PROXY:  'https://upxsqroxbvzwudcaklvn.supabase.co/functions/v1/gemini-proxy',
+  ENERGIA_PROXY: 'https://upxsqroxbvzwudcaklvn.supabase.co/functions/v1/energia-proxy',
+
+  // CKAN API Secretaría de Energía (vía energia-proxy — SSL vencido en origen)
+  CKAN_HISTORICO: 'https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=f8dda0d5-2a9f-4d34-b79b-4e63de3995df&limit=32000',
+  CKAN_VIGENTES:  'https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=80ac25de-a44a-4445-9215-090cf55cfda5&limit=32000',
+
   START_DATE: '2023-12'
 };
 
