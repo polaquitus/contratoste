@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v42-idx-update</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1574,7 +1574,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v42-idx-update</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3403,21 +3403,21 @@ function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_t
 // ── Definición estática de índices del sistema ─────────────────────────
 const IDX_CATALOG = [
   // ── IPC ──────────────────────────────────────────────────────────
-  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/'},
+  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNAL_DICI_M_26'},
+  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELGBA_DICI_M_21'},
+  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNIA_DICI_M_27'},
+  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual'},
+  {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual'},
   // ── IPIM ─────────────────────────────────────────────────────────
-  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5'},
-  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice'},
+  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46'},
+  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual'},
+  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice', fetchMode:'manual'},
   // ── Combustible ─────────────────────────────────────────────────
-  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com'},
-  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com'},
+  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel'},
+  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel'},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
-  {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp'},
-  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp'},
+  {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
+  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
   // ── Mano de Obra — CCT ──────────────────────────────────────────
   {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', srcLink:''},
   {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo', catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', srcLink:''},
@@ -3527,6 +3527,100 @@ async function fetchUsdBnaLike(targetYm){
   }
   throw new Error('No se pudo obtener USD');
 }
+// ── Next-month helpers ────────────────────────────────────────────────
+function idxNextYm(id){
+  const rows=idxRows(id);
+  if(!rows.length){const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');}
+  const last=rows[rows.length-1].ym;
+  const d=new Date(last+'-01');d.setMonth(d.getMonth()+1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function idxIsUpToDate(id){
+  const target=idxTargetYm();
+  return idxRows(id).some(r=>String(r.ym||'')>=target);
+}
+
+// ── INDEC API fetch ───────────────────────────────────────────────────
+async function idxFetchIndec(id, ym){
+  const def=IDX_CATALOG.find(d=>d.id===id);
+  if(!def||!def.seriesId) throw new Error('Sin seriesId para '+id);
+  // Request from prevYm to get both months and compute pct
+  const prevYm=idxPrevYm(ym);
+  const url=`https://apis.datos.gob.ar/series/api/series?ids=${def.seriesId}&format=json&start_date=${prevYm}&limit=5`;
+  const r=await fetch(url);
+  if(!r.ok) throw new Error('INDEC API '+r.status);
+  const j=await r.json();
+  const data=j.data||[];
+  const ymEntry=data.find(([d])=>d&&d.startsWith(ym));
+  if(!ymEntry||ymEntry[1]==null) throw new Error('Sin dato INDEC para '+ym);
+  const val=Number(ymEntry[1]);
+  const prevEntry=data.find(([d])=>d&&d.startsWith(prevYm));
+  let pct=null;
+  if(prevEntry&&prevEntry[1]){
+    pct=Number(((val/Number(prevEntry[1])-1)*100).toFixed(2));
+  } else {
+    const prevRow=idxRows(id).find(r=>r.ym===prevYm);
+    if(prevRow&&prevRow.value) pct=Number(((val/prevRow.value-1)*100).toFixed(2));
+  }
+  return {ym,value:val,pct,source:'INDEC API',confirmed:false};
+}
+
+// ── Gas Oil fetch vía energia-proxy ──────────────────────────────────
+async function idxFetchFuel(id, ym){
+  const ckanUrl='https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=f8dda0d5-2a9f-4d34-b79b-4e63de3995df&limit=32000';
+  const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify({url:ckanUrl})
+  });
+  if(!r.ok) throw new Error('energia-proxy '+r.status);
+  const j=await r.json();
+  if(!j.success) throw new Error('CKAN error: '+(j.error&&j.error.message||'desconocido'));
+  const records=(j.result&&j.result.records||[]).filter(rec=>{
+    const prov=(rec.provincia||rec.idprovincia||'').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const emp=(rec.empresa||rec.razon_social||rec.empresabandera||'').toString().toUpperCase();
+    const prod=(rec.producto||rec.idproducto||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const fecha=(rec.fecha_vigencia||rec.fechavigencia||rec.fecha||'').toString();
+    const esNQN=prov.includes('NEUQU')||prov==='58';
+    const esYPF=emp.includes('YPF');
+    const esGasoil=prod.includes('gasoil')||prod.includes('diesel')||prod.includes('gas oil');
+    const esYm=fecha.startsWith(ym);
+    const isG2=id==='go_g2'&&(prod.includes('grado 2')||prod.includes('grado_2')||prod.includes('g2')||prod.includes('comun')||prod.includes('500'));
+    const isG3=id==='go_g3'&&(prod.includes('grado 3')||prod.includes('grado_3')||prod.includes('g3')||prod.includes('premium')||prod.includes('ultra')||prod.includes('infinia'));
+    return esNQN&&esYPF&&esGasoil&&esYm&&(isG2||isG3);
+  });
+  if(!records.length) throw new Error('Sin datos combustible para '+ym+' en CKAN histórico');
+  const precio=Math.max(...records.map(rec=>parseFloat((rec.precio||rec.importe||'0').toString().replace(',','.'))));
+  const prevYm=idxPrevYm(ym);
+  const prevRow=idxRows(id).find(r=>r.ym===prevYm);
+  const pct=prevRow&&prevRow.value?Number(((precio/prevRow.value-1)*100).toFixed(2)):null;
+  return {ym,value:Number(precio.toFixed(2)),pct,source:'S.Energía',confirmed:false};
+}
+
+// ── Agregar siguiente mes (auto o manual) ─────────────────────────────
+async function idxAddNextMonth(id){
+  const def=IDX_CATALOG.find(d=>d.id===id);
+  if(!def) return;
+  const ym=idxNextYm(id);
+  const mode=def.fetchMode||'manual';
+  if(mode==='manual'){openEntryModal(id,null);return;}
+  toast('Buscando '+formatMonth(ym)+'…','ok');
+  try{
+    let row;
+    if(mode==='indec') row=await idxFetchIndec(id,ym);
+    else if(mode==='usd') row=await fetchUsdBnaLike(ym);
+    else if(mode==='fuel') row=await idxFetchFuel(id,ym);
+    if(!row) throw new Error('Sin dato');
+    await idxUpsert(id,{...row,ym});
+    renderIdxView();
+    toast(def.name+' '+formatMonth(ym)+' cargado ✓','ok');
+  }catch(err){
+    console.warn('idxAddNextMonth',id,err);
+    toast('No se encontró dato automático — ingresá manualmente','er');
+    openEntryModal(id,null);
+  }
+}
+
 async function idxResolveViaAI(def, targetYm){
   if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
   const prompt = `Necesito el último valor oficial publicado para el índice argentino "${def.name}" (fuente ${def.src}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
@@ -3660,7 +3754,11 @@ function renderIdxCards(){
       // Formatear valor según tipo de índice (USD usa value, otros usan pct)
       const formattedValue = idxValueLabel(def, lastStore || officialSeed);
       
-      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ. valor: ${displayYm?formatMonth(displayYm):'—'}</div></div><span class="icat ${CAT_PILL[cat]}" style="flex-shrink:0">${esc(def.src)}</span></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(displayValue)}">${formattedValue}</span><span class="period">${displayYm?formatMonth(displayYm):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px"><div style="font-size:10px;color:var(--g500)">Estado: <strong>${idxStatusText(def.id)}</strong></div>${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄 Actualizar</button>`:''}</div></div></div>`;
+      const upToDate=idxIsUpToDate(def.id);
+      const statusBadge=upToDate?'<span title="Al día" style="font-size:14px">✅</span>':'<span title="Desactualizado" style="font-size:14px">⚠️</span>';
+      const nextYm=idxNextYm(def.id);
+      const addBtn=cat!=='mo'?`<button class="btn btn-p btn-sm" onclick="event.stopPropagation();idxAddNextMonth('${def.id}')" title="Agregar ${formatMonth(nextYm)}">+ ${formatMonth(nextYm)}</button>`:'';
+      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ.: ${displayYm?formatMonth(displayYm):'—'}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">${statusBadge}<span class="icat ${CAT_PILL[cat]}">${esc(def.src)}</span></div></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(displayValue)}">${formattedValue}</span><span class="period">${displayYm?formatMonth(displayYm):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:6px;flex-wrap:wrap">${addBtn}${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄</button>`:''}</div></div></div>`;
     });
     h+='</div></div>';
   });
