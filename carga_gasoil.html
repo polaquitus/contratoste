@@ -60,15 +60,10 @@ const CONFIG = {
   SB_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweHNxcm94YnZ6d3VkY2FrbHZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NTg4NjYsImV4cCI6MjA5MTIzNDg2Nn0.EgXWuLg3ip66PnuCvK01XFj3QDMZDu7PDG21BwkzkNo',
   GEMINI_PROXY: 'https://upxsqroxbvzwudcaklvn.supabase.co/functions/v1/gemini-proxy',
   
-  // CKAN API HTTPS (evita CORS/mixed-content de HTTP directo)
-  // Recurso histórico y vigentes - API datastore
-  CKAN_HISTORICO: 'https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=f8dda0d5-2a9f-4d34-b79b-4e63de3995df&limit=5000',
-  CKAN_VIGENTES:  'https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=80ac25de-a44a-4445-9215-090cf55cfda5&limit=5000',
-  // Proxy CORS de emergencia si CKAN falla
-  CORS_PROXY: 'https://corsproxy.io/?url=',
-  CSV_HISTORICO: 'https://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/f8dda0d5-2a9f-4d34-b79b-4e63de3995df/download/precios-historicos.csv',
-  CSV_VIGENTES:  'https://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/80ac25de-a44a-4445-9215-090cf55cfda5/download/precios-en-surtidor-resolucin-3142016.csv',
-
+  // CSVs DIRECTOS Secretaría de Energía - actualizado 23/04/2026
+  CSV_HISTORICO: 'http://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/f8dda0d5-2a9f-4d34-b79b-4e63de3995df/download/precios-historicos.csv',
+  CSV_VIGENTES:  'http://datos.energia.gob.ar/dataset/1c181390-5045-475e-94dc-410429be4b17/resource/80ac25de-a44a-4445-9215-090cf55cfda5/download/precios-en-surtidor-resolucin-3142016.csv',
+  
   START_DATE: '2023-12'
 };
 
@@ -134,23 +129,31 @@ function filtrarGasOil(records) {
   });
 }
 
-// ═══ PROCESAR RECORDS (CKAN JSON o CSV rows) ═══
-function procesarRecords(records, fuente) {
+// ═══ PROXY FETCH (via energia-proxy Edge Function) ═══
+async function proxyFetch(url) {
+  const r = await fetch(CONFIG.ENERGIA_PROXY, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + CONFIG.SB_KEY
+    },
+    body: JSON.stringify({ url })
+  });
+  if (!r.ok) throw new Error(`Proxy HTTP ${r.status}`);
+  return r;
+}
+
+// ═══ PROCESAR RECORDS FILTRADOS ═══
+function procesarRecords(filtrados, fuente) {
   let procesados = 0;
-  records.forEach(r => {
-    // Normalizar campo producto
-    const producto = (r.producto || r.idproducto || r['Producto'] || '').toString().toLowerCase()
+  filtrados.forEach(r => {
+    const producto = (r.producto || r.idproducto || '').toString().toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    // Normalizar campo fecha
-    const fecha = (r.fecha_vigencia || r.fechavigencia || r.fecha || r.vigdesde || r['Fecha'] || '').toString();
-    // Normalizar campo precio
-    const precioRaw = (r.precio || r.importe || r['Precio'] || '0').toString().replace(',', '.');
-    const precio = parseFloat(precioRaw);
+    const fecha = (r.fecha_vigencia || r.fechavigencia || r.fecha || r.vigdesde || '').toString();
+    const precio = parseFloat((r.precio || r.importe || '0').toString().replace(',', '.'));
 
     if (!fecha || !precio || precio <= 0) return;
-
-    // ym puede ser YYYY-MM-DD → tomar YYYY-MM
-    const ym = fecha.length >= 7 ? fecha.slice(0, 7) : '';
+    const ym = fecha.slice(0, 7);
     if (!ym || ym < CONFIG.START_DATE) return;
 
     const esG2 = producto.includes('grado 2') || producto.includes('grado_2') ||
@@ -160,110 +163,55 @@ function procesarRecords(records, fuente) {
                  producto.includes('premium') || producto.includes('ultra') ||
                  producto.includes('euro') || producto.includes('infinia') || producto.includes('g3');
 
-    if (esG2) {
-      if (!datosGasOil.g2[ym] || precio > datosGasOil.g2[ym]) { datosGasOil.g2[ym] = precio; procesados++; }
-    } else if (esG3) {
-      if (!datosGasOil.g3[ym] || precio > datosGasOil.g3[ym]) { datosGasOil.g3[ym] = precio; procesados++; }
-    }
+    if (esG2) { if (!datosGasOil.g2[ym] || precio > datosGasOil.g2[ym]) { datosGasOil.g2[ym] = precio; procesados++; } }
+    else if (esG3) { if (!datosGasOil.g3[ym] || precio > datosGasOil.g3[ym]) { datosGasOil.g3[ym] = precio; procesados++; } }
   });
   return procesados;
 }
 
-// ═══ ESTRATEGIA 1A: CKAN JSON API (HTTPS, sin CORS) ═══
-async function intentarCKAN() {
+// ═══ ESTRATEGIA 1: CKAN VÍA energia-proxy ═══
+async function intentarCSV() {
   const endpoints = [
-    {url: CONFIG.CKAN_HISTORICO, nombre: 'CKAN Histórico'},
-    {url: CONFIG.CKAN_VIGENTES,  nombre: 'CKAN Vigentes'}
+    { url: CONFIG.CKAN_HISTORICO, nombre: 'CKAN Histórico' },
+    { url: CONFIG.CKAN_VIGENTES,  nombre: 'CKAN Vigentes'  }
   ];
 
-  for (const {url, nombre} of endpoints) {
-    log(`\n🔗 ${nombre}: ${url.substring(0, 80)}...`);
+  for (const { url, nombre } of endpoints) {
+    log(`\n🔗 ${nombre} vía energia-proxy...`);
     try {
-      const r = await fetch(url);
-      if (!r.ok) { log(`   ❌ HTTP ${r.status}`, 'err'); continue; }
+      const resp = await proxyFetch(url);
+      const json = await resp.json();
 
-      const json = await r.json();
       if (!json.success) { log(`   ❌ CKAN error: ${json.error?.message}`, 'err'); continue; }
 
       const total = json.result?.total || 0;
-      const records = json.result?.records || [];
-      log(`   📊 Total dataset: ${total} | Recibidos: ${records.length}`);
-
+      let records = json.result?.records || [];
+      log(`   📊 Total dataset: ${total} | Página: ${records.length}`);
       if (records.length === 0) continue;
 
-      // Debug muestra
       log(`   📋 Muestra: ${JSON.stringify(records[0]).substring(0, 200)}`);
 
-      // Filtrar Neuquén + YPF/ACA
+      // Paginar si hay más registros
+      let offset = records.length;
+      while (offset < total) {
+        log(`   🔄 Paginando offset=${offset}...`);
+        const pr = await proxyFetch(url + `&offset=${offset}`);
+        const pj = await pr.json();
+        const page = pj.result?.records || [];
+        if (page.length === 0) break;
+        records = records.concat(page);
+        offset += page.length;
+        await new Promise(res => setTimeout(res, 300));
+      }
+
+      log(`   📊 Total registros descargados: ${records.length}`);
+
       const filtrados = filtrarGasOil(records);
       log(`   🔍 YPF/ACA Neuquén Gasoil: ${filtrados.length}`);
 
       if (filtrados.length === 0) {
         const provs = [...new Set(records.slice(0, 500).map(r => r.provincia || r.idprovincia || ''))].slice(0, 10);
         const prods = [...new Set(records.slice(0, 500).map(r => r.producto || r.idproducto || ''))].slice(0, 10);
-        log(`   ⚠️ Provincias muestra: ${provs.join(', ')}`, 'warn');
-        log(`   ⚠️ Productos muestra: ${prods.join(', ')}`, 'warn');
-        continue;
-      }
-
-      const procesados = procesarRecords(filtrados, nombre);
-      const g2 = Object.keys(datosGasOil.g2).length;
-      const g3 = Object.keys(datosGasOil.g3).length;
-      log(`   ✅ Procesados ${procesados} → G2=${g2}, G3=${g3}`);
-      if (g2 > 0 || g3 > 0) updateStats(g2, g3, nombre);
-
-      // Si el dataset tiene más páginas, paginar
-      if (total > records.length) {
-        log(`   🔄 Paginando... (${total - records.length} restantes)`);
-        let offset = records.length;
-        while (offset < total) {
-          const pr = await fetch(url + `&offset=${offset}`);
-          if (!pr.ok) break;
-          const pj = await pr.json();
-          const pageRecs = pj.result?.records || [];
-          if (pageRecs.length === 0) break;
-          const filtPage = filtrarGasOil(pageRecs);
-          procesarRecords(filtPage, nombre);
-          offset += pageRecs.length;
-          updateStats(Object.keys(datosGasOil.g2).length, Object.keys(datosGasOil.g3).length, nombre);
-          await new Promise(res => setTimeout(res, 300));
-        }
-        log(`   ✅ Paginación completa: G2=${Object.keys(datosGasOil.g2).length}, G3=${Object.keys(datosGasOil.g3).length}`);
-      }
-
-    } catch (err) {
-      log(`   ❌ Error CKAN: ${err.message}`, 'err');
-    }
-  }
-}
-
-// ═══ ESTRATEGIA 1B: CSV VÍA CORSPROXY (fallback) ═══
-async function intentarCSVProxy() {
-  const csvUrls = [
-    {url: CONFIG.CSV_HISTORICO, nombre: 'CSV Histórico'},
-    {url: CONFIG.CSV_VIGENTES,  nombre: 'CSV Vigentes'}
-  ];
-
-  for (const {url, nombre} of csvUrls) {
-    const proxyUrl = CONFIG.CORS_PROXY + encodeURIComponent(url);
-    log(`\n📄 ${nombre} vía corsproxy...`);
-    try {
-      const r = await fetch(proxyUrl);
-      if (!r.ok) { log(`   ❌ HTTP ${r.status}`, 'err'); continue; }
-
-      const text = await r.text();
-      log(`   ✅ Recibidos ${Math.round(text.length / 1024)}KB`);
-
-      const records = parseCSV(text);
-      log(`   📊 Total registros: ${records.length}`);
-      if (records.length === 0) continue;
-
-      log(`   📋 Muestra: ${JSON.stringify(records[0]).substring(0, 200)}`);
-      const filtrados = filtrarGasOil(records);
-      log(`   🔍 YPF/ACA Neuquén Gasoil: ${filtrados.length}`);
-      if (filtrados.length === 0) {
-        const provs = [...new Set(records.slice(0, 500).map(r => r.provincia || r.idprovincia || ''))].slice(0, 8);
-        const prods = [...new Set(records.slice(0, 500).map(r => r.producto || r.idproducto || ''))].slice(0, 8);
         log(`   ⚠️ Provincias: ${provs.join(', ')}`, 'warn');
         log(`   ⚠️ Productos: ${prods.join(', ')}`, 'warn');
         continue;
@@ -272,26 +220,12 @@ async function intentarCSVProxy() {
       const procesados = procesarRecords(filtrados, nombre);
       const g2 = Object.keys(datosGasOil.g2).length;
       const g3 = Object.keys(datosGasOil.g3).length;
-      log(`   ✅ Procesados ${procesados} → G2=${g2}, G3=${g3}`);
-      if (g2 > 0 || g3 > 0) updateStats(g2, g3, `${nombre} (proxy)`);
+      log(`   ✅ Procesados ${procesados} → G2=${g2} períodos, G3=${g3} períodos`);
+      updateStats(g2, g3, nombre);
 
     } catch (err) {
-      log(`   ❌ Error proxy: ${err.message}`, 'err');
+      log(`   ❌ Error: ${err.message}`, 'err');
     }
-  }
-}
-
-async function intentarCSV() {
-  // 1A: CKAN JSON (HTTPS nativo, sin CORS)
-  await intentarCKAN();
-
-  const g2 = Object.keys(datosGasOil.g2).length;
-  const g3 = Object.keys(datosGasOil.g3).length;
-
-  // 1B: Si CKAN no dio datos, intentar CSV vía proxy CORS
-  if (g2 === 0 && g3 === 0) {
-    log('\n⚡ CKAN sin datos → intentando CSV vía corsproxy.io...');
-    await intentarCSVProxy();
   }
 
   return Object.keys(datosGasOil.g2).length > 0 || Object.keys(datosGasOil.g3).length > 0;
@@ -364,28 +298,23 @@ async function intentarGemini() {
     const [year, month] = ym.split('-');
     const monthName = new Date(+year, +month - 1, 1).toLocaleDateString('es-AR', {month: 'long'});
     
-    const prompt = `Eres un asistente experto en precios de combustibles en Argentina. Necesito datos históricos reales.
+    const prompt = `Eres experto en precios de combustibles Argentina. Necesito datos históricos reales.
 
-DATOS REQUERIDOS: Precio de Gas Oil en YPF Neuquén Capital (o ACA Neuquén si YPF no disponible) para ${monthName} ${year} (período ${ym}).
+DATOS REQUERIDOS: Precio Gas Oil en YPF Neuquén Capital (o ACA Neuquén) para ${monthName} ${year} (${ym}).
 
-CONTEXTO DE PRECIOS PARA CALIBRACIÓN:
+REFERENCIA DE PRECIOS PARA CALIBRAR TU RESPUESTA:
 - Nov 2023: G2~$405, G3~$510
-- Dic 2023: G2~$524, G3~$660 (devaluación Milei dic 2023)
+- Dic 2023: G2~$524, G3~$660 (devaluación Milei)
 - Ene 2024: G2~$700, G3~$870
 - Feb 2024: G2~$800, G3~$980
 - Mar 2024: G2~$910, G3~$1100
 - Jun 2024: G2~$909, G3~$1080
-- Los precios siguieron subiendo por inflación argentina a lo largo de 2024 y 2025
+- Los precios siguieron subiendo en 2024 (IPC ~10-15%/mes) y 2025 (~3-5%/mes)
 
-Estima el valor más preciso posible para ${ym} basándote en:
-1. Datos reales de datos.energia.gob.ar si los conoces
-2. Evolución inflacionaria (IPC Argentina: ~25% dic 2023, luego ~10-15% mensual en 2024, ~3-5% en 2025)
-3. Política de precios YPF (actualizaciones mensuales o bimestrales)
-
-Responde ÚNICAMENTE con JSON exacto sin markdown:
+Estima para ${ym} usando evolución inflacionaria si no tienes dato exacto.
+Responde ÚNICAMENTE JSON sin markdown:
 {"ym":"${ym}","g2_precio":<número>,"g3_precio":<número>,"fuente":"<fuente>"}
-
-Si realmente no puedes estimar: {"ym":"${ym}","g2_precio":null,"g3_precio":null,"fuente":"No disponible"}`;
+Si no podés estimar: {"ym":"${ym}","g2_precio":null,"g3_precio":null,"fuente":"No disponible"}`;
 
     log(`   Buscando ${ym}...`);
     
