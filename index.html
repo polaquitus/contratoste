@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v47-dashboard</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v48-idx-chart</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -963,6 +963,32 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div id="idxDetPanel" style="display:none"></div>
   <!-- Cards grid -->
   <div id="idxCardsGrid"></div>
+  <!-- Histórico chart section -->
+  <div id="idxHistoricoSection" style="margin-top:24px;padding:0 0 24px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:0 2px">
+      <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--g900)">📈 Histórico de Índices</h3>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Índice</label>
+        <select id="idxChartNombre" style="font-family:inherit;font-size:13px;padding:8px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900);min-width:200px"></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Desde</label>
+        <input type="month" id="idxChartDesde" style="font-family:inherit;font-size:13px;padding:8px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900)">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Hasta</label>
+        <input type="month" id="idxChartHasta" style="font-family:inherit;font-size:13px;padding:8px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900)">
+      </div>
+      <button class="btn btn-p btn-sm" onclick="loadIndicesChart()" style="height:38px;padding:0 16px">Ver Gráfico</button>
+      <button class="btn btn-s btn-sm" id="btnIdxExportPng" onclick="exportIdxChartPng()" style="height:38px;padding:0 14px;display:none">⬇ PNG</button>
+    </div>
+    <div style="background:var(--w);border:1px solid var(--g200);border-radius:var(--radl);padding:20px;position:relative">
+      <div id="idxChartMsg" style="display:none;text-align:center;padding:40px;font-size:13px;color:var(--g500);font-style:italic"></div>
+      <canvas id="idxChart" style="height:320px;display:none"></canvas>
+    </div>
+  </div>
   <!-- New index modal backdrop -->
   <div id="idxModalBack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center">
     <div id="idxModalBox" style="background:var(--w);border-radius:var(--radl);box-shadow:0 20px 60px rgba(0,0,0,.3);width:520px;max-width:95vw;max-height:92vh;overflow-y:auto"></div>
@@ -1574,7 +1600,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v47-dashboard</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v48-idx-chart</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1644,6 +1670,7 @@ function go(v){
     t.innerHTML='📊 Master de Índices';
     a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>`;
     renderIdxView();
+    initIdxChartSection();
   }
   else if(v==='licit'){
     document.getElementById('vLicit').classList.add('on');
@@ -6745,6 +6772,134 @@ function renderDashboard() {
   document.getElementById('proximosVencimientos').innerHTML = proximosHtml;
   
   console.log('[Dashboard] Rendered - TC:', tcUSD, 'ARS:', fN(montoTotalARS), 'USD:', fN(montoTotalUSD));
+}
+
+// ── Histórico de Índices — chart section ─────────────────────────────────────
+
+let _idxChart = null;
+
+function initIdxChartSection() {
+  const sel = document.getElementById('idxChartNombre');
+  if (!sel) return;
+  sel.innerHTML = IDX_CATALOG.map(d =>
+    `<option value="${d.id}">${d.name}</option>`
+  ).join('');
+
+  const now = new Date();
+  const hasta = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const desdeDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const desde = desdeDate.getFullYear() + '-' + String(desdeDate.getMonth() + 1).padStart(2, '0');
+
+  const desdeEl = document.getElementById('idxChartDesde');
+  const hastaEl = document.getElementById('idxChartHasta');
+  if (desdeEl && !desdeEl.value) desdeEl.value = desde;
+  if (hastaEl && !hastaEl.value) hastaEl.value = hasta;
+
+  loadIndicesChart();
+}
+
+function loadIndicesChart() {
+  const idxId   = document.getElementById('idxChartNombre')?.value || 'ipc_nac';
+  const desde   = document.getElementById('idxChartDesde')?.value || '';
+  const hasta   = document.getElementById('idxChartHasta')?.value || '';
+  const canvas  = document.getElementById('idxChart');
+  const msgEl   = document.getElementById('idxChartMsg');
+  const exportBtn = document.getElementById('btnIdxExportPng');
+  if (!canvas) return;
+
+  const def = IDX_CATALOG.find(d => d.id === idxId);
+  const rows = idxRows(idxId)
+    .filter(r => r.ym && (!desde || r.ym >= desde) && (!hasta || r.ym <= hasta))
+    .sort((a, b) => a.ym.localeCompare(b.ym));
+
+  if (_idxChart) { _idxChart.destroy(); _idxChart = null; }
+
+  if (!rows.length) {
+    canvas.style.display = 'none';
+    if (exportBtn) exportBtn.style.display = 'none';
+    msgEl.textContent = 'Sin datos para el período seleccionado.';
+    msgEl.style.display = '';
+    return;
+  }
+
+  msgEl.style.display = 'none';
+  canvas.style.display = '';
+  if (exportBtn) exportBtn.style.display = '';
+
+  const hasValues = rows.some(r => r.value != null && r.value !== 0);
+  const dataPoints = rows.map(r => hasValues ? (r.value ?? null) : (r.pct ?? null));
+  const labels = rows.map(r => {
+    const [y, m] = (r.ym || '').split('-');
+    return String(m).padStart(2, '0') + '/' + y;
+  });
+
+  _idxChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: def?.name || idxId,
+        data: dataPoints,
+        borderColor: '#0071d9',
+        backgroundColor: 'rgba(0,113,217,.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#0071d9',
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const val = ctx.parsed.y;
+              if (val == null) return 'Sin dato';
+              const idx = ctx.dataIndex;
+              const prev = idx > 0 ? dataPoints[idx - 1] : null;
+              const delta = (prev != null && prev !== 0)
+                ? ' (' + (val >= prev ? '+' : '') + ((val / prev - 1) * 100).toFixed(1) + '%)'
+                : '';
+              return hasValues
+                ? Math.round(val).toLocaleString('es-AR') + delta
+                : val.toFixed(2) + '%' + delta;
+            },
+            title: ctx => ctx[0]?.label || ''
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 11 }, maxRotation: 45 },
+          grid: { color: 'rgba(0,0,0,.06)' }
+        },
+        y: {
+          title: { display: true, text: def?.name || idxId, font: { size: 11 } },
+          ticks: {
+            font: { size: 11 },
+            callback: v => hasValues
+              ? Math.round(v).toLocaleString('es-AR')
+              : v.toFixed(1) + '%'
+          },
+          grid: { color: 'rgba(0,0,0,.06)' }
+        }
+      }
+    }
+  });
+}
+
+function exportIdxChartPng() {
+  if (!_idxChart) return;
+  const sel = document.getElementById('idxChartNombre');
+  const nom = sel?.options[sel.selectedIndex]?.text || 'indice';
+  const a = document.createElement('a');
+  a.href = _idxChart.toBase64Image();
+  a.download = 'historico_' + nom.replace(/\s+/g, '_').toLowerCase() + '.png';
+  a.click();
 }
 
 </script>
