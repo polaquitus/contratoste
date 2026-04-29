@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v44-dossier-xls</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1574,7 +1574,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v41-shortcuts</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v44-dossier-xls</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1626,7 +1626,7 @@ function go(v){
     document.getElementById('vDet').classList.add('on');
     _navAct('list');
     t.innerHTML='📄 Detalle';
-    a.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-a btn-sm" onclick="openKoCalculator()">🧮 Calc Ko</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>`;
+    a.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-s" onclick="go('list')">← Lista</button><button class="btn btn-a btn-sm" onclick="openKoCalculator()">🧮 Calc Ko</button><button class="btn btn-p btn-sm" onclick="openDossier()">📘 Dossier HTML</button><button class="btn btn-p btn-sm" onclick="exportDossierXls()">📊 Dossier XLS</button><button class="btn btn-s btn-sm" onclick="openPriceListImportPicker()">🤖 Importar Listas IA</button></div>`;
     renderDet();
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -2076,6 +2076,99 @@ function renderDossierHtml(c){
 +'</body></html>';
 }
 function openDossier(){ const c=window.DB.find(x=>x.id===window.detId); if(!c){toast('No se encontró el contrato','er');return;} const w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;} w.document.open(); w.document.write(renderDossierHtml(c)); w.document.close(); }
+
+function exportDossierXls(){
+  const c=window.DB.find(x=>x.id===window.detId);
+  if(!c){toast('No se encontró el contrato','er');return;}
+  if(typeof XLSX==='undefined'){toast('Librería XLSX no disponible','er');return;}
+
+  const enms=c.enmiendas||[], aves=c.aves||[], tars=c.tarifarios||[];
+  const licit=(typeof LICIT_DB!=='undefined'?LICIT_DB:[]).find(l=>l.contrato===c.num)||null;
+  const _d=s=>{if(!s)return '';const p=s.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;};
+  const _m=n=>(n||n===0)?Math.round(n):'';
+  const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+  const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const totalConAVE=(c.monto||0)+avePoly+aveOwner;
+  const tcc=c.tc||1;
+  const nPartic=licit?(licit.oferentes||[]).length:'';
+  const nOfrs=licit?(licit.oferentes||[]).filter(o=>o.cotizo!==false).length:'';
+  const docAriba=c.ariba||(licit&&licit.docAriba)||'';
+  const tipoLabel=(c.tcontr||c.tipo||'').toUpperCase().indexOf('ENMIEND')>=0?'Amendment':'New Contract';
+
+  const wb=XLSX.utils.book_new();
+
+  // ── Sheet 1: DUET ────────────────────────────────────────────────────────
+  const duet=[
+    ['DUET — TotalEnergies Argentina','','','','','','','','',''],
+    ['','','','','','','','','',''],
+    [tipoLabel,'','','','','','','',c.cont||'',''],
+    ['','','',c.det||'','','','','','',''],
+    ['','','','','','','','','',''],
+    ['','','','Metier',c.tcontr||'','','','','',''],
+    ['','','',c.asset||c.own||'APE + SR','','Contract #','',c.num||'','',''],
+    ['','','',_d(c.fechaIni),'',_d(c.fechaFin),'','','',''],
+    ['','','','','','','','','',''],
+    ['','','','','','','','','',''],
+    ['','','','','','','','','Header value',_m(c.monto)+' '+(c.mon||'ARS')],
+    ['','','','','','','','','',''],
+    ['E-sourcing #',docAriba,'','','','','','','AVE',_m(avePoly+aveOwner)+' '+(c.mon||'ARS')],
+    ['Participants',nPartic,'','','','','','','New header value',_m(totalConAVE)+' '+(c.mon||'ARS')],
+    ['Offers received',nOfrs,'','','','','','','',''],
+    ['','','','','','','','','','Exchange rate '+_m(tcc)],
+    ['','','','','','','','','',''],
+    ['Contract Manager','','','','','','','','',''],
+    [c.resp||'','','','','','','','','',''],
+    ['Administrator',c.rtec||'','','','','','','','',''],
+    ['Contractor',c.cont||'','','','','','','','',''],
+    ['Vendor code',c.vend||'','','','','','','','',''],
+    ['','','','','','','','','',''],
+    ['Evaluation','','','Contracting Strategy','','','','','',''],
+    ['DD / Pre-risk',c.dd?'YES':'NO','','Strategy',c.cprov||'RFQ','','','','',''],
+    ['E-valuarte',c.pr?'YES':'NO','','CC',c.cc||'','','','','',''],
+    ['Sequana',c.sq?'YES':'NO','','CC MoM',c.cof||'','','','','',''],
+    ['Sustainability','NO','','Responses received',nOfrs,'','','','',''],
+    ['','','','','','','','','',''],
+    ['Comments',c.com||'','','','','','','','',''],
+  ];
+  const wsDuet=XLSX.utils.aoa_to_sheet(duet);
+  wsDuet['!cols']=[{wch:18},{wch:22},{wch:14},{wch:20},{wch:18},{wch:14},{wch:8},{wch:8},{wch:18},{wch:22}];
+  XLSX.utils.book_append_sheet(wb,wsDuet,'DUET');
+
+  // ── Sheet 2: Enmiendas ───────────────────────────────────────────────────
+  const enmHdr=[['#','N° Enmienda','Fecha','Tipo','Descripción','Monto','Moneda']];
+  const enmData=enms.map((e,i)=>[i+1,e.num||'',_d(e.fecha),e.tipo||'',e.descripcion||'',e.monto||0,c.mon||'ARS']);
+  const wsEnm=XLSX.utils.aoa_to_sheet([...enmHdr,...enmData]);
+  wsEnm['!cols']=[{wch:4},{wch:20},{wch:12},{wch:22},{wch:40},{wch:16},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,wsEnm,'Enmiendas');
+
+  // ── Sheet 3: AVEs ────────────────────────────────────────────────────────
+  const aveHdr=[['Tipo','Fecha','Período','Monto','Moneda','Concepto','Auto']];
+  const aveData=aves.slice().sort((a,b)=>new Date(a.fecha)-new Date(b.fecha))
+    .map(a=>[a.tipo||'',_d(a.fecha),a.periodo||'',a.monto||0,c.mon||'ARS',a.concepto||'',a.autoGenerated?'SI':'NO']);
+  const totAve=aves.reduce((s,a)=>s+(a.monto||0),0);
+  const wsAve=XLSX.utils.aoa_to_sheet([...aveHdr,...aveData,['TOTAL','','',totAve,c.mon||'ARS','','']]);
+  wsAve['!cols']=[{wch:14},{wch:12},{wch:12},{wch:16},{wch:8},{wch:35},{wch:6}];
+  XLSX.utils.book_append_sheet(wb,wsAve,'AVEs');
+
+  // ── Sheet 4: Tarifarios ──────────────────────────────────────────────────
+  const tarHdr=[['Nombre','Período','Ítems','Origen']];
+  const tarData=tars.map(t=>[t.name||'',t.period||'',(t.rows||[]).length,t.sourceTableName||'']);
+  const wsTar=XLSX.utils.aoa_to_sheet([...tarHdr,...tarData]);
+  wsTar['!cols']=[{wch:30},{wch:12},{wch:8},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,wsTar,'Tarifarios');
+
+  // ── Sheet 5: Oferentes ───────────────────────────────────────────────────
+  const ofrs=licit&&licit.oferentes&&licit.oferentes.length?licit.oferentes:[];
+  const ofrHdr=[['#','Oferente','Cotizó']];
+  const ofrData=ofrs.map((o,i)=>[i+1,o.nombre||o.name||String(o),o.cotizo!==false?'SI':'NO']);
+  const wsOfr=XLSX.utils.aoa_to_sheet([...ofrHdr,...ofrData]);
+  wsOfr['!cols']=[{wch:4},{wch:40},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,wsOfr,'Oferentes');
+
+  const fname='DUET_'+( c.num||'contrato').replace(/[/\\?%*:|"<>]/g,'_')+'.xlsx';
+  XLSX.writeFile(wb,fname);
+  toast('📊 XLS exportado: '+fname,'ok');
+}
 
 function renderDet(){
   try {
