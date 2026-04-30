@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v57-idx-edge-cases</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v58-fix-edit-overwrite</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v57-idx-edge-cases</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v58-fix-edit-overwrite</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3707,11 +3707,25 @@ function idxMergeOfficialSeeds(){
   Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{
     // SKIP USD indices - siempre usar datos de Supabase
     if(id === 'usd_div' || id === 'usd_bill') return;
-    
+
     (rows||[]).forEach(row=>{
       const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);
-      if(!existing||((existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||''))){
-        idxUpsert(id,{...(existing||{}),...row,confirmed:existing?.confirmed??false,status:'updated'});
+      if(!existing){
+        // Row no existe: agregar desde seed
+        idxUpsert(id,{...row,confirmed:false,status:'updated'});
+      } else {
+        const needsUpdate=(existing.pct==null&&row.pct!=null)||(existing.value==null&&row.value!=null)||String(existing.publishedAt||'')<String(row.publishedAt||'');
+        if(needsUpdate){
+          // Seed gana para metadata; datos del usuario (pct/value/note) tienen prioridad
+          idxUpsert(id,{
+            ...row,
+            ...existing,
+            publishedAt: row.publishedAt||existing.publishedAt,
+            sourceUrl: row.sourceUrl||existing.sourceUrl,
+            confirmed: existing.confirmed??false,
+            status:'updated'
+          });
+        }
       }
     });
   });
@@ -4010,11 +4024,7 @@ function renderIdxCards(){
       const displayYm = lastStore ? lastStore.ym : (officialSeed ? officialSeed.ym : null);
       
       // DEBUG CRÍTICO
-      if(def.id === 'ipc_nqn' || def.id === 'ipim_r29'){
-        console.log(`[${def.id}] displayValue:`, displayValue);
-        console.log(`[${def.id}] displayYm:`, displayYm);
-      }
-      
+
       // Sparkline: adaptar para USD (usa 'value') vs otros índices (usa 'pct')
       const spark8 = rows.slice(-8);
       let sparkH = '';
