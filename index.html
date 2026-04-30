@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v52-forecast</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v53-compliance-dates</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -987,11 +987,11 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   </div>
   <div class="cond" id="secRfq"><div class="cond-tag">Datos RFQ</div><div class="fg"><div class="fgrp"><label>Cant. Ofertas</label><input type="number" id="f_cof" min="0"></div><div class="fgrp"><label>Oferentes</label><input type="text" id="f_of"></div></div></div>
   <div class="cond" id="secAr"><div class="cond-tag">Datos Ariba</div><div class="fg"><div class="fgrp"><label>ID Ariba <span class="req">*</span></label><input type="text" id="f_ariba"></div><div class="fgrp"><label>Fecha Evento</label><input type="date" id="f_fev"></div></div></div>
-  <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Verificaciones</span></h2></div>
+  <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Fechas de verificación</span></h2></div>
     <div class="fg4">
-      <div class="fgrp"><label>Due Diligence</label><div class="tw"><label class="tg"><input type="checkbox" id="f_dd" checked><span class="sl"></span></label><span class="tl" id="l_dd">Sí</span></div></div>
-      <div class="fgrp"><label>Pre-Risk</label><div class="tw"><label class="tg"><input type="checkbox" id="f_pr" checked><span class="sl"></span></label><span class="tl" id="l_pr">Sí</span></div></div>
-      <div class="fgrp"><label>Sequana</label><div class="tw"><label class="tg"><input type="checkbox" id="f_sq" checked><span class="sl"></span></label><span class="tl" id="l_sq">Sí</span></div></div>
+      <div class="fgrp"><label>Due Diligence</label><input type="date" id="f_dd"></div>
+      <div class="fgrp"><label>Pre-Risk</label><input type="date" id="f_pr"></div>
+      <div class="fgrp"><label>Sequana</label><input type="date" id="f_sq"></div>
       <div class="fgrp"><label>Derogación</label><div class="tw"><label class="tg"><input type="checkbox" id="f_dg"><span class="sl"></span></label><span class="tl" id="l_dg">No</span></div></div>
     </div>
   </div>
@@ -1316,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', function(){ authLock(); setRoleBad
 
 async function initApp(__fromLogin) {
   showLoader('Conectando con Supabase...');
-  ['dd','pr','sq','dg'].forEach(k=>{document.getElementById('f_'+k).onchange=function(){document.getElementById('l_'+k).textContent=this.checked?'Sí':'No'}});
+  ['dg'].forEach(k=>{document.getElementById('f_'+k).onchange=function(){document.getElementById('l_'+k).textContent=this.checked?'Sí':'No'}});
   const fz=document.getElementById('fz');fz.ondragover=e=>{e.preventDefault()};fz.ondrop=e=>{e.preventDefault();handleFiles(e.dataTransfer.files)};
   ['f_ini','f_fin'].forEach(id=>document.getElementById(id).onchange=calcPlazo);
   if(!__fromLogin){
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v52-forecast</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v53-compliance-dates</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1857,8 +1857,8 @@ async function guardar(){
     poly:getPoly(),
     tcontr:gv('f_tcontr'),cc:gv('f_cc')||null,cof:gv('f_cof')||null,oferentes:gv('f_of')||null,
     ariba:gv('f_ariba')||null,fev:gv('f_fev')||null,
-    dd:document.getElementById('f_dd').checked,pr:document.getElementById('f_pr').checked,
-    sq:document.getElementById('f_sq').checked,dg:document.getElementById('f_dg').checked,
+    dd:gv('f_dd')||null,pr:gv('f_pr')||null,
+    sq:gv('f_sq')||null,dg:document.getElementById('f_dg').checked,
     rtec:gv('f_rtec'),tc:parseFloat(gv('f_tc'))||1,own:gv('f_own')||null,asset:gv('f_asset')||null,
     cprov:gv('f_cprov'),vend:gv('f_vend')||null,fax:gv('f_fax')||null,
     adj:files.map(f=>({name:f.name,size:f.size,data:f.data})),
@@ -1935,7 +1935,7 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
@@ -2397,6 +2397,11 @@ function renderDet(){
             <div class="dr"><span>Plazo</span><span class="dv">${monthDiffInclusive(c.fechaIni,c.fechaFin)?monthDiffInclusive(c.fechaIni,c.fechaFin)+' meses':'—'}</span></div>
             <div class="dr"><span>Responsable</span><span class="dv">${esc(c.resp||'—')}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${esc(c.own||'—')}</span></div>
+            ${(c.dd||c.pr||c.sq)?`<div class="dr sep" style="margin-top:6px"><span style="font-weight:700;color:var(--g700)">Compliance</span><span></span></div>`:''}
+            ${c.dd&&c.dd!==true?`<div class="dr"><span>Due Diligence</span><span class="dv" style="color:${new Date(c.dd+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.dd)}${new Date(c.dd+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
+            ${c.pr&&c.pr!==true?`<div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${new Date(c.pr+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.pr)}${new Date(c.pr+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
+            ${c.sq&&c.sq!==true?`<div class="dr"><span>Sequana</span><span class="dv" style="color:${new Date(c.sq+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.sq)}${new Date(c.sq+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
+            ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí</span></div>`:''}
           </div>
         </div>
         <div class="dossier-bottom">
@@ -3050,9 +3055,9 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_cc').value=c.cc||'';document.getElementById('f_cof').value=c.cof||'';
   document.getElementById('f_of').value=c.oferentes||'';document.getElementById('f_ariba').value=c.ariba||'';
   document.getElementById('f_fev').value=c.fev||'';
-  document.getElementById('f_dd').checked=c.dd!==false;document.getElementById('l_dd').textContent=c.dd!==false?'Sí':'No';
-  document.getElementById('f_pr').checked=c.pr!==false;document.getElementById('l_pr').textContent=c.pr!==false?'Sí':'No';
-  document.getElementById('f_sq').checked=c.sq!==false;document.getElementById('l_sq').textContent=c.sq!==false?'Sí':'No';
+  document.getElementById('f_dd').value = (c.dd && c.dd !== true && c.dd !== false) ? c.dd : '';
+  document.getElementById('f_pr').value = (c.pr && c.pr !== true && c.pr !== false) ? c.pr : '';
+  document.getElementById('f_sq').value = (c.sq && c.sq !== true && c.sq !== false) ? c.sq : '';
   document.getElementById('f_dg').checked=!!c.dg;document.getElementById('l_dg').textContent=c.dg?'Sí':'No';
   document.getElementById('f_rtec').value=c.rtec||'';document.getElementById('f_tc').value=c.tc||'';
   document.getElementById('f_own').value=c.own||'';document.getElementById('f_asset').value=c.asset||'';document.getElementById('f_cprov').value=c.cprov||'';
@@ -4732,7 +4737,7 @@ function processSapImportFile(file){
           plazo:sc.fechaIni&&sc.fechaFin?monthDiffInclusive(sc.fechaIni,sc.fechaFin):0,
           resp:'',rtec:'',own:'',cprov:'',vend:sc.vendorNum,fax:'',
           btar:'',tcontr:'',ariba:'',cc:null,cof:null,oferentes:'',fev:'',
-          dd:true,pr:true,sq:true,dg:false,tc:1,
+          dd:null,pr:null,sq:null,dg:false,tc:1,
           poly:[],hasPoly:false,trigA:false,trigB:false,trigC:false,trigBpct:null,trigCmes:null,
           tarifarios:[],enmiendas:[],aves:[],adj:[],com:'',
           grp:sc.grp,
@@ -8452,6 +8457,38 @@ function calcularAlertas() {
     });
   }
   
+  // 5. ALERTAS DE COMPLIANCE (Due Diligence, Pre-Risk, Sequana)
+  const COMPLIANCE_FIELDS = [
+    { key: 'dd', label: 'Due Diligence' },
+    { key: 'pr', label: 'Pre-Risk' },
+    { key: 'sq', label: 'Sequana' }
+  ];
+  window.DB.forEach(function(c) {
+    if (fAsset && c.asset !== fAsset) return;
+    if (fDom && c.gob !== fDom) return;
+    if (fResp && c.resp !== fResp) return;
+    COMPLIANCE_FIELDS.forEach(function(f) {
+      const val = c[f.key];
+      if (!val || val === true || val === false) return;
+      const fecha = new Date(val + 'T00:00:00');
+      const dias = Math.floor((fecha - hoy) / (1000 * 60 * 60 * 24));
+      const alerta = {
+        id: c.id, num: c.num, cont: c.cont || 'Sin proveedor',
+        tipo: 'compliance', campo: f.label, fecha: val, dias: dias
+      };
+      if (dias < 0) {
+        alerta.vencida = true;
+        alertas.criticas.push(alerta);
+      } else if (dias < config.dias_critico) {
+        alertas.criticas.push(alerta);
+      } else if (dias < config.dias_advertencia) {
+        alertas.advertencias.push(alerta);
+      } else if (dias < config.dias_info) {
+        alertas.info.push(alerta);
+      }
+    });
+  });
+
   // Ordenar por días (menor a mayor)
   alertas.criticas.sort(function(a, b) { return (a.dias || 0) - (b.dias || 0); });
   alertas.advertencias.sort(function(a, b) { return a.dias - b.dias; });
@@ -8576,6 +8613,16 @@ function renderAlertaItem(alerta, nivel) {
     html += '</div>';
   } else if (alerta.tipo === 'sin_poly') {
     html += '<div style="font-size:12px;color:var(--g600c);">Sin fórmula polinómica configurada</div>';
+  } else if (alerta.tipo === 'compliance') {
+    const col = alerta.vencida ? '#991b1b' : 'var(--g600c)';
+    html += '<div style="font-size:12px;color:' + col + ';">';
+    html += '📋 <strong>' + alerta.campo + '</strong>: ';
+    if (alerta.vencida) {
+      html += '<strong>VENCIDA</strong> hace ' + Math.abs(alerta.dias) + ' días (' + alerta.fecha + ')';
+    } else {
+      html += 'Vence en <strong>' + alerta.dias + ' días</strong> (' + alerta.fecha + ')';
+    }
+    html += '</div>';
   }
   
   html += '</div>';
