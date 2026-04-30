@@ -561,6 +561,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
     <a class="nv" data-mod="me2n" onclick="go('me2n')" href="#"><span class="ni">🛒</span><span>Purchase Orders</span><span class="badge" id="poCnt">0</span></a>
     <div class="sb-sec" style="margin-top:18px">Módulos adicionales</div>
     <a class="nv" data-mod="idx" onclick="go('idx')" href="#"><span class="ni">📊</span><span>Índices</span></a>
+    <a class="nv" data-mod="forecast" onclick="go('forecast')" href="#"><span class="ni">📈</span><span>Proyección</span></a>
     <a class="nv" data-mod="licit" onclick="go('licit')" href="#"><span class="ni">📋</span><span>Licitaciones</span></a>
     <a class="nv" data-mod="prov" onclick="go('prov')" href="#"><span class="ni">🏢</span><span>Proveedores</span><span class="badge" id="provCnt">0</span></a>
   </nav>
@@ -568,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v51-geo-map</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v52-forecast</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -654,6 +655,74 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
     <div style="padding:20px;background:var(--w);border-top:1px solid var(--g200);">
       <h3 style="margin:0 0 16px 0;font-size:15px;font-weight:700;color:var(--g900);">⏰ Próximos Vencimientos (90 días)</h3>
       <div id="proximosVencimientos"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FORECAST -->
+<div id="vForecast" class="vw">
+  <div class="card">
+    <!-- Controls -->
+    <div style="display:flex;flex-wrap:wrap;gap:14px;padding:18px 20px;background:var(--g50);border-bottom:1px solid var(--g200);align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Período de análisis</label>
+        <select id="fcLookback" onchange="renderForecast()" style="font-family:inherit;font-size:13px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900)">
+          <option value="6">Últimos 6 meses</option>
+          <option value="12" selected>Últimos 12 meses</option>
+          <option value="18">Últimos 18 meses</option>
+          <option value="24">Últimos 24 meses</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Horizonte</label>
+        <select id="fcHorizon" onchange="renderForecast()" style="font-family:inherit;font-size:13px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900)">
+          <option value="6">6 meses</option>
+          <option value="12" selected>12 meses</option>
+          <option value="18">18 meses</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">TC USD/ARS</label>
+        <input type="number" id="fcTC" value="1050" step="10" min="1" oninput="renderForecast()" style="font-family:inherit;font-size:13px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900);width:110px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;font-weight:600;color:var(--g700);text-transform:uppercase;letter-spacing:.4px">Detalle por contrato a</label>
+        <select id="fcBreakdownHorizon" onchange="renderForecastBreakdown()" style="font-family:inherit;font-size:13px;padding:7px 10px;border:1.5px solid var(--g300);border-radius:6px;background:var(--w);color:var(--g900)">
+          <option value="3">+3 meses</option>
+          <option value="6" selected>+6 meses</option>
+          <option value="12">+12 meses</option>
+          <option value="18">+18 meses</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Index rates badge bar -->
+    <div id="fcRatesBar" style="padding:12px 20px;background:var(--w);border-bottom:1px solid var(--g200);display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px">
+      <span style="color:var(--g500);font-weight:600">Tasas calculadas:</span>
+    </div>
+
+    <!-- Chart -->
+    <div style="padding:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--g900)">📈 Proyección de Monto Total Activo (ARS)</h3>
+        <div id="fcKpiBand" style="display:flex;gap:12px;font-size:12px"></div>
+      </div>
+      <div style="background:var(--w);border:1px solid var(--g200);border-radius:var(--radl);padding:20px">
+        <div id="fcChartMsg" style="display:none;text-align:center;padding:40px;font-size:13px;color:var(--g500);font-style:italic"></div>
+        <canvas id="forecastChart" style="height:380px;display:none"></canvas>
+      </div>
+    </div>
+
+    <!-- Scenario summary table -->
+    <div style="padding:0 20px 20px">
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--g900)">📋 Resumen por Escenario</h3>
+      <div id="forecastTable" style="background:var(--w);border:1px solid var(--g200);border-radius:var(--radl);overflow:hidden"></div>
+    </div>
+
+    <!-- Contract breakdown -->
+    <div style="padding:0 20px 28px">
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--g900)">🏷️ Impacto por Contrato <span style="font-size:12px;font-weight:400;color:var(--g500)">(ordenado por mayor incremento proyectado — escenario fórmula polinómica)</span></h3>
+      <div id="forecastBreakdown" style="background:var(--w);border:1px solid var(--g200);border-radius:var(--radl);overflow:hidden"></div>
     </div>
   </div>
 </div>
@@ -1610,7 +1679,7 @@ function _navAct(mod){
   if(el) el.classList.add('act');
 }
 function go(v){
-  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline','vAlertas','vDashboard'].forEach(id=>document.getElementById(id).classList.remove('on'));
+  ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vTimeline','vAlertas','vDashboard','vForecast'].forEach(id=>document.getElementById(id).classList.remove('on'));
   const t=document.getElementById('pgT'),a=document.getElementById('pgA');
   if(v==='dashboard'){
     document.getElementById('vDashboard').classList.add('on');
@@ -1623,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v51-geo-map</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v52-forecast</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1716,6 +1785,13 @@ function go(v){
     a.innerHTML=`<button class="btn btn-s" onclick="go('me2n')">← Volver a ME2N</button>`;
     renderMe2nDet();
     window.scrollTo({top:0,behavior:'smooth'});
+  }
+  else if(v==='forecast'){
+    document.getElementById('vForecast').classList.add('on');
+    _navAct('forecast');
+    t.innerHTML='📈 Proyección Predictiva de Costos';
+    a.innerHTML=`<button class="btn btn-p btn-sm" onclick="renderForecast()">🔄 Recalcular</button>`;
+    renderForecast();
   }
 }
 
@@ -6809,6 +6885,307 @@ function renderDashboard() {
   renderDashMap(tcUSD);
 
   console.log('[Dashboard] Rendered - TC:', tcUSD, 'ARS:', fN(montoTotalARS), 'USD:', fN(montoTotalUSD));
+}
+
+// ── Proyección Predictiva de Costos ──────────────────────────────────────────
+
+let _forecastChart = null;
+let _fcRates = {};          // { idxId: monthlyRate }
+let _fcActivos = [];        // cached active contracts for breakdown re-render
+let _fcTotalBase = 0;
+let _fcIndexScenarios = [];
+let _fcPoliPoints = [];
+
+const FC_COLORS = ['#ef4444','#f59e0b','#10b981','#8b5cf6','#06b6d4','#ec4899','#f97316','#84cc16'];
+
+function fcAvgMonthlyRate(idxId, lookbackMonths) {
+  const rows = (IDX_STORE[idxId]?.rows || [])
+    .filter(r => r.ym).sort((a, b) => a.ym.localeCompare(b.ym));
+  if (rows.length < 2) return null;
+  const latest = rows[rows.length - 1];
+  const [ly, lm] = latest.ym.split('-').map(Number);
+  const cutDate = new Date(ly, lm - 1 - lookbackMonths, 1);
+  const cutYm = cutDate.getFullYear() + '-' + String(cutDate.getMonth() + 1).padStart(2, '0');
+  const hasValues = rows.some(r => r.value != null && r.value !== 0);
+  if (hasValues) {
+    const base = rows.filter(r => r.ym <= cutYm && r.value != null && r.value !== 0).pop();
+    if (!base || !latest.value) return null;
+    const n = rows.filter(r => r.ym > base.ym && r.ym <= latest.ym).length || lookbackMonths;
+    return Math.pow(latest.value / base.value, 1 / n) - 1;
+  } else {
+    const segment = rows.filter(r => r.ym > cutYm && r.ym <= latest.ym && r.pct != null);
+    if (!segment.length) return null;
+    let compound = 1;
+    segment.forEach(r => compound *= (1 + r.pct / 100));
+    return Math.pow(compound, 1 / segment.length) - 1;
+  }
+}
+
+function fcProjectContract(contract, rates, months, fallbackRate) {
+  const base = contract.mon === 'USD'
+    ? getTotal(contract) * (parseFloat(document.getElementById('fcTC')?.value) || 1050)
+    : getTotal(contract);
+  const poly = (contract.poly || []).filter(p => p.idx && rates[p.idx] != null);
+  if (poly.length > 0) {
+    const sumW = poly.reduce((s, p) => s + (parseFloat(p.inc) || 0), 0);
+    const polyKo = poly.reduce((s, p) => s + (parseFloat(p.inc) || 0) * Math.pow(1 + rates[p.idx], months), 0);
+    const residualKo = Math.max(0, 1 - sumW) * Math.pow(1 + fallbackRate, months);
+    return base * (polyKo + residualKo);
+  }
+  return base * Math.pow(1 + fallbackRate, months);
+}
+
+function renderForecast() {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const lookback = parseInt(document.getElementById('fcLookback')?.value || '12');
+  const horizon  = parseInt(document.getElementById('fcHorizon')?.value || '12');
+  const tc = parseFloat(document.getElementById('fcTC')?.value || '1050') || 1050;
+  const msgEl = document.getElementById('fcChartMsg');
+  const canvas = document.getElementById('forecastChart');
+
+  // Sync TC to dashboard input if present
+  const dashTC = document.getElementById('tcInput');
+  if (dashTC && Math.abs(Number(dashTC.value) - tc) > 1) document.getElementById('fcTC').value = dashTC.value;
+
+  _fcActivos = window.DB.filter(c => {
+    if (!c.fechaFin) return false;
+    return new Date(c.fechaFin + 'T00:00:00') >= hoy;
+  });
+
+  if (!_fcActivos.length) {
+    if (canvas) canvas.style.display = 'none';
+    if (msgEl) { msgEl.textContent = 'No hay contratos activos para proyectar.'; msgEl.style.display = ''; }
+    return;
+  }
+
+  _fcTotalBase = 0;
+  _fcActivos.forEach(c => {
+    const t = getTotal(c);
+    _fcTotalBase += c.mon === 'USD' ? t * tc : t;
+  });
+
+  // Compute index rates
+  _fcRates = {};
+  IDX_CATALOG.forEach(d => {
+    const r = fcAvgMonthlyRate(d.id, lookback);
+    if (r !== null && isFinite(r)) _fcRates[d.id] = r;
+  });
+
+  const fallbackRate = _fcRates['ipc_nac'] ?? _fcRates['ipim_gral'] ?? 0.05;
+
+  // Render rates badge bar
+  const bar = document.getElementById('fcRatesBar');
+  if (bar) {
+    bar.innerHTML = '<span style="color:var(--g500);font-weight:600;font-size:12px">Tasas calculadas:</span> ' +
+      IDX_CATALOG.filter(d => _fcRates[d.id] != null).map(d => {
+        const r = _fcRates[d.id];
+        const annualPct = (Math.pow(1 + r, 12) - 1) * 100;
+        const col = annualPct > 50 ? '#ef4444' : annualPct > 20 ? '#f59e0b' : '#10b981';
+        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--g50);border:1px solid var(--g200);border-radius:99px;font-size:11px">
+          <strong style="color:var(--g800)">${d.name}</strong>
+          <span style="color:${col};font-weight:700">${(r*100).toFixed(2)}%/mes</span>
+          <span style="color:var(--g400)">(${annualPct >= 0 ? '+' : ''}${annualPct.toFixed(0)}%/año)</span>
+        </span>`;
+      }).join('') +
+      (Object.keys(_fcRates).length === 0 ? '<span style="color:var(--g400);font-style:italic">Sin datos de índices cargados</span>' : '');
+  }
+
+  // Build monthly time labels
+  const now = new Date();
+  const labels = Array.from({length: horizon + 1}, (_, m) => {
+    if (m === 0) return 'Hoy';
+    const d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+    return String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+  });
+
+  // Build scenario datasets
+  const baseline = Array(horizon + 1).fill(_fcTotalBase);
+
+  // Per-index scenarios (apply that index uniformly to all active contracts)
+  _fcIndexScenarios = IDX_CATALOG.filter(d => _fcRates[d.id] != null).map(d => ({
+    id: d.id, name: d.name, rate: _fcRates[d.id],
+    points: Array.from({length: horizon + 1}, (_, m) => _fcTotalBase * Math.pow(1 + _fcRates[d.id], m))
+  }));
+
+  // Polynomial-weighted scenario (actual formula per contract)
+  _fcPoliPoints = Array.from({length: horizon + 1}, (_, m) => {
+    if (m === 0) return _fcTotalBase;
+    return _fcActivos.reduce((sum, c) => sum + fcProjectContract(c, _fcRates, m, fallbackRate), 0);
+  });
+
+  // KPI band: min and max at horizon
+  const allAtHorizon = [baseline[horizon], _fcPoliPoints[horizon], ..._fcIndexScenarios.map(s => s.points[horizon])];
+  const minH = Math.min(...allAtHorizon);
+  const maxH = Math.max(...allAtHorizon);
+  const kpiEl = document.getElementById('fcKpiBand');
+  const fB = v => (v / 1e9).toFixed(1) + 'B';
+  if (kpiEl) kpiEl.innerHTML = `
+    <div style="text-align:right">
+      <div style="font-size:11px;color:var(--g500)">Rango a +${horizon}m (ARS)</div>
+      <div style="font-size:13px;font-weight:700;color:#ef4444">${fB(minH)} – ${fB(maxH)}</div>
+    </div>`;
+
+  // Chart datasets
+  const sceneColors = FC_COLORS.slice(0, _fcIndexScenarios.length);
+  const toBil = arr => arr.map(v => v / 1e9);
+
+  const datasets = [
+    {
+      label: 'Sin ajuste (base)',
+      data: toBil(baseline),
+      borderColor: '#9ca3af',
+      borderDash: [6, 4],
+      borderWidth: 2,
+      pointRadius: 2,
+      fill: false,
+      tension: 0,
+      order: 10
+    },
+    {
+      label: 'Fórmula Polinómica Real',
+      data: toBil(_fcPoliPoints),
+      borderColor: '#0071d9',
+      backgroundColor: 'rgba(0,113,217,.07)',
+      fill: true,
+      borderWidth: 3,
+      pointRadius: 3,
+      pointBackgroundColor: '#0071d9',
+      tension: 0.25,
+      order: 1
+    },
+    ..._fcIndexScenarios.slice(0, 8).map((s, i) => ({
+      label: s.name,
+      data: toBil(s.points),
+      borderColor: sceneColors[i],
+      borderDash: [4, 3],
+      borderWidth: 2,
+      pointRadius: 2,
+      fill: false,
+      tension: 0.25,
+      order: 2 + i
+    }))
+  ];
+
+  if (_forecastChart) { _forecastChart.destroy(); _forecastChart = null; }
+  if (msgEl) msgEl.style.display = 'none';
+  if (canvas) {
+    canvas.style.display = '';
+    _forecastChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 14, padding: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const v = ctx.parsed.y;
+                const base = _fcTotalBase / 1e9;
+                const pct = ((v - base) / base * 100);
+                const sign = pct >= 0 ? '+' : '';
+                return `${ctx.dataset.label}: $${v.toFixed(2)}B ARS (${sign}${pct.toFixed(1)}%)`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,.05)' } },
+          y: {
+            title: { display: true, text: 'Monto Total ARS (miles de millones)', font: { size: 11 } },
+            ticks: { font: { size: 11 }, callback: v => '$' + v.toFixed(1) + 'B' },
+            grid: { color: 'rgba(0,0,0,.05)' }
+          }
+        }
+      }
+    });
+  }
+
+  renderForecastTable(horizon);
+  renderForecastBreakdown();
+}
+
+function renderForecastTable(horizon) {
+  const tbl = document.getElementById('forecastTable');
+  if (!tbl) return;
+  const checkpoints = [3, 6, 12, 18].filter(m => m <= horizon);
+  const fM = (v, base) => {
+    const pct = (v - base) / base * 100;
+    const col = pct > 30 ? '#dc2626' : pct > 10 ? '#d97706' : '#16a34a';
+    return `<div style="font-weight:600">$${Math.round(v / 1e6).toLocaleString('es-AR')}M</div>
+      <div style="font-size:11px;color:${col}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</div>`;
+  };
+  const scenarios = [
+    { name: 'Sin ajuste', color: '#9ca3af', rate: null, points: Array(19).fill(_fcTotalBase) },
+    { name: 'Fórmula Polinómica Real', color: '#0071d9', rate: null, points: _fcPoliPoints },
+    ..._fcIndexScenarios.slice(0, 8).map((s, i) => ({ ...s, color: FC_COLORS[i] }))
+  ];
+  tbl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--g100)">
+      <th style="text-align:left;padding:8px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Escenario</th>
+      <th style="text-align:right;padding:8px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Tasa anual equiv.</th>
+      ${checkpoints.map(m => `<th style="text-align:right;padding:8px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">+${m}m</th>`).join('')}
+    </tr></thead><tbody>
+    ${scenarios.map((s, i) => {
+      const annual = s.rate != null ? ((Math.pow(1 + s.rate, 12) - 1) * 100) : null;
+      return `<tr style="${i % 2 ? 'background:var(--g50)' : ''}">
+        <td style="padding:8px 12px;border-bottom:1px solid var(--g100)">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color};margin-right:6px;vertical-align:middle"></span>
+          <strong>${s.name}</strong>
+        </td>
+        <td style="text-align:right;padding:8px 12px;border-bottom:1px solid var(--g100);color:var(--g600)">
+          ${annual != null ? `<span style="font-weight:700;color:${annual > 50 ? '#dc2626' : annual > 20 ? '#d97706' : '#16a34a'}">${annual >= 0 ? '+' : ''}${annual.toFixed(0)}%</span>` : '—'}
+        </td>
+        ${checkpoints.map(m => `<td style="text-align:right;padding:8px 12px;border-bottom:1px solid var(--g100)">${s.points[m] != null ? fM(s.points[m], _fcTotalBase) : '—'}</td>`).join('')}
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function renderForecastBreakdown() {
+  const div = document.getElementById('forecastBreakdown');
+  if (!div || !_fcActivos.length) return;
+  const tc = parseFloat(document.getElementById('fcTC')?.value || '1050') || 1050;
+  const targetM = parseInt(document.getElementById('fcBreakdownHorizon')?.value || '6');
+  const fallbackRate = _fcRates['ipc_nac'] ?? _fcRates['ipim_gral'] ?? 0.05;
+
+  const items = _fcActivos.map(c => {
+    const base = c.mon === 'USD' ? getTotal(c) * tc : getTotal(c);
+    const projected = fcProjectContract(c, _fcRates, targetM, fallbackRate);
+    const delta = projected - base;
+    const deltaPct = base > 0 ? (delta / base * 100) : 0;
+    const poly = (c.poly || []).filter(p => p.idx);
+    return { c, base, projected, delta, deltaPct, hasPoly: poly.length > 0 };
+  }).sort((a, b) => b.delta - a.delta);
+
+  const fM = v => Math.round(v).toLocaleString('es-AR');
+  div.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--g100)">
+      <th style="text-align:left;padding:7px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Contrato</th>
+      <th style="text-align:left;padding:7px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Proveedor</th>
+      <th style="text-align:center;padding:7px 8px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Fórmula</th>
+      <th style="text-align:right;padding:7px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Base ARS</th>
+      <th style="text-align:right;padding:7px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Proyectado +${targetM}m</th>
+      <th style="text-align:right;padding:7px 12px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Incremento</th>
+    </tr></thead><tbody>
+    ${items.slice(0, 25).map((item, i) => {
+      const col = item.deltaPct > 30 ? '#dc2626' : item.deltaPct > 15 ? '#d97706' : '#16a34a';
+      return `<tr style="${i % 2 ? 'background:var(--g50)' : ''}" onclick="viewAlertContract('${item.c.id}')" style="cursor:pointer">
+        <td style="padding:6px 12px;border-bottom:1px solid var(--g100);font-weight:600;cursor:pointer" onclick="viewAlertContract('${item.c.id}')">${item.c.num || '—'}</td>
+        <td style="padding:6px 12px;border-bottom:1px solid var(--g100);cursor:pointer" onclick="viewAlertContract('${item.c.id}')">${item.c.cont || '—'}</td>
+        <td style="text-align:center;padding:6px 8px;border-bottom:1px solid var(--g100)">
+          <span style="font-size:10px;padding:2px 6px;border-radius:99px;background:${item.hasPoly ? 'var(--a100)' : 'var(--g100)'};color:${item.hasPoly ? '#92400e' : 'var(--g500)'}">
+            ${item.hasPoly ? 'POLI' : 'IPC'}
+          </span>
+        </td>
+        <td style="text-align:right;padding:6px 12px;border-bottom:1px solid var(--g100)">$${fM(item.base)}</td>
+        <td style="text-align:right;padding:6px 12px;border-bottom:1px solid var(--g100);font-weight:600">$${fM(item.projected)}</td>
+        <td style="text-align:right;padding:6px 12px;border-bottom:1px solid var(--g100);font-weight:700;color:${col}">
+          +$${fM(item.delta)}<br><span style="font-size:11px">(+${item.deltaPct.toFixed(1)}%)</span>
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 // ── Mapa Geoespacial Dashboard ────────────────────────────────────────────────
