@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v55-idx-bar-fix</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v56-sparkline-pubdate</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v55-idx-bar-fix</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v56-sparkline-pubdate</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3656,18 +3656,18 @@ function sortTar(ci){if(_tarSort.ci===ci)_tarSort.dir*=-1;else{_tarSort.ci=ci;_t
 // ── Definición estática de índices del sistema ─────────────────────────
 const IDX_CATALOG = [
   // ── IPC ──────────────────────────────────────────────────────────
-  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNAL_DICI_M_26'},
-  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELGBA_DICI_M_21'},
-  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNIA_DICI_M_27'},
-  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual'},
-  {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual'},
+  {id:'ipc_nac',   name:'IPC Nacional (Nivel General)',   cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNAL_DICI_M_26', pubDay:14, pubDelay:1},
+  {id:'ipc_gba',   name:'IPC GBA (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELGBA_DICI_M_21', pubDay:14, pubDelay:1},
+  {id:'ipc_pat',   name:'IPC Patagonia (Nivel General)',  cat:'ipc', catLabel:'IPC', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'148.3_INIVELNIA_DICI_M_27', pubDay:14, pubDelay:1},
+  {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual', pubDay:12, pubDelay:1},
+  {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual', pubDay:12, pubDelay:1},
   // ── IPIM ─────────────────────────────────────────────────────────
-  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46'},
-  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual'},
-  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice', fetchMode:'manual'},
+  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46', pubDay:20, pubDelay:1},
+  {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual', pubDay:20, pubDelay:1},
+  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice', fetchMode:'manual', pubDay:5, pubDelay:2},
   // ── Combustible ─────────────────────────────────────────────────
-  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel'},
-  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel'},
+  {id:'go_g2',     name:'Gas Oil Grado 2 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
+  {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
   {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
   {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
@@ -3791,6 +3791,40 @@ function idxNextYm(id){
 function idxIsUpToDate(id){
   const target=idxTargetYm();
   return idxRows(id).some(r=>String(r.ym||'')>=target);
+}
+
+// Returns {date:'YYYY-MM-DD', daysLeft:N} for the next expected publication, or null
+function idxNextPubDate(def){
+  if(!def||!def.pubDay) return null;
+  const rows=idxRows(def.id);
+  const lastRow=rows.length?rows[rows.length-1]:null;
+  if(!lastRow) return null;
+  const [ly,lm]=lastRow.ym.split('-').map(Number);
+  // next reference period = last known + 1 month
+  let refM=lm+1,refY=ly;
+  if(refM>12){refM=1;refY++;}
+  // publication date = refPeriod + pubDelay months, on pubDay
+  let pubM=refM+(def.pubDelay||1),pubY=refY;
+  while(pubM>12){pubM-=12;pubY++;}
+  const dateStr=`${pubY}-${String(pubM).padStart(2,'0')}-${String(def.pubDay).padStart(2,'0')}`;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const pubDate=new Date(dateStr+'T00:00:00');
+  const daysLeft=Math.round((pubDate-today)/(1000*60*60*24));
+  return {date:dateStr, daysLeft, label:formatMonth(`${refY}-${String(refM).padStart(2,'0')}`)};
+}
+
+function idxPubBadge(def){
+  const p=idxNextPubDate(def);
+  if(!p) return '';
+  let color,icon,text;
+  if(p.daysLeft<0){color='var(--g400)';icon='⏹';text='Pub. pendiente';}
+  else if(p.daysLeft===0){color='var(--r500)';icon='🔴';text='Publica HOY';}
+  else if(p.daysLeft<=3){color='var(--r500)';icon='🔴';text='en '+p.daysLeft+'d';}
+  else if(p.daysLeft<=10){color='#e67e22';icon='🟡';text='en '+p.daysLeft+'d';}
+  else if(p.daysLeft<=20){color='#2ecc71';icon='🟢';text='en '+p.daysLeft+'d';}
+  else{color='var(--g400)';icon='🔵';text='en '+p.daysLeft+'d';}
+  const tooltip=`Próx. pub. ${p.label}: ${p.date} (${p.daysLeft>=0?'en '+p.daysLeft+' días':'ya publicado'})`;
+  return `<span title="${tooltip}" style="font-size:10px;color:${color};white-space:nowrap;cursor:default">${icon} ${text}</span>`;
 }
 
 // ── INDEC API fetch ───────────────────────────────────────────────────
@@ -3995,13 +4029,34 @@ function renderIdxCards(){
           return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + fN(r.value) + ' (' + pctStr(pct) + ') ' + formatMonth(r.ym) + '"></div>';
         }).join('');
       } else {
-        // Para otros índices: usar pct directamente
-        const maxAbs = Math.max(...spark8.map(r => Math.abs(r.pct || 0)), 0.001);
-        sparkH = spark8.map(r => {
-          const pct = r.pct || 0;
-          const h8 = Math.max(Math.round(Math.abs(pct) / maxAbs * 28), 2);
-          return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + pctStr(pct) + ' ' + formatMonth(r.ym) + '"></div>';
-        }).join('');
+        // Para índices con valores absolutos (ej: IPC NQN manual): calcular pct en tiempo real
+        const hasVals = spark8.some(r => r.value != null && r.value !== 0);
+        if (hasVals) {
+          const allRows = idxRows(def.id);
+          const dispP = spark8.map((r, i) => {
+            if (r.value == null) return null;
+            let prev = null;
+            for (let j = i - 1; j >= 0; j--) { if (spark8[j].value != null && spark8[j].value !== 0) { prev = spark8[j]; break; } }
+            if (!prev) {
+              const idx = allRows.findIndex(x => x.ym === r.ym);
+              for (let j = idx - 1; j >= 0; j--) { if (allRows[j].value != null && allRows[j].value !== 0) { prev = allRows[j]; break; } }
+            }
+            return prev ? ((r.value / prev.value) - 1) * 100 : null;
+          });
+          const maxAbs = Math.max(...dispP.map(p => Math.abs(p || 0)), 0.001);
+          sparkH = spark8.map((r, i) => {
+            const pct = dispP[i] ?? 0;
+            const h8 = Math.max(Math.round(Math.abs(pct) / maxAbs * 28), 2);
+            return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + pctStr(pct, 1) + ' ' + formatMonth(r.ym) + '"></div>';
+          }).join('');
+        } else {
+          const maxAbs = Math.max(...spark8.map(r => Math.abs(r.pct || 0)), 0.001);
+          sparkH = spark8.map(r => {
+            const pct = r.pct || 0;
+            const h8 = Math.max(Math.round(Math.abs(pct) / maxAbs * 28), 2);
+            return '<div class="spark-b ' + (pct >= 0 ? 'pos' : 'neg') + '" style="height:' + h8 + 'px" title="' + pctStr(pct) + ' ' + formatMonth(r.ym) + '"></div>';
+          }).join('');
+        }
       }
       
       // Formatear valor según tipo de índice (USD usa value, otros usan pct)
@@ -4011,7 +4066,8 @@ function renderIdxCards(){
       const statusBadge=upToDate?'<span title="Al día" style="font-size:14px">✅</span>':'<span title="Desactualizado" style="font-size:14px">⚠️</span>';
       const nextYm=idxNextYm(def.id);
       const addBtn=cat!=='mo'?`<button class="btn btn-p btn-sm" onclick="event.stopPropagation();idxAddNextMonth('${def.id}')" title="Agregar ${formatMonth(nextYm)}">+ ${formatMonth(nextYm)}</button>`:'';
-      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ.: ${displayYm?formatMonth(displayYm):'—'}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">${statusBadge}<span class="icat ${CAT_PILL[cat]}">${esc(def.src)}</span></div></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(displayValue)}">${formattedValue}</span><span class="period">${displayYm?formatMonth(displayYm):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:6px;flex-wrap:wrap">${addBtn}${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄</button>`:''}</div></div></div>`;
+      const pubBadge=idxPubBadge(def);
+      h+=`<div class="idx-c ${_idxSel===def.id?'sel':''}" onclick="openIdxDet('${def.id}')"><div class="idx-c-top ${CAT_CSS[cat]}"></div><div class="idx-c-body"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px"><div class="idx-c-name">${esc(def.name)}${def.cct?'<div style="font-size:9.5px;color:var(--g500);font-weight:600;margin-top:2px">'+esc(def.cct)+'</div>':''}<div style="font-size:10px;color:var(--g500);font-weight:600;margin-top:4px">Objetivo: ${formatMonth(target)} · Últ.: ${displayYm?formatMonth(displayYm):'—'}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">${statusBadge}<span class="icat ${CAT_PILL[cat]}">${esc(def.src)}</span></div></div><div class="idx-c-kpi"><span class="big ${last?.value!=null?'pos':pctColor(displayValue)}">${formattedValue}</span><span class="period">${displayYm?formatMonth(displayYm):'sin datos'}</span>${last?.status==='fallback'?'<span style="font-size:11px" title="Fallback">↩️</span>':''}</div>${spark8.length?`<div class="spark">${sparkH}</div>`:`<div style="height:28px;display:flex;align-items:center;font-size:11px;color:var(--g400)">Sin datos aún</div>`}<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:6px;flex-wrap:wrap">${addBtn}${cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="event.stopPropagation();runIdxUpdate('${def.id}')">🔄</button>`:''}</div>${pubBadge?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--g100)">${pubBadge}</div>`:''}</div></div>`;
     });
     h+='</div></div>';
   });
