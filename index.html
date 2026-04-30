@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v58-fix-edit-overwrite</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v59-fix-delete-and-mixed-rows</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v58-fix-edit-overwrite</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v59-fix-delete-and-mixed-rows</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3709,6 +3709,8 @@ function idxMergeOfficialSeeds(){
     if(id === 'usd_div' || id === 'usd_bill') return;
 
     (rows||[]).forEach(row=>{
+      // Skip rows explicitly deleted by user
+      if((IDX_STORE.__deleted?.[id]||[]).includes(row.ym))return;
       const existing=((IDX_STORE[id]||{}).rows||[]).find(r=>r.ym===row.ym);
       if(!existing){
         // Row no existe: agregar desde seed
@@ -4045,14 +4047,14 @@ function renderIdxCards(){
         if (hasVals) {
           const allRows = idxRows(def.id);
           const dispP = spark8.map((r, i) => {
-            if (r.value == null) return null;
+            if (r.value == null) return r.pct != null ? r.pct : null; // pct-only row: use stored pct
             let prev = null;
             for (let j = i - 1; j >= 0; j--) { if (spark8[j].value != null && spark8[j].value !== 0) { prev = spark8[j]; break; } }
             if (!prev) {
               const idx = allRows.findIndex(x => x.ym === r.ym);
               for (let j = idx - 1; j >= 0; j--) { if (allRows[j].value != null && allRows[j].value !== 0) { prev = allRows[j]; break; } }
             }
-            return prev ? ((r.value / prev.value) - 1) * 100 : null;
+            return prev ? ((r.value / prev.value) - 1) * 100 : (r.pct != null ? r.pct : null);
           });
           const maxAbs = Math.max(...dispP.map(p => Math.abs(p || 0)), 0.001);
           sparkH = spark8.map((r, i) => {
@@ -4115,7 +4117,8 @@ function renderIdxDet(id){
         const idx=allRows.findIndex(x=>x.ym===r.ym);
         for(let j=idx-1;j>=0;j--){if(allRows[j].value!=null&&allRows[j].value!==0)return((r.value/allRows[j].value)-1)*100;}
       }
-      return null;
+      // row has no value: fall back to stored pct if available
+      return r.pct!=null?r.pct:null;
     }
     return r.pct!=null?r.pct:null;
   });
@@ -4285,6 +4288,10 @@ async function confirmAllIdx(idxId){
 async function deleteIdxRow(idxId,ym){
   if(!confirm('¿Eliminar el período '+formatMonth(ym)+'?'))return;
   IDX_STORE[idxId].rows=(IDX_STORE[idxId].rows||[]).filter(r=>r.ym!==ym);
+  // Tombstone to prevent seed re-injection
+  if(!IDX_STORE.__deleted)IDX_STORE.__deleted={};
+  if(!IDX_STORE.__deleted[idxId])IDX_STORE.__deleted[idxId]=[];
+  if(!IDX_STORE.__deleted[idxId].includes(ym))IDX_STORE.__deleted[idxId].push(ym);
   await saveIdx();renderIdxView();toast('Período eliminado','ok');
 }
 function downloadIdxFile(idxId,ym,fi){
@@ -7468,7 +7475,17 @@ function loadIndicesChart() {
   if (exportBtn) exportBtn.style.display = '';
 
   const hasValues = rows.some(r => r.value != null && r.value !== 0);
-  const dataPoints = rows.map(r => hasValues ? (r.value ?? null) : (r.pct ?? null));
+  // For value-based indices, estimate value from pct when row has no value
+  const dataPoints = rows.map((r, i) => {
+    if (!hasValues) return r.pct ?? null;
+    if (r.value != null) return r.value;
+    // pct-only row in a value-based index: estimate from previous value + stored pct
+    if (r.pct != null) {
+      const prev = rows.slice(0, i).reverse().find(p => p.value != null && p.value !== 0);
+      if (prev) return prev.value * (1 + r.pct / 100);
+    }
+    return null;
+  });
   const labels = rows.map(r => {
     const [y, m] = (r.ym || '').split('-');
     return String(m).padStart(2, '0') + '/' + y;
@@ -7478,6 +7495,7 @@ function loadIndicesChart() {
   const varPct = rows.map((r, i) => {
     if (i === 0) return null;
     if (hasValues) {
+      if (r.pct != null && r.value == null) return r.pct; // pct-only row: use stored pct directly
       const prev = rows.slice(0, i).reverse().find(p => p.value != null && p.value !== 0);
       if (!prev || r.value == null) return null;
       return ((r.value / prev.value) - 1) * 100;
