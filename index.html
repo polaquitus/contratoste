@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v54-vencimiento-logic</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v55-idx-bar-fix</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v54-vencimiento-logic</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v55-idx-bar-fix</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -4034,8 +4034,26 @@ function renderIdxDet(id){
   const def=IDX_CATALOG.find(d=>d.id===id);
   const box=document.getElementById('idxDetPanel');if(!box||!def)return;
   const rows=idxRows(id), yms=rows.map(r=>r.ym), chartRows=rows.slice(-18);
-  const maxAbs=Math.max(...chartRows.map(r=>Math.abs(r.pct||0)),0.001);
-  const bars=chartRows.map((r,i)=>{ const pct=r.pct||0; const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2); const isLast=i===chartRows.length-1; return `<div class="cbar-wrap"><div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div><div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div><div class="cbar-lbl">${formatMonth(r.ym).replace(' ','\n')}</div></div>`; }).join('');
+  // For value-based indices compute pct on-the-fly from consecutive values
+  const hasValues=chartRows.some(r=>r.value!=null&&r.value!==0);
+  const dispPcts=chartRows.map((r,i)=>{
+    if(hasValues){
+      // find nearest previous row with a value (inside chartRows)
+      let prev=null;
+      for(let j=i-1;j>=0;j--){if(chartRows[j].value!=null&&chartRows[j].value!==0){prev=chartRows[j];break;}}
+      if(prev!=null&&r.value!=null)return((r.value/prev.value)-1)*100;
+      // fallback: look outside chartRows window
+      if(r.value!=null){
+        const allRows=idxRows(id);
+        const idx=allRows.findIndex(x=>x.ym===r.ym);
+        for(let j=idx-1;j>=0;j--){if(allRows[j].value!=null&&allRows[j].value!==0)return((r.value/allRows[j].value)-1)*100;}
+      }
+      return null;
+    }
+    return r.pct!=null?r.pct:null;
+  });
+  const maxAbs=Math.max(...dispPcts.map(p=>Math.abs(p||0)),0.001);
+  const bars=chartRows.map((r,i)=>{ const pct=dispPcts[i]??0; const h=Math.max(Math.round(Math.abs(pct)/maxAbs*72),2); const isLast=i===chartRows.length-1; return `<div class="cbar-wrap"><div class="cbar-val ${pct>=0?'pos':'neg'}">${pctStr(pct,1)}</div><div class="cbar ${pct>=0?'pos':'neg'} ${isLast?'act':''}" style="height:${h}px"></div><div class="cbar-lbl">${formatMonth(r.ym).replace(' ','\n')}</div></div>`; }).join('');
   const selOpts=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const selOptTo=(yms.length>=2?yms:['—']).map((ym,i)=>`<option value="${ym}"${i===yms.length-1?'selected':''}>${formatMonth(ym)}</option>`).join('');
   const tblRows=[...rows].reverse().map(r=>`<tr><td>${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.note||r.status||'')}">${esc(r.note||r.status||'—')}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
