@@ -519,6 +519,8 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div class="app">
@@ -566,7 +568,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v50-idx-save-chart</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v51-geo-map</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -636,6 +638,18 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       </div>
     </div>
     
+    <!-- Mapa Geoespacial -->
+    <div style="padding:20px;background:var(--w);border-top:1px solid var(--g200);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--g900);">🗺️ Distribución Geográfica de Contratos</h3>
+        <span style="font-size:12px;color:var(--g500)">Clic en un nodo para filtrar por asset</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;">
+        <div id="dashMap" style="height:340px;border-radius:var(--rad);border:1px solid var(--g200);overflow:hidden;"></div>
+        <div id="dashMapLegend" style="min-width:200px;background:var(--g50);border:1px solid var(--g200);border-radius:var(--rad);padding:14px;font-size:13px;"></div>
+      </div>
+    </div>
+
     <!-- Vencimientos Próximos -->
     <div style="padding:20px;background:var(--w);border-top:1px solid var(--g200);">
       <h3 style="margin:0 0 16px 0;font-size:15px;font-weight:700;color:var(--g900);">⏰ Próximos Vencimientos (90 días)</h3>
@@ -1609,7 +1623,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v50-idx-save-chart</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v51-geo-map</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6739,7 +6753,7 @@ function renderDashboard() {
         tooltip: {
           callbacks: {
             label: function(context) {
-              return 'ARS $' + fN(context.parsed.x);
+              return 'ARS $' + Math.round(context.parsed.x).toLocaleString('es-AR');
             }
           }
         }
@@ -6748,7 +6762,9 @@ function renderDashboard() {
         x: {
           ticks: {
             callback: function(value) {
-              return '$' + (value / 1000000).toFixed(0) + 'M';
+              if (value >= 1e9) return '$' + (value / 1e9).toFixed(1) + 'B';
+              if (value >= 1e6) return '$' + Math.round(value / 1e6) + 'M';
+              return '$' + Math.round(value / 1e3) + 'K';
             }
           }
         }
@@ -6789,8 +6805,142 @@ function renderDashboard() {
     : '<div style="padding:40px;text-align:center;color:var(--g500);">✅ Sin vencimientos próximos</div>';
   
   document.getElementById('proximosVencimientos').innerHTML = proximosHtml;
-  
+
+  renderDashMap(tcUSD);
+
   console.log('[Dashboard] Rendered - TC:', tcUSD, 'ARS:', fN(montoTotalARS), 'USD:', fN(montoTotalUSD));
+}
+
+// ── Mapa Geoespacial Dashboard ────────────────────────────────────────────────
+
+let _dashMap = null;
+let _dashMapMarkers = [];
+
+const GEO_ASSETS = [
+  { id: 'NQN',         name: 'Neuquén',          lat: -38.95, lng: -68.06, color: '#0071d9' },
+  { id: 'TDF',         name: 'Tierra del Fuego',  lat: -54.80, lng: -68.30, color: '#10b981' },
+  { id: 'NQN + TDF',   name: 'NQN + TDF',         lat: -46.00, lng: -68.00, color: '#8b5cf6' }
+];
+
+function renderDashMap(tcUSD) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const tc = tcUSD || 1050;
+
+  // Aggregate by asset
+  const byAsset = {};
+  GEO_ASSETS.forEach(a => { byAsset[a.id] = { count: 0, ars: 0, usd: 0, activos: 0, porVencer: 0, alertas: 0 }; });
+
+  window.DB.forEach(function(c) {
+    const key = (c.asset || '').trim();
+    if (!byAsset[key]) return;
+    const total = getTotal(c);
+    byAsset[key].count++;
+    if (c.mon === 'USD') byAsset[key].usd += total;
+    else byAsset[key].ars += total;
+    const fin = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00') : null;
+    if (fin && fin >= hoy) {
+      byAsset[key].activos++;
+      const dias = Math.floor((fin - hoy) / 86400000);
+      if (dias <= 30) byAsset[key].alertas++;
+      else if (dias <= 90) byAsset[key].porVencer++;
+    }
+  });
+
+  // Init map once
+  if (!_dashMap) {
+    _dashMap = L.map('dashMap', { zoomControl: true, scrollWheelZoom: false }).setView([-45, -67], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap, © CARTO',
+      subdomains: 'abcd', maxZoom: 19
+    }).addTo(_dashMap);
+  } else {
+    _dashMapMarkers.forEach(m => m.remove());
+    _dashMapMarkers = [];
+  }
+
+  const allTotals = GEO_ASSETS.map(a => byAsset[a.id].ars + byAsset[a.id].usd * tc);
+  const maxTotal = Math.max(...allTotals, 1);
+
+  GEO_ASSETS.forEach(function(a) {
+    const d = byAsset[a.id];
+    const total = d.ars + d.usd * tc;
+    if (d.count === 0) return;
+
+    const baseR = 22;
+    const radius = baseR + (total / maxTotal) * 38;
+    const pulse = d.alertas > 0;
+
+    const iconHtml = `<div style="
+        width:${radius*2}px;height:${radius*2}px;
+        border-radius:50%;
+        background:${a.color};
+        border:3px solid #fff;
+        box-shadow:0 2px 8px rgba(0,0,0,.3)${pulse?',0 0 0 4px rgba(239,68,68,.5)':''};
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        cursor:pointer;color:#fff;font-weight:700;text-align:center;line-height:1.2;
+        ${pulse?'animation:dashPulse 1.5s ease-in-out infinite;':''}
+      ">
+        <span style="font-size:${radius < 35 ? 10 : 12}px">${a.id}</span>
+        <span style="font-size:${radius < 35 ? 9 : 11}px">${d.activos}</span>
+      </div>`;
+
+    const icon = L.divIcon({ html: iconHtml, className: '', iconAnchor: [radius, radius] });
+    const marker = L.marker([a.lat, a.lng], { icon }).addTo(_dashMap);
+
+    const fM = n => Math.round(n).toLocaleString('es-AR');
+    marker.bindPopup(`
+      <div style="font-family:system-ui;min-width:180px">
+        <div style="font-weight:700;font-size:14px;color:${a.color};margin-bottom:8px">${a.name}</div>
+        <div style="font-size:12px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;color:#333">
+          <span style="color:#666">Contratos</span><span style="font-weight:600">${d.count}</span>
+          <span style="color:#666">Activos</span><span style="font-weight:600">${d.activos}</span>
+          <span style="color:#666">Total ARS</span><span style="font-weight:600">$${fM(d.ars)}</span>
+          <span style="color:#666">Total USD</span><span style="font-weight:600">US$${fM(d.usd)}</span>
+          ${d.alertas > 0 ? `<span style="color:#ef4444">⚠ Alertas</span><span style="font-weight:600;color:#ef4444">${d.alertas}</span>` : ''}
+          ${d.porVencer > 0 ? `<span style="color:#f59e0b">⏰ Próx. vencer</span><span style="font-weight:600;color:#f59e0b">${d.porVencer}</span>` : ''}
+        </div>
+        <button onclick="dashMapFilter('${a.id}')" style="margin-top:10px;width:100%;padding:5px;background:${a.color};color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">Ver contratos →</button>
+      </div>
+    `, { maxWidth: 240 });
+
+    _dashMapMarkers.push(marker);
+  });
+
+  // Legend
+  const leg = document.getElementById('dashMapLegend');
+  if (leg) {
+    const fM = n => Math.round(n).toLocaleString('es-AR');
+    leg.innerHTML = '<div style="font-weight:700;font-size:13px;color:var(--g900);margin-bottom:10px">Assets</div>' +
+      GEO_ASSETS.map(function(a) {
+        const d = byAsset[a.id];
+        const total = d.ars + d.usd * tc;
+        return `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--g200)">
+          <div style="width:12px;height:12px;border-radius:50%;background:${a.color};flex-shrink:0;margin-top:2px"></div>
+          <div>
+            <div style="font-weight:600;color:var(--g800)">${a.name}</div>
+            <div style="font-size:11px;color:var(--g600)">${d.activos} activos · ${d.count} total</div>
+            <div style="font-size:11px;color:var(--g600)">$${fM(total/1e6)}M ARS eq.</div>
+            ${d.alertas > 0 ? `<div style="font-size:11px;color:#ef4444;font-weight:600">⚠ ${d.alertas} alertas</div>` : ''}
+          </div>
+        </div>`;
+      }).join('') +
+      '<div style="font-size:11px;color:var(--g500);margin-top:4px">El tamaño del nodo representa el volumen relativo de inversión.</div>';
+  }
+
+  // Inject pulse animation once
+  if (!document.getElementById('dashMapStyle')) {
+    const s = document.createElement('style');
+    s.id = 'dashMapStyle';
+    s.textContent = '@keyframes dashPulse{0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.3),0 0 0 4px rgba(239,68,68,.4)}50%{box-shadow:0 2px 8px rgba(0,0,0,.3),0 0 0 10px rgba(239,68,68,.0)}}';
+    document.head.appendChild(s);
+  }
+}
+
+function dashMapFilter(assetId) {
+  // Navigate to list view and apply asset filter
+  go('list');
+  const sel = document.getElementById('fAsset');
+  if (sel) { sel.value = assetId; renderList(); }
 }
 
 // ── Histórico de Índices — chart section ─────────────────────────────────────
