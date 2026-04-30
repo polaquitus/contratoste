@@ -566,7 +566,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v49-bugfixes</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v50-idx-save-chart</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -988,6 +988,12 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div id="idxChartMsg" style="display:none;text-align:center;padding:40px;font-size:13px;color:var(--g500);font-style:italic"></div>
       <canvas id="idxChart" style="height:320px;display:none"></canvas>
     </div>
+    <div style="margin-top:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <h4 style="margin:0;font-size:14px;font-weight:700;color:var(--g900)">📊 Variación acumulada por período</h4>
+      </div>
+      <div id="idxCompTable" style="background:var(--w);border:1px solid var(--g200);border-radius:var(--radl);overflow:hidden;display:none"></div>
+    </div>
   </div>
   <!-- New index modal backdrop -->
   <div id="idxModalBack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center">
@@ -1082,9 +1088,12 @@ async function sbDeleteItem(table, sbId) {
 
 async function sbUpsertSingle(table, obj) {
   if (!SB_OK) return;
-  const payload = { datos: JSON.stringify(obj) };
-  if (obj.__sbId) {
-    await sbFetch(table, 'PATCH', payload, `?id=eq.${obj.__sbId}`);
+  const sbId = obj.__sbId;
+  const clean = Object.assign({}, obj);
+  delete clean.__sbId;
+  const payload = { datos: JSON.stringify(clean) };
+  if (sbId) {
+    await sbFetch(table, 'PATCH', payload, `?id=eq.${sbId}`);
   } else {
     const res = await sbFetch(table, 'POST', payload);
     if (res && res[0]) obj.__sbId = res[0].id;
@@ -1240,7 +1249,7 @@ async function initApp(__fromLogin) {
     if (me2nObj) ME2N = me2nObj;
     showLoader('Cargando índices...');
     const idxObj = await sbLoadSingle('indices');
-    if (idxObj) { delete idxObj.__sbId; IDX_STORE = idxObj; }
+    if (idxObj) { IDX_STORE = idxObj; }
     idxMergeOfficialSeeds();
     localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
     showLoader('Cargando licitaciones...');
@@ -1600,7 +1609,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v49-bugfixes</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v50-idx-save-chart</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -4053,10 +4062,19 @@ async function saveEntryModal(idxId, editYm){
   if(!IDX_STORE[idxId])IDX_STORE[idxId]={};
   if(!IDX_STORE[idxId].rows)IDX_STORE[idxId].rows=[];
   const existing=IDX_STORE[idxId].rows.find(r=>r.ym===ym);
+  // Auto-calculate pct from previous row when only value is provided
+  let finalPct = isNaN(pct) ? null : pct;
+  if (finalPct === null && value != null && !isNaN(value)) {
+    const prevRows = (IDX_STORE[idxId].rows||[]).filter(r=>r.ym < ym && r.value != null && !isNaN(r.value)).sort((a,b)=>a.ym.localeCompare(b.ym));
+    if (prevRows.length) {
+      const prev = prevRows[prevRows.length - 1];
+      if (prev.value !== 0) finalPct = ((value / prev.value) - 1) * 100;
+    }
+  }
   // Merge files: keep existing + add new
   const existingFiles=existing?.files||[];
   const allFiles=[...existingFiles,..._entryFiles];
-  const row={ym,pct:isNaN(pct)?null:pct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false};
+  const row={ym,pct:finalPct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false};
   if(existing){Object.assign(existing,row);}
   else{IDX_STORE[idxId].rows.push(row);IDX_STORE[idxId].rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
   await saveIdx();
@@ -6834,40 +6852,63 @@ function loadIndicesChart() {
     return String(m).padStart(2, '0') + '/' + y;
   });
 
+  // Compute % variation per period for the secondary axis
+  const varPct = rows.map((r, i) => {
+    if (i === 0) return null;
+    if (hasValues) {
+      const prev = rows.slice(0, i).reverse().find(p => p.value != null && p.value !== 0);
+      if (!prev || r.value == null) return null;
+      return ((r.value / prev.value) - 1) * 100;
+    } else {
+      return r.pct ?? null;
+    }
+  });
+
   _idxChart = new Chart(canvas, {
-    type: 'line',
+    type: 'bar',
     data: {
       labels,
-      datasets: [{
-        label: def?.name || idxId,
-        data: dataPoints,
-        borderColor: '#0071d9',
-        backgroundColor: 'rgba(0,113,217,.08)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointBackgroundColor: '#0071d9',
-        pointHoverRadius: 5
-      }]
+      datasets: [
+        {
+          type: 'line',
+          label: def?.name || idxId,
+          data: dataPoints,
+          borderColor: '#0071d9',
+          backgroundColor: 'rgba(0,113,217,.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: '#0071d9',
+          pointHoverRadius: 5,
+          yAxisID: 'y',
+          order: 1
+        },
+        {
+          type: 'bar',
+          label: 'Variación %',
+          data: varPct,
+          backgroundColor: varPct.map(v => v == null ? 'transparent' : v >= 0 ? 'rgba(34,197,94,.45)' : 'rgba(239,68,68,.45)'),
+          borderColor: varPct.map(v => v == null ? 'transparent' : v >= 0 ? 'rgba(34,197,94,.8)' : 'rgba(239,68,68,.8)'),
+          borderWidth: 1,
+          yAxisID: 'y2',
+          order: 2
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
         tooltip: {
           callbacks: {
             label: function(ctx) {
               const val = ctx.parsed.y;
               if (val == null) return 'Sin dato';
-              const idx = ctx.dataIndex;
-              const prev = idx > 0 ? dataPoints[idx - 1] : null;
-              const delta = (prev != null && prev !== 0)
-                ? ' (' + (val >= prev ? '+' : '') + ((val / prev - 1) * 100).toFixed(1) + '%)'
-                : '';
+              if (ctx.dataset.yAxisID === 'y2') return 'Var: ' + (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
               return hasValues
-                ? Math.round(val).toLocaleString('es-AR') + delta
-                : val.toFixed(2) + '%' + delta;
+                ? Math.round(val).toLocaleString('es-AR')
+                : val.toFixed(2) + '%';
             },
             title: ctx => ctx[0]?.label || ''
           }
@@ -6887,10 +6928,76 @@ function loadIndicesChart() {
               : v.toFixed(1) + '%'
           },
           grid: { color: 'rgba(0,0,0,.06)' }
+        },
+        y2: {
+          position: 'right',
+          title: { display: true, text: '% Variación', font: { size: 11 } },
+          ticks: { font: { size: 11 }, callback: v => v.toFixed(1) + '%' },
+          grid: { drawOnChartArea: false }
         }
       }
     }
   });
+
+  renderIdxComparisonTable();
+}
+
+function idxVarOverMonths(idxId, nMonths) {
+  const rows = (IDX_STORE[idxId]?.rows || []).filter(r => r.ym).sort((a, b) => a.ym.localeCompare(b.ym));
+  if (!rows.length) return null;
+  const latest = rows[rows.length - 1];
+  const [ly, lm] = latest.ym.split('-').map(Number);
+  const targetDate = new Date(ly, lm - 1 - nMonths, 1);
+  const targetYm = String(targetDate.getFullYear()) + '-' + String(targetDate.getMonth() + 1).padStart(2, '0');
+  const baseRow = rows.filter(r => r.ym <= targetYm).pop();
+  if (!baseRow) return null;
+  const hasValues = rows.some(r => r.value != null && r.value !== 0);
+  if (hasValues) {
+    if (latest.value == null || baseRow.value == null || baseRow.value === 0) return null;
+    return ((latest.value / baseRow.value) - 1) * 100;
+  } else {
+    // compound multiplication of pct for rows strictly after baseRow up to latest
+    const segment = rows.filter(r => r.ym > baseRow.ym && r.ym <= latest.ym);
+    if (!segment.length) return null;
+    let compound = 1;
+    for (const r of segment) {
+      if (r.pct == null) return null;
+      compound *= (1 + r.pct / 100);
+    }
+    return (compound - 1) * 100;
+  }
+}
+
+function renderIdxComparisonTable() {
+  const container = document.getElementById('idxCompTable');
+  if (!container) return;
+  const periods = [
+    { label: '1 mes',   n: 1  },
+    { label: '3 meses', n: 3  },
+    { label: '6 meses', n: 6  },
+    { label: '12 meses',n: 12 },
+    { label: '18 meses',n: 18 }
+  ];
+  const activeIds = IDX_CATALOG.filter(d => (IDX_STORE[d.id]?.rows||[]).length > 0).map(d => d.id);
+  if (!activeIds.length) { container.style.display = 'none'; return; }
+  container.style.display = '';
+  const fmtPct = v => v == null ? '<span style="color:var(--g400)">—</span>'
+    : `<span style="color:${v >= 0 ? '#16a34a' : '#dc2626'};font-weight:600">${v >= 0 ? '+' : ''}${v.toFixed(1)}%</span>`;
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--g100)">
+      <th style="text-align:left;padding:7px 10px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">Índice</th>
+      ${periods.map(p => `<th style="text-align:right;padding:7px 10px;font-weight:700;color:var(--g700);border-bottom:2px solid var(--g200)">${p.label}</th>`).join('')}
+    </tr></thead><tbody>`;
+  activeIds.forEach((id, i) => {
+    const def = IDX_CATALOG.find(d => d.id === id);
+    const bg = i % 2 === 0 ? '' : 'background:var(--g50)';
+    html += `<tr style="${bg}">
+      <td style="padding:6px 10px;color:var(--g800);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--g100)">${def?.name || id}</td>
+      ${periods.map(p => `<td style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--g100)">${fmtPct(idxVarOverMonths(id, p.n))}</td>`).join('')}
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
 }
 
 function exportIdxChartPng() {
