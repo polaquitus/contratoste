@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v53-compliance-dates</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v54-vencimiento-logic</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v53-compliance-dates</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v54-vencimiento-logic</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6691,7 +6691,7 @@ function renderDashboard() {
     if (!c.fechaFin) return false;
     const fin = new Date(c.fechaFin + 'T00:00:00');
     const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
-    return dias > 0 && dias <= 30;
+    return dias >= 0 && dias <= 30;
   }).length;
   
   const alertasCriticas = calcularAlertas().criticas.length;
@@ -6858,18 +6858,18 @@ function renderDashboard() {
     if (!c.fechaFin) return false;
     const fin = new Date(c.fechaFin + 'T00:00:00');
     const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
-    return dias > 0 && dias <= 90;
+    return dias >= 0 && dias <= 90;
   })
   .sort(function(a, b) {
     return new Date(a.fechaFin) - new Date(b.fechaFin);
   })
   .slice(0, 10);
-  
-  const proximosHtml = proximos.length > 0 
+
+  const proximosHtml = proximos.length > 0
     ? proximos.map(function(c) {
         const fin = new Date(c.fechaFin + 'T00:00:00');
         const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
-        const color = dias <= 30 ? '#ef4444' : (dias <= 60 ? '#f59e0b' : '#10b981');
+        const color = dias === 0 ? '#dc2626' : dias <= 30 ? '#ef4444' : (dias <= 60 ? '#f59e0b' : '#10b981');
         
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--g100);">' +
           '<div style="flex:1;">' +
@@ -6877,7 +6877,7 @@ function renderDashboard() {
           '<div style="font-size:11px;color:var(--g600c);">' + (c.det || 'Sin objeto') + '</div>' +
           '</div>' +
           '<div style="text-align:right;">' +
-          '<div style="font-weight:700;font-size:14px;color:' + color + ';">' + dias + ' días</div>' +
+          '<div style="font-weight:700;font-size:14px;color:' + color + ';">' + (dias === 0 ? '🔴 Vence HOY' : dias + ' días') + '</div>' +
           '<div style="font-size:11px;color:var(--g500);">' + c.fechaFin + '</div>' +
           '</div>' +
           '<button class="btn btn-sm btn-p" style="margin-left:12px;" onclick="viewAlertContract(\'' + c.id + '\')">Ver</button>' +
@@ -8297,7 +8297,8 @@ function calcularAlertas() {
   const alertas = {
     criticas: [],
     advertencias: [],
-    info: []
+    info: [],
+    vencidos: []
   };
   
   // 1. ALERTAS POR VENCIMIENTO
@@ -8312,8 +8313,17 @@ function calcularAlertas() {
     const fin = new Date(c.fechaFin + 'T00:00:00');
     const dias = Math.floor((fin - hoy) / (1000 * 60 * 60 * 24));
     
-    if (dias < 0) return; // Vencido
-    
+    // Contratos vencidos en los últimos 30 días → sección VENCIDOS
+    if (dias < 0) {
+      if (dias >= -30) {
+        alertas.vencidos.push({
+          id: c.id, num: c.num, cont: c.cont || 'Sin proveedor',
+          fechaFin: c.fechaFin, dias: dias, tipo: 'vencido', moneda: c.mon || 'ARS'
+        });
+      }
+      return;
+    }
+
     const alerta = {
       id: c.id,
       num: c.num,
@@ -8323,7 +8333,7 @@ function calcularAlertas() {
       tipo: 'vencimiento',
       moneda: c.mon || 'ARS'
     };
-    
+
     if (dias < config.dias_critico) {
       alertas.criticas.push(alerta);
     } else if (dias < config.dias_advertencia) {
@@ -8492,18 +8502,20 @@ function calcularAlertas() {
   // Ordenar por días (menor a mayor)
   alertas.criticas.sort(function(a, b) { return (a.dias || 0) - (b.dias || 0); });
   alertas.advertencias.sort(function(a, b) { return a.dias - b.dias; });
-  alertas.info.sort(function(a, b) { 
+  alertas.info.sort(function(a, b) {
     if (a.tipo === 'sin_poly' && b.tipo !== 'sin_poly') return 1;
     if (a.tipo !== 'sin_poly' && b.tipo === 'sin_poly') return -1;
     return (a.dias || 999) - (b.dias || 999);
   });
-  
+  // Vencidos: más recientemente vencido primero (dias más cercano a 0)
+  alertas.vencidos.sort(function(a, b) { return b.dias - a.dias; });
+
   return alertas;
 }
 
 function renderAlertas() {
   const alertas = calcularAlertas();
-  const total = alertas.criticas.length + alertas.advertencias.length + alertas.info.length;
+  const total = alertas.criticas.length + alertas.advertencias.length + alertas.info.length + alertas.vencidos.length;
   
   // Actualizar contador total
   document.getElementById('alertTotal').textContent = total;
@@ -8560,7 +8572,7 @@ function renderAlertas() {
   
   // Info
   if (alertas.info.length > 0) {
-    html += '<div>';
+    html += '<div style="border-bottom:1px solid var(--g200);">';
     html += '<div style="padding:12px 18px;background:#f0fdf4;border-left:4px solid #10b981;font-weight:600;font-size:13px;color:#065f46;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAlertSection(\'info\')">';
     html += '<span>🟢 INFORMACIÓN (' + alertas.info.length + ')</span>';
     html += '<span id="toggleInfo" style="font-size:18px;">▼</span>';
@@ -8572,7 +8584,22 @@ function renderAlertas() {
     html += '</div>';
     html += '</div>';
   }
-  
+
+  // Vencidos recientes
+  if (alertas.vencidos.length > 0) {
+    html += '<div>';
+    html += '<div style="padding:12px 18px;background:#f1f5f9;border-left:4px solid #64748b;font-weight:600;font-size:13px;color:#334155;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAlertSection(\'vencidos\')">';
+    html += '<span>⚫ VENCIDOS RECIENTES (' + alertas.vencidos.length + ') <span style="font-weight:400;font-size:11px">últimos 30 días</span></span>';
+    html += '<span id="toggleVencidos" style="font-size:18px;">▼</span>';
+    html += '</div>';
+    html += '<div id="sectionVencidos">';
+    alertas.vencidos.forEach(function(a) {
+      html += renderAlertaItem(a, 'vencido');
+    });
+    html += '</div>';
+    html += '</div>';
+  }
+
   container.innerHTML = html;
 }
 
@@ -8580,7 +8607,7 @@ function renderAlertaItem(alerta, nivel) {
   let html = '<div style="padding:14px 18px;border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:12px;">';
   
   // Icono según nivel
-  let icono = nivel === 'critica' ? '🔴' : (nivel === 'advertencia' ? '🟡' : '🟢');
+  let icono = nivel === 'critica' ? '🔴' : nivel === 'advertencia' ? '🟡' : nivel === 'vencido' ? '⚫' : '🟢';
   html += '<div style="font-size:20px;">' + icono + '</div>';
   
   // Contenido
@@ -8589,9 +8616,17 @@ function renderAlertaItem(alerta, nivel) {
   html += alerta.num + ' - ' + alerta.cont;
   html += '</div>';
   
-  if (alerta.tipo === 'vencimiento') {
+  if (alerta.tipo === 'vencido') {
+    html += '<div style="font-size:12px;color:#475569;">';
+    html += '⚫ <strong>VENCIDO</strong> hace <strong>' + Math.abs(alerta.dias) + ' días</strong> (' + alerta.fechaFin + ')';
+    html += '</div>';
+  } else if (alerta.tipo === 'vencimiento') {
     html += '<div style="font-size:12px;color:var(--g600c);">';
-    html += 'Vence en <strong>' + alerta.dias + ' días</strong> (' + alerta.fechaFin + ')';
+    if (alerta.dias === 0) {
+      html += '🔴 <strong>Vence HOY</strong> (' + alerta.fechaFin + ')';
+    } else {
+      html += 'Vence en <strong>' + alerta.dias + ' días</strong> (' + alerta.fechaFin + ')';
+    }
     html += '</div>';
   } else if (alerta.tipo === 'trigger_gatillado') {
     html += '<div style="font-size:12px;color:#991b1b;font-weight:600;margin-bottom:4px;">⚠️ TRIGGER GATILLADO</div>';
