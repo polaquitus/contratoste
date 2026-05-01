@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v61-remove-go-g2</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v62-usd-divisa-eom</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1554,7 +1554,7 @@ function getIndicatorSnapshots(code){
     var map={
       'PP':'mo_pp','UOCRA':'mo_uocra','COMERCIO':'mo_com','CAMIONEROS':'mo_cam',
       'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17',
-      'USD DIVISA':'usd_div','USD BILLETE':'usd_bill','FADEAAC':'fadeaac',
+      'USD DIVISA':'usd_div','FADEAAC':'fadeaac',
       'GAS OIL G3 YPF NQN':'go_g3',
       'IPIM GRAL':'ipim_gral','IPC PATAGONIA':'ipc_pat','IPC NAC GRAL':'ipc_nac',
       'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29'
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v61-remove-go-g2</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v62-usd-divisa-eom</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3668,8 +3668,7 @@ const IDX_CATALOG = [
   // ── Combustible ─────────────────────────────────────────────────
 {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
-  {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
-  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BCRA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
+  {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA/BNA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
   // ── Mano de Obra — CCT ──────────────────────────────────────────
   {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', srcLink:''},
   {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo', catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', srcLink:''},
@@ -3705,7 +3704,7 @@ function idxResolveOfficial(def,targetYm){const rows=(IDX_OFFICIAL_SEED[def.id]|
 function idxMergeOfficialSeeds(){
   Object.entries(IDX_OFFICIAL_SEED).forEach(([id,rows])=>{
     // SKIP USD indices - siempre usar datos de Supabase
-    if(id === 'usd_div' || id === 'usd_bill') return;
+    if(id === 'usd_div') return;
 
     (rows||[]).forEach(row=>{
       // Skip rows explicitly deleted by user
@@ -3766,34 +3765,53 @@ async function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!A
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
 function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
-function idxLastBusinessDayPrevMonth(){ let d=new Date(new Date().getFullYear(), new Date().getMonth(), 0); while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1); return d; }
+// Returns the last business day (Mon-Fri) of the given YYYY-MM month, capped at today
+function idxLastBusinessDayOfMonth(ym){
+  const [y,m]=ym.split('-').map(Number);
+  let d=new Date(y,m,0); // last calendar day of month
+  while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
+  const today=new Date(); today.setHours(23,59,59,0);
+  return d<=today?d:today;
+}
 async function fetchUsdBnaLike(targetYm){
-  const cutoff = idxLastBusinessDayPrevMonth();
-  const cutoffIso = cutoff.toISOString().substring(0,10);
-  const tries = [
-    {url:'https://api.argentinadatos.com/v1/cotizaciones/dolares', kind:'history'},
-    {url:'https://argentina-monetary-quotes-api.up.railway.app/api/nacion', kind:'current'}
-  ];
-  for (const t of tries){
-    try {
-      const r = await fetch(t.url);
-      if(!r.ok) continue;
-      const d = await r.json();
-      if(t.kind==='history' && Array.isArray(d)){
-        let arr = d.filter(x=>x && x.fecha && new Date(x.fecha) <= cutoff);
-        let bna = arr.filter(x=>/nacion|bna/i.test(String(x.casa||'')));
-        let off = arr.filter(x=>/oficial/i.test(String(x.casa||'')));
-        let src = (bna.length?bna:off.length?off:arr).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
-        const last = src[src.length-1];
-        if(last && (last.venta||last.sell)) return {ym:targetYm, value:Number(last.venta||last.sell), source:String(last.casa||'API'), publishedAt:String(last.fecha||'').substring(0,10)};
+  // Fetch BNA oficial (divisa vendedor) — last business day of targetYm
+  const cutoff=idxLastBusinessDayOfMonth(targetYm);
+  const cutoffIso=cutoff.toISOString().substring(0,10);
+  try {
+    // argentinadatos /dolares/oficial returns [{fecha, compra, venta}] for BNA official divisa
+    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
+    if(r.ok){
+      const data=await r.json();
+      if(Array.isArray(data)){
+        // Filter to target month only, up to last business day
+        let arr=data.filter(x=>x&&x.fecha&&x.fecha.startsWith(targetYm)&&x.fecha<=cutoffIso);
+        if(!arr.length){
+          // Month not yet available: take latest entry up to cutoff (current rate)
+          arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso);
+        }
+        arr.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+        const last=arr[arr.length-1];
+        if(last&&(last.venta||last.sell)){
+          return {ym:targetYm,value:Number(last.venta||last.sell),source:'BNA Oficial (divisa)',publishedAt:String(last.fecha).substring(0,10)};
+        }
       }
-      if(t.kind==='current' && d){
-        const v = Number(d.venta||d.sell||d.value||0);
-        if(v) return {ym:targetYm, value:v, source:'API Nación', publishedAt:cutoffIso};
+    }
+  } catch(e){ console.warn('fetchUsdBnaLike oficial',e); }
+  // Fallback: generic dolares endpoint
+  try {
+    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares');
+    if(r.ok){
+      const data=await r.json();
+      if(Array.isArray(data)){
+        let arr=data.filter(x=>x&&x.fecha&&x.fecha.startsWith(targetYm)&&x.fecha<=cutoffIso&&/nacion|bna/i.test(String(x.casa||'')));
+        if(!arr.length) arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso&&/nacion|bna/i.test(String(x.casa||'')));
+        arr.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+        const last=arr[arr.length-1];
+        if(last&&(last.venta||last.sell)) return {ym:targetYm,value:Number(last.venta||last.sell),source:'BNA (divisa)',publishedAt:String(last.fecha).substring(0,10)};
       }
-    } catch(e){ console.warn('fetchUsdBnaLike', t.url, e); }
-  }
-  throw new Error('No se pudo obtener USD');
+    }
+  } catch(e){ console.warn('fetchUsdBnaLike fallback',e); }
+  throw new Error('No se pudo obtener USD DIVISA — intentá manualmente');
 }
 // ── Next-month helpers ────────────────────────────────────────────────
 function idxNextYm(id){
@@ -6722,7 +6740,7 @@ function getTCFromStore() {
     return null;
   }
   
-  const codigosPosibles = ['usd_div', 'usd_bill'];
+  const codigosPosibles = ['usd_div'];
   
   for (let codigo of codigosPosibles) {
     if (IDX_STORE[codigo] && Array.isArray(IDX_STORE[codigo].rows) && IDX_STORE[codigo].rows.length > 0) {
