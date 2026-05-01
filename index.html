@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v65-fix-save-race</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v66-consolidate-idx-rows</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v65-fix-save-race</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v66-consolidate-idx-rows</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -1760,7 +1760,7 @@ function go(v){
     document.getElementById('vIdx').classList.add('on');
     _navAct('idx');
     t.innerHTML='📊 Master de Índices';
-    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>`;
+    a.innerHTML=`<div style="display:flex;gap:8px"><button class="btn btn-s btn-sm" onclick="runAllIdxUpdates()">🔄 Actualizar todos</button><button class="btn btn-p btn-sm" onclick="showNewIdxModal()">➕ Cargar período</button><button class="btn btn-s btn-sm" style="background:var(--p100);color:var(--p700)" onclick="consolidateIdxRows()">🗜️ Consolidar BD</button><button class="btn btn-d btn-sm" onclick="resetIdxAll()">🧹 Reset</button></div>`;
     renderIdxView();
     initIdxChartSection();
   }
@@ -3762,6 +3762,63 @@ async function resetIdxAll(){
   idxMergeOfficialSeeds();
   await saveIdx();
   _idxSel=null; renderIdxView(); toast('Indicadores reiniciados','ok');
+}
+async function consolidateIdxRows(){
+  if(!SB_OK){toast('Sin conexión a Supabase','er');return;}
+  if(!confirm('Se van a fusionar TODAS las filas duplicadas de la tabla indices en una sola, recuperando todos los períodos cargados. ¿Continuar?'))return;
+  toast('Consolidando filas…','ok');
+  try{
+    // 1. Fetch ALL rows from indices table
+    const allRows=await sbFetch('indices','GET',null,'?select=id,datos&order=id.asc&limit=500');
+    if(!allRows.length){toast('Tabla vacía','er');return;}
+    toast(`Procesando ${allRows.length} filas…`,'ok');
+
+    // 2. Merge all rows: union of all periods per index, newest value wins for same ym
+    const merged={};
+    for(const row of allRows){
+      let obj; try{obj=JSON.parse(row.datos);}catch(e){continue;}
+      for(const [key,val] of Object.entries(obj)){
+        if(key==='__sbId'||key==='__deleted')continue;
+        if(!val||!Array.isArray(val.rows))continue;
+        if(!merged[key])merged[key]={rows:[]};
+        for(const r of val.rows){
+          if(!r||!r.ym)continue;
+          const existing=merged[key].rows.find(x=>x.ym===r.ym);
+          if(!existing)merged[key].rows.push({...r});
+          else Object.assign(existing,r); // later rows win (more complete data)
+        }
+      }
+    }
+    // Keep __deleted from latest row
+    const latest=allRows[allRows.length-1];
+    try{const o=JSON.parse(latest.datos);if(o.__deleted)merged.__deleted=o.__deleted;}catch(_e){}
+
+    // Sort rows per index
+    for(const key of Object.keys(merged)){
+      if(key==='__deleted')continue;
+      if(merged[key].rows)merged[key].rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+    }
+
+    // 3. Delete all rows except the last one (reuse its ID)
+    const keepId=allRows[allRows.length-1].id;
+    const toDelete=allRows.filter(r=>r.id!==keepId);
+    toast(`Borrando ${toDelete.length} filas duplicadas…`,'ok');
+    for(const r of toDelete){
+      await sbFetch('indices','DELETE',null,`?id=eq.${r.id}`);
+    }
+
+    // 4. Save merged data to the kept row
+    merged.__sbId=keepId;
+    IDX_STORE=merged;
+    await sbFetch('indices','PATCH',{datos:JSON.stringify(Object.fromEntries(Object.entries(merged).filter(([k])=>k!=='__sbId')))},`?id=eq.${keepId}`);
+    localStorage.setItem('idx_v2',JSON.stringify(IDX_STORE));
+    idxMergeOfficialSeeds();
+    renderIdxView();
+    toast(`✅ Consolidado: ${allRows.length} filas → 1 fila (ID ${keepId})`, 'ok');
+  }catch(e){
+    console.error('consolidateIdxRows',e);
+    toast('Error al consolidar: '+e.message,'er');
+  }
 }
 // NOTE: intentional no IIFE here — initApp() loads IDX_STORE from Supabase async.
 
