@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v64-usd-holidays</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v65-fix-save-race</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1144,7 +1144,7 @@ async function sbLoadTable(table) {
 }
 
 async function sbLoadSingle(table) {
-  const rows = await sbFetch(table, 'GET', null, '?select=id,datos&limit=1');
+  const rows = await sbFetch(table, 'GET', null, '?select=id,datos&order=id.desc&limit=1');
   if (!rows.length) return null;
   try { const o = JSON.parse(rows[0].datos); o.__sbId = rows[0].id; return o; } catch(e) { return null; }
 }
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v64-usd-holidays</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v65-fix-save-race</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3735,13 +3735,25 @@ function loadIdx(){
   // Called only as fallback from within initApp catch block (already handled there).
   idxMergeOfficialSeeds();
 }
+let _saveIdxBusy=false, _saveIdxPending=false;
 async function saveIdx(){
-  // Always persist to Supabase when available; mirror to localStorage as backup.
+  // Mirror to localStorage immediately (always safe)
   localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
-  if(SB_OK){
-    try{ await sbUpsertSingle('indices', IDX_STORE); }
-    catch(e){ console.warn('saveIdx SB error', e); }
-  }
+  if(!SB_OK) return;
+  // Serialize Supabase writes: if a save is in flight, mark pending and return.
+  // The in-flight save will do another pass with the latest IDX_STORE data.
+  if(_saveIdxBusy){ _saveIdxPending=true; return; }
+  _saveIdxBusy=true;
+  try{
+    await sbUpsertSingle('indices', IDX_STORE);
+    // If another save was requested while we were writing, do one more pass
+    while(_saveIdxPending){
+      _saveIdxPending=false;
+      localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
+      await sbUpsertSingle('indices', IDX_STORE);
+    }
+  } catch(e){ console.warn('saveIdx SB error', e); }
+  finally{ _saveIdxBusy=false; }
 }
 async function resetIdxAll(){
   if(!confirm('Se van a borrar todos los indicadores cargados manualmente y se reconstruirá la base oficial inicial. ¿Continuar?'))return;
@@ -3761,7 +3773,18 @@ function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
 function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
 function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
-async function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];const rows=IDX_STORE[id].rows;const pos=rows.findIndex(r=>r.ym===row.ym);const merged={...(pos>=0?rows[pos]:{}),...row};if(pos>=0)rows[pos]=merged;else rows.push(merged);rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));await saveIdx();return merged;}
+let _idxBatchMode=false; // when true, idxUpsert skips saveIdx (caller must call saveIdx manually)
+async function idxUpsert(id,row){
+  if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};
+  if(!Array.isArray(IDX_STORE[id].rows))IDX_STORE[id].rows=[];
+  const rows=IDX_STORE[id].rows;
+  const pos=rows.findIndex(r=>r.ym===row.ym);
+  const merged={...(pos>=0?rows[pos]:{}),...row};
+  if(pos>=0)rows[pos]=merged;else rows.push(merged);
+  rows.sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+  if(!_idxBatchMode)await saveIdx();
+  return merged;
+}
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
 function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
@@ -4026,7 +4049,11 @@ async function runIdxUpdate(id){
     renderIdxView(); toast('No se pudo actualizar '+def.name,'er');
   }
 }
-async function runAllIdxUpdates(){ for(const def of IDX_CATALOG.filter(d=>d.cat!=='mo')){ await runIdxUpdate(def.id); } }
+async function runAllIdxUpdates(){
+  _idxBatchMode=true;
+  try{ for(const def of IDX_CATALOG.filter(d=>d.cat!=='mo')){ await runIdxUpdate(def.id); } }
+  finally{ _idxBatchMode=false; await saveIdx(); }
+}
 
 
 // ── Helpers ────────────────────────────────────────────────────────────
