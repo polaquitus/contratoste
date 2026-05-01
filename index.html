@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 </aside>
 <main class="mn">
 <header class="tb">
-  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v62-usd-divisa-eom</span></h1>
+  <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v63-usd-prev-month-logic</span></h1>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:400px;">
       <input 
@@ -1692,7 +1692,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v62-usd-divisa-eom</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v63-usd-prev-month-logic</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -3765,49 +3765,54 @@ async function idxUpsert(id,row){if(!IDX_STORE[id])IDX_STORE[id]={rows:[]};if(!A
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
 function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
 function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
-// Returns the last business day (Mon-Fri) of the given YYYY-MM month, capped at today
-function idxLastBusinessDayOfMonth(ym){
+// Last business day (Mon-Fri) of the given YYYY-MM month
+function idxLastBizDayOfMonth(ym){
   const [y,m]=ym.split('-').map(Number);
-  let d=new Date(y,m,0); // last calendar day of month
+  let d=new Date(y,m,0);
   while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
-  const today=new Date(); today.setHours(23,59,59,0);
-  return d<=today?d:today;
+  return d;
 }
 async function fetchUsdBnaLike(targetYm){
-  // Fetch BNA oficial (divisa vendedor) — last business day of targetYm
-  const cutoff=idxLastBusinessDayOfMonth(targetYm);
-  const cutoffIso=cutoff.toISOString().substring(0,10);
+  // Rule: rate for month X = last business day of month X.
+  // If month X is not yet complete (today < last biz day of X), fall back to
+  // the previous month's last business day and store under that month's ym.
+  const lbd=idxLastBizDayOfMonth(targetYm);
+  const today=new Date(); today.setHours(0,0,0,0);
+  let effectiveYm=targetYm, cutoffDate=lbd;
+  if(lbd>=today){
+    // Month not closed yet — use previous month
+    const [ty,tm]=targetYm.split('-').map(Number);
+    let py=ty, pm=tm-1; if(pm<1){pm=12;py--;}
+    effectiveYm=`${py}-${String(pm).padStart(2,'0')}`;
+    cutoffDate=idxLastBizDayOfMonth(effectiveYm);
+  }
+  const cutoffIso=cutoffDate.toISOString().substring(0,10);
+  // Try /dolares/oficial (BNA divisa vendedor)
   try {
-    // argentinadatos /dolares/oficial returns [{fecha, compra, venta}] for BNA official divisa
     const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
     if(r.ok){
       const data=await r.json();
       if(Array.isArray(data)){
-        // Filter to target month only, up to last business day
-        let arr=data.filter(x=>x&&x.fecha&&x.fecha.startsWith(targetYm)&&x.fecha<=cutoffIso);
-        if(!arr.length){
-          // Month not yet available: take latest entry up to cutoff (current rate)
-          arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso);
-        }
+        let arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso&&x.fecha.startsWith(effectiveYm));
+        if(!arr.length) arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso);
         arr.sort((a,b)=>a.fecha.localeCompare(b.fecha));
         const last=arr[arr.length-1];
-        if(last&&(last.venta||last.sell)){
-          return {ym:targetYm,value:Number(last.venta||last.sell),source:'BNA Oficial (divisa)',publishedAt:String(last.fecha).substring(0,10)};
-        }
+        if(last&&(last.venta||last.sell))
+          return {ym:effectiveYm,value:Number(last.venta||last.sell),source:'BNA Oficial (divisa)',publishedAt:String(last.fecha).substring(0,10)};
       }
     }
   } catch(e){ console.warn('fetchUsdBnaLike oficial',e); }
-  // Fallback: generic dolares endpoint
+  // Fallback: generic endpoint
   try {
     const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares');
     if(r.ok){
       const data=await r.json();
       if(Array.isArray(data)){
-        let arr=data.filter(x=>x&&x.fecha&&x.fecha.startsWith(targetYm)&&x.fecha<=cutoffIso&&/nacion|bna/i.test(String(x.casa||'')));
-        if(!arr.length) arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso&&/nacion|bna/i.test(String(x.casa||'')));
+        let arr=data.filter(x=>x&&x.fecha&&x.fecha<=cutoffIso&&/nacion|bna/i.test(String(x.casa||'')));
         arr.sort((a,b)=>a.fecha.localeCompare(b.fecha));
         const last=arr[arr.length-1];
-        if(last&&(last.venta||last.sell)) return {ym:targetYm,value:Number(last.venta||last.sell),source:'BNA (divisa)',publishedAt:String(last.fecha).substring(0,10)};
+        if(last&&(last.venta||last.sell))
+          return {ym:effectiveYm,value:Number(last.venta||last.sell),source:'BNA (divisa)',publishedAt:String(last.fecha).substring(0,10)};
       }
     }
   } catch(e){ console.warn('fetchUsdBnaLike fallback',e); }
