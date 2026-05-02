@@ -3762,14 +3762,26 @@ const CAT_PILL = {mo:'mo',ipc:'ipc',ipim:'ipim',fuel:'fuel',usd:'usd'};
 // IDX_STORE = { [idxId]: { rows:[{ym,pct,confirmed,note,files:[{name,data}]}] } }
 let IDX_STORE = {};
 const IDX_OFFICIAL_SEED = {
-  ipc_nac:[{ym:'2026-02',pct:2.9,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Nacional (nivel general) oficial INDEC'}],
-  ipc_gba:[{ym:'2026-02',pct:2.6,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC GBA (nivel general) oficial INDEC'}],
-  ipc_pat:[{ym:'2026-02',pct:3.0,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Patagonia (nivel general) oficial INDEC'}],
+  ipc_nac:[
+    {ym:'2026-02',pct:2.9,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Nacional (nivel general) oficial INDEC'},
+    {ym:'2026-03',pct:3.4,value:null,publishedAt:'2026-04-14',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/uploads/informesdeprensa/ipc_04_26853171E136.pdf',note:'IPC Nacional (nivel general) oficial INDEC — publicado 14/04/2026'}
+  ],
+  ipc_gba:[
+    {ym:'2026-02',pct:2.6,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC GBA (nivel general) oficial INDEC'},
+    {ym:'2026-03',pct:3.4,value:null,publishedAt:'2026-04-14',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/uploads/informesdeprensa/ipc_04_26853171E136.pdf',note:'IPC GBA (nivel general) oficial INDEC — publicado 14/04/2026'}
+  ],
+  ipc_pat:[
+    {ym:'2026-02',pct:3.0,value:null,publishedAt:'2026-03-12',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31',note:'IPC Patagonia (nivel general) oficial INDEC'},
+    {ym:'2026-03',pct:2.5,value:null,publishedAt:'2026-04-14',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/uploads/informesdeprensa/ipc_04_26853171E136.pdf',note:'IPC Patagonia (nivel general) oficial INDEC — publicado 14/04/2026'}
+  ],
   ipc_nqn:[
     {ym:'2026-02',pct:2.5,value:null,publishedAt:'2026-03-12',source:'DPEyC Neuquén',sourceUrl:'https://www.estadisticaneuquen.gob.ar/',note:'IPC Neuquén (nivel general) oficial DPEyC'},
     {ym:'2026-03',pct:3.5,value:null,publishedAt:'2026-04-14',source:'DPEyC Neuquén',sourceUrl:'https://www.estadisticaneuquen.gob.ar/static/archivos/Publicaciones/IPC/inf_IPCmarzo2026.pdf',note:'IPC Neuquén (nivel general) oficial DPEyC — publicado 14/04/2026'}
   ],
-  ipim_gral:[{ym:'2026-02',pct:1.0,value:14296.33,publishedAt:'2026-03-17',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-32',note:'IPIM nivel general oficial INDEC'}],
+  ipim_gral:[
+    {ym:'2026-02',pct:1.0,value:14296.33,publishedAt:'2026-03-17',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-32',note:'IPIM nivel general oficial INDEC'},
+    {ym:'2026-03',pct:3.4,value:null,publishedAt:'2026-04-16',source:'INDEC',sourceUrl:'https://www.indec.gob.ar/uploads/informesdeprensa/ipm_04_265933E66B1D.pdf',note:'IPIM nivel general oficial INDEC — publicado 16/04/2026'}
+  ],
   ipc_nqnab:[
     {ym:'2026-02',pct:3.1,value:null,publishedAt:'2026-03-12',source:'DPEyC Neuquén',sourceUrl:'https://www.estadisticaneuquen.gob.ar/series/',note:'IPC NQN Alimentos y Bebidas — DPEyC Neuquén'},
     {ym:'2026-03',pct:3.0,value:null,publishedAt:'2026-04-14',source:'DPEyC Neuquén',sourceUrl:'https://www.estadisticaneuquen.gob.ar/static/archivos/Publicaciones/IPC/inf_IPCmarzo2026.pdf',note:'IPC NQN Alimentos y Bebidas — DPEyC Neuquén — publicado 14/04/2026'}
