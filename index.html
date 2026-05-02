@@ -1011,8 +1011,8 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <div class="fgrp"><label>Monto Inicial <span class="req">*</span></label><input type="number" id="f_monto" step="0.01" min="0" placeholder="0" oninput="calcAnticipo()"></div>
       
       <!-- Campos OBRA: Anticipo -->
-      <div class="fgrp" id="fg_anticipo" style="display:none"><label>Anticipo (%)</label><input type="number" id="f_anticipoPct" step="0.01" min="0" max="100" placeholder="0" oninput="calcAnticipo()"></div>
-      <div class="fgrp" id="fg_anticipoMonto" style="display:none"><label>Anticipo (Monto)</label><input type="number" id="f_anticipoMonto" step="0.01" min="0" placeholder="0" disabled style="background:#f5f5f5"></div>
+      <div class="fgrp" id="fg_anticipo" style="display:none"><label>Anticipo Financiero (%)</label><input type="number" id="f_anticipoPct" step="0.01" min="0" max="100" placeholder="0" oninput="calcAnticipo()"></div>
+      <div class="fgrp" id="fg_anticipoMonto" style="display:none"><label>Anticipo Financiero (Monto)</label><input type="number" id="f_anticipoMonto" step="0.01" min="0" placeholder="0" disabled style="background:#f5f5f5"></div>
       
       <div class="fgrp"><label>Inicio <span class="req">*</span></label><input type="date" id="f_ini"></div>
       <div class="fgrp"><label>Fin <span class="req">*</span></label><input type="date" id="f_fin"></div>
@@ -2458,8 +2458,8 @@ function renderDet(){
         <div class="dossier-grid top">
           <div>
             <div class="dr"><span>Monto inicial</span><span class="dv">${c.mon||''} ${fN(montoBase)}</span></div>
-            ${c.tipo==='OBRA' && c.anticipo?`<div class="dr" style="background:var(--y50);border:1px solid var(--y200);padding:8px 12px;border-radius:4px"><span>💼 Anticipo (${c.anticipoPct||0}%)</span><span class="dv" style="color:var(--y900)">${c.mon||''} ${fN(c.anticipo||0)}</span></div>
-            <div class="dr" style="background:var(--g50);border:1px solid var(--g200);padding:8px 12px;border-radius:4px"><span>🔧 Monto neto ajuste</span><span class="dv" style="color:var(--g900)">${c.mon||''} ${fN(montoBase-(c.anticipo||0))}</span></div>`:''}
+            ${c.tipo==='OBRA' && c.anticipo?`<div class="dr" style="background:var(--y50);border:1px solid var(--y200);padding:8px 12px;border-radius:4px"><span style="color:var(--y900);font-weight:600">💼 Anticipo Financiero (${c.anticipoPct||0}%)</span><span class="dv" style="color:var(--y900)">${c.mon||''} ${fN(c.anticipo||0)}</span></div>
+            <div class="dr" style="background:var(--g50);border:1px solid var(--g200);padding:8px 12px;border-radius:4px"><span style="color:var(--g700);font-weight:600">🔧 Monto neto (sin anticipo)</span><span class="dv" style="color:var(--g800)">${c.mon||''} ${fN(montoBase-(c.anticipo||0))}</span></div>`:''}
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
