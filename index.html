@@ -56,14 +56,14 @@ body{font-family:'Roboto',sans-serif;background:var(--g100);color:var(--g900);mi
 .sb-brand-name .light{font-weight:400;opacity:.7}
 .sb-brand-sub{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--nv-text-dim);font-weight:600}
 .sb-env{margin:14px 18px 6px 18px;padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid var(--nv-line-2);border-radius:8px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--nv-text)}
-.sb-env .dot{width:8px;height:8px;border-radius:50%;background:#5EC23A;box-shadow:0 0 0 3px rgba(94,194,58,.18);animation:sbpulse 2.4s ease-in-out infinite}
-@keyframes sbpulse{0%,100%{box-shadow:0 0 0 3px rgba(94,194,58,.18)}50%{box-shadow:0 0 0 6px rgba(94,194,58,.04)}}
+.sb-env .dot{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.25),0 0 8px rgba(74,222,128,.5);animation:sbpulse 2s ease-in-out infinite}
+@keyframes sbpulse{0%,100%{box-shadow:0 0 0 3px rgba(74,222,128,.25),0 0 8px rgba(74,222,128,.5)}50%{box-shadow:0 0 0 6px rgba(74,222,128,.08),0 0 16px rgba(74,222,128,.3)}}
 .sb-env .lab{flex:1;letter-spacing:.04em}.sb-env .lab strong{color:var(--nv-text-strong);font-weight:600}
 .sb-env .ver{color:var(--nv-text-dim);font-size:10px;font-family:monospace}
 .sb-search{margin:4px 14px 8px 14px;position:relative}
-.sb-search input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--nv-line-2);border-radius:8px;padding:9px 12px 9px 34px;font-family:inherit;font-size:13px;color:var(--nv-text-strong);outline:none;transition:border-color .15s,background .15s}
-.sb-search input::placeholder{color:var(--nv-text-dim)}
-.sb-search input:focus{border-color:rgba(46,107,230,.5);background:rgba(255,255,255,.08)}
+.sb-search input{width:100%;background:rgba(255,255,255,.05)!important;border:1px solid var(--nv-line-2)!important;border-radius:8px;padding:9px 12px 9px 34px;font-family:inherit;font-size:13px;color:var(--nv-text-strong)!important;outline:none;transition:border-color .15s,background .15s;box-shadow:none!important}
+.sb-search input::placeholder{color:var(--nv-text-dim)!important}
+.sb-search input:focus{border-color:rgba(46,107,230,.5)!important;background:rgba(255,255,255,.08)!important;box-shadow:none!important}
 .sb-search .ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--nv-text-dim)}
 .sb-search kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:monospace;font-size:10px;color:var(--nv-text-dim);background:rgba(255,255,255,.06);border:1px solid var(--nv-line-2);border-radius:4px;padding:2px 5px}
 .sb-nav{flex:1;overflow-y:auto;padding:14px 12px 12px 12px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
@@ -569,7 +569,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <!-- Brand -->
   <div class="sb-brand">
     <div class="sb-logo-slot">
-      <img src="assets/brand/logo.svg" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <img src="assets/brand/logo.webp" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="sb-logo-fallback" style="display:none">TA</div>
     </div>
     <div class="sb-brand-text">
@@ -1328,10 +1328,10 @@ function applyRolePermissions(){
   if(avatarEl) avatarEl.textContent = initials;
   if(nameEl) nameEl.textContent = username || '—';
   if(roleEl) roleEl.textContent = role ? role.replaceAll('_',' ') : 'Sin sesión';
-  // Update version badge in env strip
+  // Update version badge in env strip — show only vXX part before any " · "
   const verEl = document.getElementById('sbVerBadge');
   const buildEl = document.getElementById('buildTag');
-  if(verEl && buildEl) verEl.textContent = buildEl.textContent;
+  if(verEl && buildEl) verEl.textContent = (buildEl.textContent||'').split(' · ')[0].trim();
 }
 async function loginApp(){
   const u=(document.getElementById('lgUser')?.value||'').trim();
@@ -1380,7 +1380,13 @@ function logoutApp(){
   if(msg){ msg.textContent='Sesión cerrada. Ingresá nuevamente.'; msg.style.color='#64748b'; }
   if(typeof toast==='function') toast('Sesión cerrada','ok');
 }
-document.addEventListener('DOMContentLoaded', function(){ authLock(); setRoleBadge(); applyRolePermissions(); /* ensureLoginOverlay handled by initApp IIFE */ });
+document.addEventListener('DOMContentLoaded', function(){
+  authLock(); setRoleBadge(); applyRolePermissions();
+  // Sync sbVerBadge with buildTag on load
+  const verEl=document.getElementById('sbVerBadge'), buildEl=document.getElementById('buildTag');
+  if(verEl && buildEl) verEl.textContent=(buildEl.textContent||'').split(' · ')[0].trim();
+  /* ensureLoginOverlay handled by initApp IIFE */
+});
 
 async function initApp(__fromLogin) {
   showLoader('Conectando con Supabase...');
