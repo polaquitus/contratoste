@@ -4160,17 +4160,24 @@ async function runIdxUpdate(id){
       toast(def.name+' actualizado','ok');
       return;
     }
+    // Official seed: only use as primary if it matches the target exactly
     const official = idxResolveOfficial(def, target);
-    if(official && (official.pct!=null || official.value!=null)){
-      idxUpsert(id,{ym:official.ym||target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:official.status||'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+    if(official && official.ym===target && (official.pct!=null || official.value!=null)){
+      idxUpsert(id,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
       renderIdxView();
-      toast(def.name + (official.ym===target ? ' actualizado' : ' usando último oficial'), 'ok');
+      toast(def.name+' actualizado','ok');
       return;
     }
+    // Seed doesn't cover target — try Gemini/AI
     const rs=await idxResolveViaAI(def,target);
     if(rs && (rs.pct!=null || rs.value!=null)){
       idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       renderIdxView();toast(def.name+' actualizado','ok');return;
+    }
+    // Fallback: use best available official seed (older period)
+    if(official && (official.pct!=null || official.value!=null)){
+      idxUpsert(id,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+'· último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      renderIdxView();toast(def.name+' usando último oficial ('+official.ym+')','ok');return;
     }
     throw new Error('Sin dato');
   }catch(err){
