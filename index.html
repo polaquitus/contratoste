@@ -4157,39 +4157,64 @@ async function idxResolveViaAI(def, targetYm){
 async function runIdxUpdate(id){
   const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return;
   const target=idxTargetYm();
+  const mode=def.fetchMode||'manual';
   try{
     if(def.cat==='mo'){ toast('Índice guiado/manual','er'); return; }
-    if(def.cat==='usd'){
+
+    // ── USD: fuente propia ──────────────────────────────────────────────
+    if(mode==='usd'||def.cat==='usd'){
       const usd=await fetchUsdBnaLike(target);
-      idxUpsert(id,{ym:usd.ym, value:usd.value, pct:null, confirmed:false, status:'updated', source:def.src, note:usd.source, publishedAt:usd.publishedAt});
-      renderIdxView();
-      toast(def.name+' actualizado','ok');
-      return;
+      await idxUpsert(id,{ym:usd.ym,value:usd.value,pct:null,confirmed:false,status:'updated',source:def.src,note:usd.source,publishedAt:usd.publishedAt});
+      renderIdxView(); toast(def.name+' actualizado','ok'); return;
     }
-    // Official seed: only use as primary if it matches the target exactly
-    const official = idxResolveOfficial(def, target);
-    if(official && official.ym===target && (official.pct!=null || official.value!=null)){
-      idxUpsert(id,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
-      renderIdxView();
-      toast(def.name+' actualizado','ok');
-      return;
+
+    // ── INDEC API: fetch directo ────────────────────────────────────────
+    if(mode==='indec'){
+      try{
+        const row=await idxFetchIndec(id,target);
+        await idxUpsert(id,{...row,confirmed:false,status:'updated',publishedAt:row.publishedAt||null,sourceUrl:row.sourceUrl||null,note:row.note||''});
+        renderIdxView(); toast(def.name+' actualizado (INDEC API)','ok'); return;
+      }catch(apiErr){
+        console.warn('idxFetchIndec failed, trying seed/AI',apiErr.message);
+        // Fall through to seed/AI
+      }
     }
-    // Seed doesn't cover target — try Gemini/AI
+
+    // ── Combustible: fuel-proxy ─────────────────────────────────────────
+    if(mode==='fuel'){
+      try{
+        const row=await idxFetchFuel(id,target);
+        await idxUpsert(id,{...row,confirmed:false,status:'updated'});
+        renderIdxView(); toast(def.name+' actualizado (S.Energía)','ok'); return;
+      }catch(fuelErr){
+        console.warn('idxFetchFuel failed, trying seed/AI',fuelErr.message);
+      }
+    }
+
+    // ── Seed exacto para el target ──────────────────────────────────────
+    const official=idxResolveOfficial(def,target);
+    if(official && official.ym===target && (official.pct!=null||official.value!=null)){
+      await idxUpsert(id,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      renderIdxView(); toast(def.name+' actualizado (seed)','ok'); return;
+    }
+
+    // ── Gemini AI (solo para manual/fallback) ───────────────────────────
     const rs=await idxResolveViaAI(def,target);
-    if(rs && (rs.pct!=null || rs.value!=null)){
-      idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
-      renderIdxView();toast(def.name+' actualizado','ok');return;
+    if(rs && (rs.pct!=null||rs.value!=null)){
+      await idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
+      renderIdxView(); toast(def.name+' actualizado (AI)','ok'); return;
     }
-    // Fallback: use best available official seed (older period)
-    if(official && (official.pct!=null || official.value!=null)){
-      idxUpsert(id,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+'· último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
-      renderIdxView();toast(def.name+' usando último oficial ('+official.ym+')','ok');return;
+
+    // ── Último seed disponible como fallback real ───────────────────────
+    if(official && (official.pct!=null||official.value!=null)){
+      await idxUpsert(id,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      renderIdxView(); toast(def.name+' usando último oficial ('+official.ym+')','ok'); return;
     }
     throw new Error('Sin dato');
   }catch(err){
-    console.warn('runIdxUpdate', id, err);
+    console.warn('runIdxUpdate',id,err);
     const prev=idxLastBefore(id,target);
-    if(prev){ idxUpsert(id,{...prev,status:'fallback'}); renderIdxView(); toast(def.name+' usando último publicado','ok'); return; }
+    if(prev){ await idxUpsert(id,{...prev,status:'fallback'}); renderIdxView(); toast(def.name+' usando último publicado','ok'); return; }
     renderIdxView(); toast('No se pudo actualizar '+def.name,'er');
   }
 }
