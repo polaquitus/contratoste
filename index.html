@@ -367,6 +367,32 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 .spark-b.pos{background:var(--g600)}.spark-b.neg{background:var(--r500)}
 /* Dashboard top row */
 .idx-dash-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+/* ── Progress modal ── */
+#idxProgressModal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:center;justify-content:center}
+#idxProgressModal .pm-box{background:var(--w);border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.3);width:480px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+#idxProgressModal .pm-head{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+#idxProgressModal .pm-head h3{margin:0;font-size:15px;font-weight:700}
+#idxProgressModal .pm-body{overflow-y:auto;flex:1;padding:14px 22px}
+#idxProgressModal .pm-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+#idxProgressModal .pm-row:last-child{border-bottom:none}
+#idxProgressModal .pm-ico{width:22px;text-align:center;flex-shrink:0;font-size:15px}
+#idxProgressModal .pm-name{flex:1;font-weight:500}
+#idxProgressModal .pm-status{font-size:11px;font-weight:600;color:var(--muted)}
+#idxProgressModal .pm-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+/* ── Dashboard alert strip ── */
+.dash-venc-strip{margin:0;border-top:1px solid var(--line)}
+.dash-venc-row{display:flex;align-items:center;gap:10px;padding:9px 20px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;transition:background .15s}
+.dash-venc-row:hover{background:var(--bg)}
+.dash-venc-row:last-child{border-bottom:none}
+.dash-vc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dash-vc-num{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0;width:80px}
+.dash-vc-cont{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-vc-dias{font-size:11px;font-weight:700;flex-shrink:0}
+/* ── Redetermination history ── */
+.redet-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.redet-tbl th{background:rgba(255,255,255,.06);padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.5);border-bottom:1px solid rgba(255,255,255,.1)}
+.redet-tbl td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:middle}
+.redet-tbl tr:last-child td{border-bottom:none}
 .idx-kpi-box{background:var(--w);border-radius:var(--radl);box-shadow:var(--sh);padding:16px 20px;border-left:4px solid var(--p500)}
 .idx-kpi-box .kl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--g500);margin-bottom:4px}
 .idx-kpi-box .kv{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:800;color:var(--p800)}
@@ -678,6 +704,9 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <input type="number" id="tcInput" value="1050" step="10" min="1" style="width:100px;padding:4px 8px;border:1px solid #fbbf24;border-radius:4px;font-weight:600;" oninput="renderDashboard()">
       <span style="font-size:12px;color:#92400e;">ARS/USD (ajustar manualmente hasta cargar datos en Índices)</span>
     </div>
+
+    <!-- Panel alertas de vencimiento -->
+    <div id="dashVencPanel" class="dash-venc-strip"></div>
     
     <!-- Gráficos -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px;">
@@ -2701,6 +2730,52 @@ function renderDet(){
         </div>
       </div>
       
+      ${(()=>{
+        // Historial de redeterminaciones: AVEs polinómicos + enmiendas tarifarias
+        const polyAves=(c.aves||[]).filter(a=>a.tipo==='POLINOMICA').map(a=>({
+          fecha:a.fecha||'',
+          periodo:a.periodo||'',
+          basePeriodo:a.basePeriodo||'',
+          nuevoPeriodo:a.nuevoPeriodo||a.periodo||'',
+          pct:a.pctPoli!=null?a.pctPoli*100:null,
+          monto:a.monto||0,
+          origen:'AVE',
+          ref:a.enmRef?'Enm.'+a.enmRef:'AUTO',
+          concepto:a.concepto||''
+        }));
+        const tarEnms=(c.enmiendas||[]).filter(e=>e.tipo==='ACTUALIZACION_TARIFAS'&&e.pctPoli!=null&&!e.superseded).map(e=>({
+          fecha:e.fecha||'',
+          periodo:e.nuevoPeriodo||'',
+          basePeriodo:e.basePeriodo||'',
+          nuevoPeriodo:e.nuevoPeriodo||'',
+          pct:e.pctPoli!=null?e.pctPoli*100:null,
+          monto:e.monto||0,
+          origen:'ENM',
+          ref:'N°'+e.num,
+          concepto:e.motivo||e.descripcion||''
+        }));
+        const all=[...polyAves,...tarEnms].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+        if(!all.length) return '';
+        let cumMonto=c.montoBase||c.monto||0;
+        const rows=all.map(r=>{
+          cumMonto+=r.monto;
+          const pctStr=r.pct!=null?(r.pct>0?'+':'')+r.pct.toFixed(2)+'%':'—';
+          const pil=r.origen==='AVE'?'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,.25);color:#a5b4fc">AUTO</span>':'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(234,179,8,.2);color:#fde68a">ENM</span>';
+          return '<tr>'+
+            '<td style="color:rgba(255,255,255,.5);font-size:11px">'+fD((r.fecha||'').substring(0,10))+'</td>'+
+            '<td>'+pil+' <span style="font-size:11px;font-weight:600">'+esc(r.ref)+'</span></td>'+
+            '<td style="font-size:11px">'+(r.basePeriodo?formatMonth(r.basePeriodo)+'→'+formatMonth(r.nuevoPeriodo):formatMonth(r.periodo)||'—')+'</td>'+
+            '<td style="font-weight:700;color:'+(r.pct!=null&&r.pct>0?'#86efac':'#fca5a5')+'">'+pctStr+'</td>'+
+            '<td class="mono" style="font-size:11px;text-align:right">'+c.mon+' '+fN(r.monto)+'</td>'+
+            '<td class="mono" style="font-size:11px;text-align:right;opacity:.7">'+c.mon+' '+fN(cumMonto)+'</td>'+
+          '</tr>';
+        }).join('');
+        return '<div class="section-box" style="background:rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:16px 18px;margin-top:16px">'+
+          '<h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px">📈 Historial de Redeterminaciones <span style="font-weight:400;opacity:.6;font-size:11px;text-transform:none">'+all.length+' ajustes registrados</span></h3>'+
+          '<table class="redet-tbl"><thead><tr><th>Fecha</th><th>Origen</th><th>Período</th><th>% Ko</th><th style="text-align:right">Ajuste</th><th style="text-align:right">TV Acum.</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+        '</div>';
+      })()}
+
       ${c.tipo==='OBRA'?(()=>{
         // Obtener POs asociadas a este contrato desde ME2N
         const poData=ME2N[c.num];
@@ -4250,9 +4325,52 @@ async function runIdxUpdate(id){
   }
 }
 async function runAllIdxUpdates(){
+  const defs=IDX_CATALOG.filter(d=>d.cat!=='mo');
+  const modal=document.getElementById('idxProgressModal');
+  const pmBody=document.getElementById('pmBody');
+  const pmTitle=document.getElementById('pmTitle');
+  const pmSpinner=document.getElementById('pmSpinner');
+  const pmClose=document.getElementById('pmCloseBtn');
+
+  // Render rows
+  const rowState={}; // id → {ico,status}
+  pmBody.innerHTML=defs.map(d=>`<div class="pm-row" id="pm_${d.id}"><span class="pm-ico" id="pmi_${d.id}">⏳</span><span class="pm-name">${esc(d.name)}</span><span class="pm-status" id="pms_${d.id}">Esperando…</span></div>`).join('');
+  pmTitle.textContent='Actualizando índices…';
+  pmSpinner.textContent='🔄';
+  pmClose.style.display='none';
+  modal.style.display='flex';
+
   _idxBatchMode=true;
-  try{ for(const def of IDX_CATALOG.filter(d=>d.cat!=='mo')){ await runIdxUpdate(def.id); } }
-  finally{ _idxBatchMode=false; await saveIdx(); }
+  let ok=0,fail=0;
+  try{
+    for(const def of defs){
+      const icoEl=document.getElementById('pmi_'+def.id);
+      const stEl=document.getElementById('pms_'+def.id);
+      if(icoEl) icoEl.textContent='⏳';
+      if(stEl){stEl.textContent='Actualizando…';stEl.style.color='var(--muted)';}
+      try{
+        await runIdxUpdate(def.id);
+        if(icoEl) icoEl.textContent='✅';
+        const row=idxRows(def.id).find(r=>r.ym===idxTargetYm());
+        if(stEl){
+          stEl.textContent=row?formatMonth(row.ym)+(row.status==='fallback'?' (fallback)':''):'sin dato';
+          stEl.style.color=row?'var(--g600)':'var(--r500)';
+        }
+        ok++;
+      }catch(e){
+        if(icoEl) icoEl.textContent='❌';
+        if(stEl){stEl.textContent='Error';stEl.style.color='var(--r500)';}
+        fail++;
+      }
+    }
+  }finally{
+    _idxBatchMode=false;
+    await saveIdx();
+    pmTitle.textContent=`Listo — ${ok} actualizados${fail?', '+fail+' con error':''}`;
+    pmSpinner.textContent=fail?'⚠️':'✅';
+    pmClose.style.display='';
+    renderIdxDash();
+  }
 }
 
 
@@ -7103,7 +7221,40 @@ function renderDashboard() {
 
   document.getElementById('kpiProxVencer').textContent = proxVencer;
   document.getElementById('kpiAlertas').textContent = alertasCriticas;
-  
+
+  // Panel de vencimientos próximos
+  (function renderVencPanel(){
+    const panel=document.getElementById('dashVencPanel');
+    if(!panel) return;
+    const upcoming=window.DB.filter(function(c){
+      if(!c.fechaFin) return false;
+      const d=Math.floor((new Date(c.fechaFin+'T00:00:00')-hoy)/(86400000));
+      return d>=0 && d<=90;
+    }).map(function(c){
+      const d=Math.floor((new Date(c.fechaFin+'T00:00:00')-hoy)/(86400000));
+      return {c,d};
+    }).sort((a,b)=>a.d-b.d);
+
+    if(!upcoming.length){
+      panel.innerHTML='<div style="padding:12px 20px;font-size:12px;color:var(--muted)">✅ Sin contratos que venzan en los próximos 90 días</div>';
+      return;
+    }
+    const color=function(d){return d<=15?'#ef4444':d<=30?'#f97316':d<=60?'#eab308':'#22c55e';};
+    const label=function(d){return d===0?'HOY':d===1?'1 día':d+' días';};
+    let h='<div style="padding:10px 20px 6px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Vencimientos próximos (90 días)</span><span style="font-size:11px;color:var(--muted)">'+upcoming.length+' contrato'+( upcoming.length!==1?'s':'')+'</span></div>';
+    h+=upcoming.map(function({c,d}){
+      const col=color(d);
+      return '<div class="dash-venc-row" onclick="verDet(\''+c.id+'\')">'+
+        '<div class="dash-vc-dot" style="background:'+col+'"></div>'+
+        '<span class="dash-vc-num">'+esc(c.num)+'</span>'+
+        '<span class="dash-vc-cont" title="'+esc(c.cont||'')+'">'+esc(c.cont||'—')+'</span>'+
+        '<span style="font-size:11px;color:var(--muted);margin-right:8px">'+fD(c.fechaFin)+'</span>'+
+        '<span class="dash-vc-dias" style="color:'+col+'">'+label(d)+'</span>'+
+      '</div>';
+    }).join('');
+    panel.innerHTML=h;
+  })();
+
   // 2. Gráfico Distribución por Dominio
   const porDominio = {};
   window.DB.forEach(function(c) {
@@ -9684,6 +9835,20 @@ window.addEventListener('unhandledrejection', e => {
         <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--g700);">Historial (últimos 5)</div>
         <div id="koHistorialList" style="font-size:11px;color:var(--g600c);"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Progress modal de actualización masiva de índices ── -->
+<div id="idxProgressModal" style="display:none">
+  <div class="pm-box">
+    <div class="pm-head">
+      <span id="pmSpinner" style="font-size:18px">🔄</span>
+      <h3 id="pmTitle">Actualizando índices…</h3>
+    </div>
+    <div class="pm-body" id="pmBody"></div>
+    <div class="pm-foot">
+      <button class="btn btn-s btn-sm" id="pmCloseBtn" style="display:none" onclick="document.getElementById('idxProgressModal').style.display='none';renderIdxView()">Cerrar</button>
     </div>
   </div>
 </div>
