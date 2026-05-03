@@ -2013,9 +2013,6 @@ function resetForm(){
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
-  document.getElementById('f_dd').checked=true;document.getElementById('l_dd').textContent='Sí';
-  document.getElementById('f_pr').checked=true;document.getElementById('l_pr').textContent='Sí';
-  document.getElementById('f_sq').checked=true;document.getElementById('l_sq').textContent='Sí';
   document.getElementById('f_dg').checked=false;document.getElementById('l_dg').textContent='No';
   // Redet
   document.getElementById('f_hasPoly').checked=false;document.getElementById('l_hasPoly').textContent='No';document.getElementById('polyWrap').style.display='none';
@@ -2458,12 +2455,12 @@ function renderDet(){
         <div class="dossier-grid top">
           <div>
             <div class="dr"><span>Monto inicial</span><span class="dv">${c.mon||''} ${fN(montoBase)}</span></div>
-            ${c.tipo==='OBRA' && c.anticipo?`<div class="dr" style="background:var(--y50);border:1px solid var(--y200);padding:8px 12px;border-radius:4px"><span style="color:var(--y900);font-weight:600">💼 Anticipo Financiero (${c.anticipoPct||0}%)</span><span class="dv" style="color:var(--y900)">${c.mon||''} ${fN(c.anticipo||0)}</span></div>
-            <div class="dr" style="background:var(--g50);border:1px solid var(--g200);padding:8px 12px;border-radius:4px"><span style="color:var(--g700);font-weight:600">🔧 Monto neto (sin anticipo)</span><span class="dv" style="color:var(--g800)">${c.mon||''} ${fN(montoBase-(c.anticipo||0))}</span></div>`:''}
+            ${c.tipo==='OBRA' && c.anticipo?`<div class="dr" style="background:rgba(255,210,0,.12);border:1px solid rgba(255,210,0,.22);padding:8px 12px;border-radius:4px"><span style="font-weight:600">💼 Anticipo Financiero (${c.anticipoPct||0}%)</span><span class="dv" style="color:#fde68a">${c.mon||''} ${fN(c.anticipo||0)}</span></div>
+            <div class="dr" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);padding:8px 12px;border-radius:4px"><span style="opacity:.8">🔧 Monto neto (sin anticipo)</span><span class="dv" style="opacity:.9">${c.mon||''} ${fN(montoBase-(c.anticipo||0))}</span></div>`:''}
             <div class="dr"><span>Polinómica</span><span class="dv">${c.mon||''} ${fN(avePoly)}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${c.mon||''} ${fN(aveOwner)}</span></div>
             <div class="dr sep"><span>Valor total vigente</span><span class="dv">${c.mon||''} ${fN(tot)}</span></div>
-            ${c.tipo!=='OBRA'?`<div class="dr" style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid var(--p200)"><span style="font-weight:600;color:var(--p700)">💰 Monto mensual estimado</span><span class="dv" style="color:var(--p900);font-size:14px">${c.mon||''} ${fN(tot/(monthDiffInclusive(c.fechaIni,c.fechaFin)||1))}</span></div>`:''}
+            ${c.tipo!=='OBRA'?`<div class="dr" style="background:rgba(255,255,255,.08);padding:10px 12px;border-radius:6px;margin-top:10px;border:1px solid rgba(255,255,255,.14)"><span style="font-weight:600">💰 Monto mensual estimado</span><span class="dv" style="font-size:14px">${c.mon||''} ${fN(tot/(monthDiffInclusive(c.fechaIni,c.fechaFin)||1))}</span></div>`:''}
           </div>
           <div>
             <div class="dr"><span>Inicio</span><span class="dv">${fD(c.fechaIni||'')}</span></div>
@@ -2471,12 +2468,42 @@ function renderDet(){
             <div class="dr"><span>Plazo</span><span class="dv">${monthDiffInclusive(c.fechaIni,c.fechaFin)?monthDiffInclusive(c.fechaIni,c.fechaFin)+' meses':'—'}</span></div>
             <div class="dr"><span>Responsable</span><span class="dv">${esc(c.resp||'—')}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${esc(c.own||'—')}</span></div>
-            ${(c.dd||c.pr||c.sq)?`<div class="dr sep" style="margin-top:6px"><span style="font-weight:700;color:var(--g700)">Compliance</span><span></span></div>`:''}
-            ${c.dd&&c.dd!==true?`<div class="dr"><span>Due Diligence</span><span class="dv" style="color:${new Date(c.dd+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.dd)}${new Date(c.dd+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
-            ${c.pr&&c.pr!==true?`<div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${new Date(c.pr+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.pr)}${new Date(c.pr+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
-            ${c.sq&&c.sq!==true?`<div class="dr"><span>Sequana</span><span class="dv" style="color:${new Date(c.sq+'T00:00:00')<new Date()?'#dc2626':'inherit'}">${fD(c.sq)}${new Date(c.sq+'T00:00:00')<new Date()?' ⚠️':''}</span></div>`:''}
+            ${(c.dd||c.pr||c.sq)?`<div class="dr sep" style="margin-top:6px"><span style="font-weight:700;opacity:.7;font-size:10px;letter-spacing:.1em;text-transform:uppercase">Compliance</span><span></span></div>`:''}
+            ${c.dd&&c.dd!==true?`<div class="dr"><span>Due Diligence</span><span class="dv" style="color:${new Date(c.dd+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.dd)}${new Date(c.dd+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
+            ${c.pr&&c.pr!==true?`<div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${new Date(c.pr+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.pr)}${new Date(c.pr+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
+            ${c.sq&&c.sq!==true?`<div class="dr"><span>Sequana</span><span class="dv" style="color:${new Date(c.sq+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.sq)}${new Date(c.sq+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
             ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí</span></div>`:''}
           </div>
+          ${(()=>{
+            if(!c.fechaIni||!c.fechaFin) return '';
+            const ini=new Date(c.fechaIni+'T00:00:00'), fin=new Date(c.fechaFin+'T00:00:00'), hoy=new Date();
+            hoy.setHours(0,0,0,0);
+            const total=fin-ini, elapsed=Math.min(Math.max(hoy-ini,0),total);
+            const timePct=total>0?Math.round(elapsed/total*100):0;
+            const finPct=hasC&&tot>0?Math.min(Math.round(consumed/tot*100),100):null;
+            const vencido=hoy>fin, activo=hoy>=ini&&hoy<=fin;
+            const estado=vencido?'VENCIDO':activo?'EN CURSO':'NO INICIADO';
+            const estadoColor=vencido?'#fca5a5':activo?'#86efac':'#fde68a';
+            const barColor=timePct>90?'#fca5a5':timePct>60?'#fde68a':'#86efac';
+            return \`<div style="grid-column:1/-1;margin-top:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:14px 18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;font-weight:700">Avance de Obra</span>
+                <span style="font-size:11px;font-weight:700;color:\${estadoColor};letter-spacing:.06em">\${estado}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr\${finPct!==null?' 1fr':''};gap:16px">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Plazo transcurrido</span><span style="font-weight:700;color:\${barColor}">\${timePct}%</span></div>
+                  <div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:\${timePct}%;background:\${barColor};border-radius:99px;transition:width .4s"></div></div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>\${fD(c.fechaIni)}</span><span>\${fD(c.fechaFin)}</span></div>
+                </div>
+                \${finPct!==null?\`<div>
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Avance financiero</span><span style="font-weight:700;color:\${finPct>90?'#fca5a5':finPct>60?'#fde68a':'#86efac'}">\${finPct}%</span></div>
+                  <div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:\${finPct}%;background:\${finPct>90?'#fca5a5':finPct>60?'#fde68a':'#86efac'};border-radius:99px;transition:width .4s"></div></div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>Consumido: \${c.mon} \${fN(consumed)}</span><span>Total: \${c.mon} \${fN(tot)}</span></div>
+                </div>\`:''}
+              </div>
+            </div>\`;
+          })()}
         </div>
         <div class="dossier-bottom">
           <div class="dossier-metrics">
