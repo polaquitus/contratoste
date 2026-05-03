@@ -704,9 +704,6 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
       <input type="number" id="tcInput" value="1050" step="10" min="1" style="width:100px;padding:4px 8px;border:1px solid #fbbf24;border-radius:4px;font-weight:600;" oninput="renderDashboard()">
       <span style="font-size:12px;color:#92400e;">ARS/USD (ajustar manualmente hasta cargar datos en Índices)</span>
     </div>
-
-    <!-- Panel alertas de vencimiento -->
-    <div id="dashVencPanel" class="dash-venc-strip"></div>
     
     <!-- Gráficos -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px;">
@@ -7221,39 +7218,6 @@ function renderDashboard() {
 
   document.getElementById('kpiProxVencer').textContent = proxVencer;
   document.getElementById('kpiAlertas').textContent = alertasCriticas;
-
-  // Panel de vencimientos próximos
-  (function renderVencPanel(){
-    const panel=document.getElementById('dashVencPanel');
-    if(!panel) return;
-    const upcoming=window.DB.filter(function(c){
-      if(!c.fechaFin) return false;
-      const d=Math.floor((new Date(c.fechaFin+'T00:00:00')-hoy)/(86400000));
-      return d>=0 && d<=90;
-    }).map(function(c){
-      const d=Math.floor((new Date(c.fechaFin+'T00:00:00')-hoy)/(86400000));
-      return {c,d};
-    }).sort((a,b)=>a.d-b.d);
-
-    if(!upcoming.length){
-      panel.innerHTML='<div style="padding:12px 20px;font-size:12px;color:var(--muted)">✅ Sin contratos que venzan en los próximos 90 días</div>';
-      return;
-    }
-    const color=function(d){return d<=15?'#ef4444':d<=30?'#f97316':d<=60?'#eab308':'#22c55e';};
-    const label=function(d){return d===0?'HOY':d===1?'1 día':d+' días';};
-    let h='<div style="padding:10px 20px 6px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Vencimientos próximos (90 días)</span><span style="font-size:11px;color:var(--muted)">'+upcoming.length+' contrato'+( upcoming.length!==1?'s':'')+'</span></div>';
-    h+=upcoming.map(function({c,d}){
-      const col=color(d);
-      return '<div class="dash-venc-row" onclick="verDet(\''+c.id+'\')">'+
-        '<div class="dash-vc-dot" style="background:'+col+'"></div>'+
-        '<span class="dash-vc-num">'+esc(c.num)+'</span>'+
-        '<span class="dash-vc-cont" title="'+esc(c.cont||'')+'">'+esc(c.cont||'—')+'</span>'+
-        '<span style="font-size:11px;color:var(--muted);margin-right:8px">'+fD(c.fechaFin)+'</span>'+
-        '<span class="dash-vc-dias" style="color:'+col+'">'+label(d)+'</span>'+
-      '</div>';
-    }).join('');
-    panel.innerHTML=h;
-  })();
 
   // 2. Gráfico Distribución por Dominio
   const porDominio = {};
