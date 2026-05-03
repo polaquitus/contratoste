@@ -2475,7 +2475,7 @@ function renderDet(){
             ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí</span></div>`:''}
           </div>
           ${(()=>{
-            if(!c.fechaIni||!c.fechaFin) return '';
+            if(c.tipo!=='OBRA'||!c.fechaIni||!c.fechaFin) return '';
             const ini=new Date(c.fechaIni+'T00:00:00'), fin=new Date(c.fechaFin+'T00:00:00'), hoy=new Date();
             hoy.setHours(0,0,0,0);
             const total=fin-ini, elapsed=Math.min(Math.max(hoy-ini,0),total);
