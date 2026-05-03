@@ -2485,24 +2485,16 @@ function renderDet(){
             const estado=vencido?'VENCIDO':activo?'EN CURSO':'NO INICIADO';
             const estadoColor=vencido?'#fca5a5':activo?'#86efac':'#fde68a';
             const barColor=timePct>90?'#fca5a5':timePct>60?'#fde68a':'#86efac';
-            return \`<div style="grid-column:1/-1;margin-top:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:14px 18px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;font-weight:700">Avance de Obra</span>
-                <span style="font-size:11px;font-weight:700;color:\${estadoColor};letter-spacing:.06em">\${estado}</span>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr\${finPct!==null?' 1fr':''};gap:16px">
-                <div>
-                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Plazo transcurrido</span><span style="font-weight:700;color:\${barColor}">\${timePct}%</span></div>
-                  <div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:\${timePct}%;background:\${barColor};border-radius:99px;transition:width .4s"></div></div>
-                  <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>\${fD(c.fechaIni)}</span><span>\${fD(c.fechaFin)}</span></div>
-                </div>
-                \${finPct!==null?\`<div>
-                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Avance financiero</span><span style="font-weight:700;color:\${finPct>90?'#fca5a5':finPct>60?'#fde68a':'#86efac'}">\${finPct}%</span></div>
-                  <div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:\${finPct}%;background:\${finPct>90?'#fca5a5':finPct>60?'#fde68a':'#86efac'};border-radius:99px;transition:width .4s"></div></div>
-                  <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>Consumido: \${c.mon} \${fN(consumed)}</span><span>Total: \${c.mon} \${fN(tot)}</span></div>
-                </div>\`:''}
-              </div>
-            </div>\`;
+            const finBarColor=finPct!==null?(finPct>90?'#fca5a5':finPct>60?'#fde68a':'#86efac'):'#86efac';
+            let hw='<div style="grid-column:1/-1;margin-top:14px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:14px 18px">';
+            hw+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;font-weight:700">Avance de Obra</span><span style="font-size:11px;font-weight:700;color:'+estadoColor+';letter-spacing:.06em">'+estado+'</span></div>';
+            hw+='<div style="display:grid;grid-template-columns:1fr'+(finPct!==null?' 1fr':'')+';gap:16px">';
+            hw+='<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Plazo transcurrido</span><span style="font-weight:700;color:'+barColor+'">'+timePct+'%</span></div>';
+            hw+='<div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+timePct+'%;background:'+barColor+';border-radius:99px;transition:width .4s"></div></div>';
+            hw+='<div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>'+fD(c.fechaIni)+'</span><span>'+fD(c.fechaFin)+'</span></div></div>';
+            if(finPct!==null){hw+='<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Avance financiero</span><span style="font-weight:700;color:'+finBarColor+'">'+finPct+'%</span></div><div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+finPct+'%;background:'+finBarColor+';border-radius:99px;transition:width .4s"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>Consumido: '+(c.mon||'')+' '+fN(consumed)+'</span><span>Total: '+(c.mon||'')+' '+fN(tot)+'</span></div></div>';}
+            hw+='</div></div>';
+            return hw;
           })()}
         </div>
         <div class="dossier-bottom">
