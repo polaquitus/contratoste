@@ -607,7 +607,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v68</span>
+    <span class="ver" id="sbVerBadge">v69</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -649,7 +649,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v67-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v69-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1792,7 +1792,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v67-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v69-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -2465,7 +2465,7 @@ function renderDet(){
       const extra=e.tipo==='EXTENSION'&&e.fechaFinNueva?'→ '+fD(e.fechaFinNueva):e.tipo==='ACTUALIZACION_TARIFAS'&&e.pctPoli?' +'+((e.pctPoli||0)*100).toFixed(2)+'% · '+formatMonth(e.basePeriodo||'')+'→'+formatMonth(e.nuevoPeriodo||''):'';
       const corrBdg=e.correccionDeEnm?`<span class="bdg corr">CORR.ENM.${e.correccionDeEnm}</span> `:'';
       const supBdg=e.superseded?`<span class="bdg exp" style="font-size:8.5px">SUPERSEDED</span> `:'';
-      enmRows+=`<tr ${e.superseded?'style="opacity:.5"':''}><td style="font-weight:700;font-size:12px">N°${e.num}</td><td>${corrBdg}${supBdg}<span class="ep ${tc}">${tl}</span></td><td style="font-size:11px">${extra}</td><td style="font-size:11px;color:var(--g500)">${fD((e.fecha||'').substring(0,10))}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.motivo||e.descripcion||'')}</td><td><button class="btn btn-d btn-sm" style="padding:3px 8px;font-size:10px" onclick="delEnm(${e.num})">🗑</button></td></tr>`;
+      enmRows+=`<tr ${e.superseded?'style="opacity:.5"':''}><td style="font-weight:700;font-size:12px">N°${e.num}</td><td>${corrBdg}${supBdg}<span class="ep ${tc}">${tl}</span></td><td style="font-size:11px">${extra}</td><td style="font-size:11px;color:var(--g500)">${fD((e.fecha||'').substring(0,10))}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.motivo||e.descripcion||'')}</td><td style="white-space:nowrap"><button class="btn btn-a btn-sm" style="padding:3px 8px;font-size:10px;margin-right:3px" onclick="openAmendmentDoc('${c.id}',${e.num})" title="Generar documento de esta enmienda">📄</button><button class="btn btn-d btn-sm" style="padding:3px 8px;font-size:10px" onclick="delEnm(${e.num})">🗑</button></td></tr>`;
     });
     document.getElementById('detCard').innerHTML=`<div class="card">
       <div class="det-h">
@@ -2535,7 +2535,7 @@ function renderDet(){
         <table class="enm-tbl"><thead><tr><th>#</th><th>Tipo / Concepto</th><th>Detalle</th><th>Fecha</th><th>Descripción</th><th></th></tr></thead><tbody>${enmRows}</tbody></table>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-p btn-sm" onclick="openEnmPanel()">📑 + Nueva Enmienda</button>
-          <button class="btn btn-a btn-sm" onclick="openAmendmentDoc('${c.id}')" title="Generar documento HTML/PDF de enmienda con la última actualización">📄 Generar Enmienda</button>
+          ${enms.length?`<button class="btn btn-a btn-sm" onclick="openAmendmentDoc('${c.id}')" title="Generar documento de la última enmienda registrada (N°${enms[enms.length-1].num})">📄 Generar Enmienda (última)</button>`:''}
           <button class="btn btn-s btn-sm" onclick="openEnmImportPicker()">🤖 Importar PDF/DOC con IA</button>
           <button class="btn btn-d btn-sm" onclick="resetSection('enmiendas')">🗑 Reset</button>
           <input type="file" id="enmPdfIn" accept=".pdf,.docx,.doc" multiple style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" onchange="importEnmPdfs(this.files)">
@@ -6221,7 +6221,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v67-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v69-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6295,7 +6295,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v67-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v69-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6342,7 +6342,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v67-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v69-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -7191,10 +7191,10 @@ function previewUpdate(cid){
       '<div style="font-size:12px;color:#92400e;font-weight:600;margin-bottom:4px">AVE GENERADO</div>'+
       '<div style="font-size:24px;font-weight:800;color:#92400e">'+fN(calc.aveAmount)+'</div></div>'+
     '<details style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:600;font-size:12px;margin-bottom:8px">Ver detalle de precios</summary>'+pricesTable+'</details>'+
+    '<div style="background:var(--p50);padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:11.5px;color:var(--p800);border:1px solid var(--p200)">ℹ️ Al aplicar la actualización se registrará automáticamente una nueva enmienda en el listado y se abrirá el documento para imprimir/PDF.</div>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end">'+
       '<button class="btn btn-s" onclick="closeUpdatePreview()">Cancelar</button>'+
-      '<button class="btn btn-s" onclick="openAmendmentDoc(\''+cid+'\')">📄 Generar Enmienda</button>'+
-      '<button class="btn btn-a" onclick="confirmApplyUpdate(\''+cid+'\')">✓ Aplicar actualización</button>'+
+      '<button class="btn btn-a" onclick="confirmApplyUpdate(\''+cid+'\')">✓ Aplicar actualización y generar enmienda</button>'+
     '</div></div>';
   document.body.appendChild(modal);
 }
@@ -7202,15 +7202,16 @@ function previewUpdate(cid){
 function closeUpdatePreview(){ var m=document.getElementById('updatePreviewModal'); if(m)m.remove(); }
 function confirmApplyUpdate(cid){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); if(cid) setTimeout(function(){ openAmendmentDoc(cid); },400); }
 
-function openAmendmentDoc(cid){
+function openAmendmentDoc(cid, enmNum){
   var contract=window.DB.find(function(c){return c.id==cid;}); if(!contract){toast('Contrato no encontrado','er');return;}
+  if(!(contract.enmiendas||[]).length){ toast('No hay enmiendas registradas. Aplicá una actualización primero o creá una con "+ Nueva Enmienda".','er'); return; }
   var w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;}
-  w.document.open(); w.document.write(renderAmendmentHtml(contract)); w.document.close();
+  w.document.open(); w.document.write(renderAmendmentHtml(contract, enmNum)); w.document.close();
 }
 
-function renderAmendmentHtml(contract){
+function renderAmendmentHtml(contract, targetEnmNum){
   var enms=contract.enmiendas||[];
-  var lastEnm=enms[enms.length-1]||{};
+  var lastEnm=(targetEnmNum!=null?enms.find(function(e){return e.num===targetEnmNum;}):null)||enms[enms.length-1]||{};
   var enmNum=lastEnm.num||enms.length||1;
   var cid=contract.id;
   var res=getEvaluationResult(cid,'')||getEvaluationResult(cid,null)||{};
@@ -7282,49 +7283,62 @@ function renderAmendmentHtml(contract){
   var polyFormula=contract.poly&&contract.poly.length?'Ko = '+contract.poly.map(function(p){return p.idx+' × '+(p.inc*100).toFixed(1)+'%';}).join(' + '):'Fórmula polinómica contractual';
 
   return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Enmienda N°'+enmNum+' — '+contract.num+'</title>'+
-  '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Times New Roman",serif;font-size:11pt;color:#000;background:#fff}'+
-  '.page{width:210mm;min-height:297mm;margin:0 auto;padding:20mm 15mm;display:grid;grid-template-columns:1fr 1fr;gap:20mm}'+
-  '.col{}h2{font-size:12pt;font-weight:700;margin-bottom:8pt}p{margin-bottom:8pt;text-align:justify;line-height:1.5}'+
-  '.center{text-align:center;margin:16pt 0}.center p{text-align:center}'+
-  '.section-title{font-size:11pt;font-weight:700;text-decoration:underline;margin:14pt 0 6pt}'+
-  '@media print{body{margin:0}.page{margin:0;padding:15mm 12mm}}</style></head><body>'+
+  '<style>*{box-sizing:border-box;margin:0;padding:0}'+
+  'body{font-family:"Times New Roman",serif;font-size:11pt;color:#000;background:#fff;line-height:1.5}'+
+  '.page{width:210mm;min-height:297mm;margin:0 auto;padding:25mm 22mm;page-break-after:always}'+
+  '.page:last-child{page-break-after:auto}'+
+  'h2{font-size:12pt;font-weight:700;margin-bottom:8pt}'+
+  'p{margin-bottom:8pt;text-align:justify}'+
+  '.center{text-align:center;margin:18pt 0}.center p{text-align:center;margin-bottom:6pt}'+
+  '.section-title{font-size:11pt;font-weight:700;text-decoration:underline;margin:14pt 0 8pt}'+
+  '.ref-line{display:flex;gap:8pt;margin-bottom:6pt}.ref-line>strong{flex-shrink:0;min-width:32pt}'+
+  'table{width:100%;border-collapse:collapse;margin:10pt 0 14pt;page-break-inside:avoid}'+
+  'th{padding:5pt 7pt;font-size:9.5pt;font-weight:700;background:#1b3f6e;color:#fff;text-align:left}'+
+  'th.num,td.num{text-align:right}'+
+  'td{padding:4pt 7pt;font-size:9.5pt;border-bottom:1px solid #d0d4d9}'+
+  'tr.tot td{background:#eef2f7;font-weight:700}'+
+  '.period-block{margin-bottom:14pt}'+
+  '.period-title{font-size:10.5pt;font-weight:700;color:#1b3f6e;margin-bottom:6pt;text-transform:uppercase;letter-spacing:.4px}'+
+  '.firma p{margin-bottom:14pt}'+
+  '@media print{body{margin:0}.page{margin:0;padding:20mm 18mm}}'+
+  '</style></head><body>'+
+  // PÁGINA 1 — CARÁTULA / CARTA
   '<div class="page">'+
-  // COLUMNA IZQUIERDA
-  '<div class="col">'+
     '<p style="text-align:right">'+dateStr+'</p>'+
     '<br><p>Señores<br><strong>TOTAL AUSTRAL S.A</strong><br>Moreno 877, Piso 15,<br>Buenos Aires (C1091AAQ)<br>República Argentina</p>'+
-    '<br><p><strong>At:</strong> '+esc(contract.resp||'Responsable del Contrato')+'</p>'+
-    '<p><strong>Ref.:</strong>&nbsp;&nbsp;Propuesta de Enmienda N°'+enmNum+' a la OFERTA N.°&nbsp;'+esc(contract.num)+' '+esc(contract.det||contract.cont||'')+'.</p>'+
+    '<br><div class="ref-line"><strong>At:</strong><span>'+esc(contract.resp||'Responsable del Contrato')+'</span></div>'+
+    '<div class="ref-line"><strong>Ref.:</strong><span>Propuesta de Enmienda N°'+enmNum+' a la OFERTA N.°&nbsp;'+esc(contract.num)+' '+esc(contract.det||contract.cont||'')+'.</span></div>'+
     '<br><p>De mi mayor consideración:</p>'+
     '<p>Me dirijo a TOTAL AUSTRAL S.A. (la &ldquo;COMPAÑÍA&rdquo;) en mi carácter de apoderado de <strong>'+esc(contract.cont||'EL CONTRATISTA')+'</strong> a los fines de efectuar la siguiente propuesta de Enmienda N°'+enmNum+' al '+esc(contract.det||'servicio contratado')+' (la &ldquo;PROPUESTA&rdquo;).</p>'+
-    '<div class="center" style="margin-top:32pt">'+
-      '<p style="font-weight:700;font-size:12pt">PROPUESTA DE ENMIENDA N°'+enmNum+'</p>'+
-      '<br><p>a la OFERTA N.° '+esc(contract.num)+'</p>'+
-      '<br><p style="font-weight:700;text-transform:uppercase">'+esc((contract.det||contract.cont||'').toUpperCase())+'</p>'+
-      '<br><p>entre</p>'+
-      '<br><p style="font-weight:700">TOTAL AUSTRAL S.A.</p>'+
-      '<p>y</p>'+
-      '<p style="font-weight:700">'+esc(contract.cont||'EL CONTRATISTA')+'</p>'+
+    '<div class="center" style="margin-top:42pt">'+
+      '<p style="font-weight:700;font-size:13pt">PROPUESTA DE ENMIENDA N°'+enmNum+'</p>'+
+      '<p>a la OFERTA N.° '+esc(contract.num)+'</p>'+
+      '<p style="font-weight:700;text-transform:uppercase;margin-top:10pt">'+esc((contract.det||contract.cont||'').toUpperCase())+'</p>'+
+      '<p style="margin-top:14pt">entre</p>'+
+      '<p style="font-weight:700;margin-top:10pt">TOTAL AUSTRAL S.A.</p>'+
+      '<p style="margin-top:6pt">y</p>'+
+      '<p style="font-weight:700;margin-top:10pt">'+esc(contract.cont||'EL CONTRATISTA')+'</p>'+
     '</div>'+
   '</div>'+
-  // COLUMNA DERECHA
-  '<div class="col">'+
+  // PÁGINA 2+ — CUERPO
+  '<div class="page">'+
     '<p class="section-title">1. OBJETO</p>'+
     '<p>Por la presente Enmienda a las Condiciones Particulares y en uso del Artículo 2 &ldquo;Definiciones&rdquo; de las Condiciones Generales de la OFERTA N.°&nbsp;'+esc(contract.num)+' las Partes acuerdan lo que a continuación se detalla:</p>'+
-    '<p style="margin-left:16pt">1.1&nbsp;&nbsp;Establecer las tarifas para el mes de '+periodosTexto+' en adelante</p>'+
-    '<p style="margin-left:16pt;font-size:9pt;color:#555;margin-top:4pt">Fórmula aplicada: <em>'+esc(polyFormula)+'</em></p>'+
+    '<p style="margin-left:20pt">1.1&nbsp;&nbsp;Establecer las tarifas para el mes de '+periodosTexto+' en adelante.</p>'+
+    '<p style="margin-left:20pt;font-size:9.5pt;color:#555;margin-top:6pt">Fórmula aplicada: <em>'+esc(polyFormula)+'</em></p>'+
     '<p class="section-title">2. PRECIO</p>'+
     '<p>Se establecen las nuevas tarifas para aplicar a partir del <strong>01 de '+fmtM(selPeriods[0]||newPeriod)+'</strong>:</p>'+
     periodBlocks+
     '<p class="section-title">3. GENERAL</p>'+
     '<p>Las restantes condiciones de la OFERTA permanecen vigentes e inalterables.</p>'+
     '<p>La presente PROPUESTA será considerada <u>aceptada</u> por la COMPAÑÍA <u>con la continuidad</u> en la demanda del servicio y/o <u>con el ingreso</u> de equipos y/o personal del OFERENTE a <u>las instalaciones</u> de la COMPAÑÍA.</p>'+
-    '<p>Atentamente,</p>'+
-    '<br><p style="font-weight:700">POR '+esc((contract.cont||'EL CONTRATISTA').toUpperCase())+'</p>'+
-    '<br><p>Firma:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
-    '<p>Nombre:&nbsp;___________________________</p>'+
-    '<p>Cargo:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
-  '</div>'+
+    '<p style="margin-top:14pt">Atentamente,</p>'+
+    '<div class="firma" style="margin-top:30pt">'+
+      '<p style="font-weight:700">POR '+esc((contract.cont||'EL CONTRATISTA').toUpperCase())+'</p>'+
+      '<p>Firma:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
+      '<p>Nombre:&nbsp;___________________________</p>'+
+      '<p>Cargo:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
+    '</div>'+
   '</div>'+
   '<script>window.onload=function(){window.print();}<\/script>'+
   '</body></html>';
