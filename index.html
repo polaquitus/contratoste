@@ -607,7 +607,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v69</span>
+    <span class="ver" id="sbVerBadge">v70</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -649,7 +649,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v69-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v70-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1792,7 +1792,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v69-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v70-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6221,7 +6221,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v69-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v70-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6295,7 +6295,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v69-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v70-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6342,7 +6342,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v69-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v70-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -6524,31 +6524,46 @@ var PolUpdate = (function(){
     return{updatedPrices:state.updatedPrices,aveAmount:state.aveAmount,newMonthlyEstimate:newMonthly,oldMonthlyEstimate:oldMonthly,monthsRemaining:monthsRemaining,Ko:Ko};
   }
   
-  function applyUpdate(){
-    if(!state.contractId||!state.baseData)return;
+  async function applyUpdate(){
+    console.log('[applyUpdate] inicio', {contractId:state.contractId, hasBase:!!state.baseData, Ko:state.Ko});
+    if(!state.contractId||!state.baseData){
+      toast('No hay actualización calculada. Usá "Calcular actualización polinómica" primero.','er');
+      return;
+    }
     var contract=state.baseData; var updateDate=ymToday();
     var enms=(contract.enmiendas||[]).slice();
     var koDecimal=(state.Ko||1)-1;
     var basePer=state.baseDate||(state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni);
     var newEnm={num:(enms.length+1),tipo:'ACTUALIZACION_TARIFAS',fecha:updateDate,motivo:'Actualización automática por fórmula polinómica',pctPoli:koDecimal,basePeriodo:basePer,nuevoPeriodo:updateDate,ko:state.Ko||1};
     enms.push(newEnm); contract.enmiendas=enms;
+    console.log('[applyUpdate] enmienda agregada N°', newEnm.num, '· total enmiendas:', enms.length);
     var tars=getTar()||[]; var baseTar=tars.find(function(t){return t.period===(state.conditions?(state.conditions.baseDate||contract.btar):contract.btar);});
     if(baseTar){
       var newTar={name:baseTar.name+' ACT',cols:baseTar.cols||['Item','Descripción','Unidad','Precio'],rows:state.updatedPrices.map(function(p){return['',p.description,p.unit,p.unit_price];}),period:updateDate,source:'POLINOMICA',importedAt:new Date().toISOString(),editable:true};
-      tars.push(newTar); setTar(tars);
+      tars.push(newTar); contract.tarifarios=tars;
     }
     var aves=(contract.aves||[]).slice();
     var newAve={id:Date.now()+'',tipo:'POLINOMICA',enmRef:newEnm.num,fecha:updateDate,periodo:updateDate,monto:state.aveAmount,concepto:'AVE por actualización polinómica',autoGenerated:true};
     aves.push(newAve); contract.aves=aves;
     contract.monto=(contract.monto||0)+state.aveAmount;
+    contract.updatedAt=new Date().toISOString();
     var idx=window.DB.findIndex(function(c){return c.id===contract.id;}); if(idx!==-1)window.DB[idx]=contract;
-    save();
+    // Fallback localStorage SIEMPRE para no perder datos si Supabase falla
+    try{ localStorage.setItem('cta_v7', JSON.stringify(window.DB)); }catch(_e){}
+    try{
+      await save();
+      console.log('[applyUpdate] ✓ guardado en Supabase');
+    }catch(err){
+      console.error('[applyUpdate] save() falló:', err);
+      toast('⚠ Enmienda guardada localmente. Error al sincronizar con Supabase.','er');
+    }
     if(state.conditions){
       state.conditions.lastUpdateDate=updateDate;
       if(state.conditions.resetBase)state.conditions.baseDate=updateDate;
       saveConditions(contract.id,state.conditions);
     }
-    toast('Actualización aplicada: AVE '+fN(state.aveAmount),'ok'); verDet(contract.id);
+    toast('✓ Enmienda N°'+newEnm.num+' registrada · AVE '+fN(state.aveAmount),'ok');
+    verDet(contract.id);
     if (typeof window.initFuzzySearch === 'function') {
       window.initFuzzySearch();
     }
@@ -7200,7 +7215,12 @@ function previewUpdate(cid){
 }
 
 function closeUpdatePreview(){ var m=document.getElementById('updatePreviewModal'); if(m)m.remove(); }
-function confirmApplyUpdate(cid){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); if(cid) setTimeout(function(){ openAmendmentDoc(cid); },400); }
+async function confirmApplyUpdate(cid){
+  if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return;
+  closeUpdatePreview();
+  try{ await PolUpdate.applyUpdate(); }catch(e){ console.error('confirmApplyUpdate', e); toast('Error al aplicar: '+(e.message||e),'er'); return; }
+  if(cid) setTimeout(function(){ openAmendmentDoc(cid); },500);
+}
 
 function openAmendmentDoc(cid, enmNum){
   var contract=window.DB.find(function(c){return c.id==cid;}); if(!contract){toast('Contrato no encontrado','er');return;}
