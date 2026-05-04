@@ -7124,13 +7124,134 @@ function previewUpdate(cid){
     '<details style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:600;font-size:12px;margin-bottom:8px">Ver detalle de precios</summary>'+pricesTable+'</details>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end">'+
       '<button class="btn btn-s" onclick="closeUpdatePreview()">Cancelar</button>'+
-      '<button class="btn btn-a" onclick="confirmApplyUpdate()">✓ Aplicar actualización</button>'+
+      '<button class="btn btn-s" onclick="openAmendmentDoc(\''+cid+'\')">📄 Generar Enmienda</button>'+
+      '<button class="btn btn-a" onclick="confirmApplyUpdate(\''+cid+'\')">✓ Aplicar actualización</button>'+
     '</div></div>';
   document.body.appendChild(modal);
 }
 
 function closeUpdatePreview(){ var m=document.getElementById('updatePreviewModal'); if(m)m.remove(); }
-function confirmApplyUpdate(){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); }
+function confirmApplyUpdate(cid){ if(!confirm('¿Confirmar actualización? Se generará enmienda, lista de precios y AVE'))return; PolUpdate.applyUpdate(); closeUpdatePreview(); if(cid) setTimeout(function(){ openAmendmentDoc(cid); },400); }
+
+function openAmendmentDoc(cid){
+  var contract=window.DB.find(function(c){return c.id==cid;}); if(!contract){toast('Contrato no encontrado','er');return;}
+  var w=window.open('','_blank'); if(!w){toast('Bloqueador de pop-ups activo','er');return;}
+  w.document.open(); w.document.write(renderAmendmentHtml(contract)); w.document.close();
+}
+
+function renderAmendmentHtml(contract){
+  var enms=contract.enmiendas||[];
+  var lastEnm=enms[enms.length-1]||{};
+  var enmNum=lastEnm.num||enms.length||1;
+  var cid=contract.id;
+  var res=getEvaluationResult(cid,'')||getEvaluationResult(cid,null)||{};
+  var basePeriod=lastEnm.basePeriodo||(res.baseMonth)||contract.btar||contract.fechaIni||'';
+  var newPeriod=lastEnm.nuevoPeriodo||'';
+  var Ko=lastEnm.ko||1;
+  var pctKo=((Ko-1)*100);
+
+  // Períodos seleccionados para tablas (o solo el último si no hay selección)
+  var selPeriods=getSelectedAdjustmentMonths(cid).sort();
+  if(!selPeriods.length && newPeriod) selPeriods=[newPeriod];
+
+  // Tarifarios del contrato
+  var tars=contract.tarifarios||[];
+  var baseTar=tars.find(function(t){return t.period===contract.btar;})||tars[0]||null;
+
+  var today=new Date();
+  var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var dateStr='Neuquén, '+today.getDate()+' de '+meses[today.getMonth()]+' de '+today.getFullYear();
+  var fmtM=function(ym){ if(!ym) return ''; var p=String(ym).substring(0,7).split('-'); if(p.length<2) return ym; return meses[parseInt(p[1],10)-1]+' de '+p[0]; };
+  var fmtMShort=function(ym){ if(!ym) return ''; var p=String(ym).substring(0,7).split('-'); if(p.length<2) return ym; return meses[parseInt(p[1],10)-1].substring(0,3)+'-'+p[0].substring(2); };
+
+  // Generar bloques de tablas por período
+  var periodBlocks='';
+  selPeriods.forEach(function(periodYm){
+    var dPct=computePoliDeltaPct(contract,basePeriod,periodYm);
+    var koP=dPct!=null?(1+dPct/100):Ko;
+    var pctP=((koP-1)*100).toFixed(2);
+    var label=fmtM(periodYm);
+    var shortLbl=fmtMShort(periodYm);
+
+    // Tabla de precios para este período
+    var tableHtml='';
+    if(baseTar&&baseTar.rows&&baseTar.rows.length){
+      var cols=baseTar.cols||[];
+      var priceColIdx=cols.length-1; // última columna = precio
+      var thead='<tr style="background:#1b3f6e;color:#fff">';
+      cols.forEach(function(col,i){ thead+='<th style="padding:5px 8px;font-size:10px;font-weight:700;text-align:'+(i===cols.length-1?'right':'left')+'">'+col+(i===cols.length-1?' '+shortLbl:'')+'</th>'; });
+      thead+='</tr>';
+      var tbody='';
+      var total=0;
+      baseTar.rows.forEach(function(row){
+        tbody+='<tr>';
+        row.forEach(function(cell,i){
+          var val=cell;
+          if(i===priceColIdx){
+            var num=parseFloat(cell)||0;
+            var newVal=num*koP;
+            total+=newVal;
+            val='$ '+newVal.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+          }
+          tbody+='<td style="padding:4px 8px;font-size:10px;border-bottom:1px solid #e0e0e0;text-align:'+(i===row.length-1?'right':'left')+'">'+val+'</td>';
+        });
+        tbody+='</tr>';
+      });
+      var totalRow='<tr style="background:#f0f4f8"><td colspan="'+(cols.length-1)+'" style="padding:5px 8px;font-size:10px;font-weight:700;text-align:right">TOTAL</td><td style="padding:5px 8px;font-size:10px;font-weight:700;text-align:right">$ '+total.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td></tr>';
+      tableHtml='<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead>'+thead+'</thead><tbody>'+tbody+totalRow+'</tbody></table>';
+    } else {
+      // Sin tarifario: tabla simple con Ko
+      tableHtml='<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr style="background:#1b3f6e;color:#fff"><th style="padding:5px 8px;font-size:10px">Concepto</th><th style="padding:5px 8px;font-size:10px;text-align:right">Ko</th><th style="padding:5px 8px;font-size:10px;text-align:right">Var.</th></tr></thead><tbody><tr><td style="padding:5px 8px;font-size:11px">Actualización polinómica ('+label+')</td><td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700">'+koP.toFixed(4)+'</td><td style="padding:5px 8px;font-size:11px;text-align:right;color:'+( pctP>=0?'#16a34a':'#dc2626')+'">'+(pctP>=0?'+':'')+pctP+'%</td></tr></tbody></table>';
+    }
+
+    periodBlocks+='<div style="margin-bottom:18px"><div style="font-size:11px;font-weight:700;color:#1b3f6e;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">'+label.toUpperCase()+' — Ko: '+koP.toFixed(4)+' (+'+pctP+'%)</div>'+tableHtml+'</div>';
+  });
+
+  // Objeto: texto de períodos
+  var periodosTexto=selPeriods.map(function(p,i){ return '<strong>'+fmtM(p)+'</strong>'+(i<selPeriods.length-1?' y ':''); }).join('');
+
+  var polyFormula=contract.poly&&contract.poly.length?'Ko = '+contract.poly.map(function(p){return p.idx+' × '+(p.inc*100).toFixed(1)+'%';}).join(' + '):'Fórmula polinómica contractual';
+
+  return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Enmienda N°'+enmNum+' — '+contract.num+'</title>'+
+  '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Times New Roman",serif;font-size:11pt;color:#000;background:#fff}'+
+  '.page{width:210mm;min-height:297mm;margin:0 auto;padding:20mm 15mm;display:grid;grid-template-columns:1fr 1fr;gap:20mm}'+
+  '.col{}h2{font-size:12pt;font-weight:700;margin-bottom:8pt}p{margin-bottom:8pt;text-align:justify;line-height:1.5}'+
+  '.center{text-align:center;margin:16pt 0}.center p{text-align:center}'+
+  '.section-title{font-size:11pt;font-weight:700;text-decoration:underline;margin:14pt 0 6pt}'+
+  '@media print{body{margin:0}.page{margin:0;padding:15mm 12mm}}</style></head><body>'+
+  '<div class="page">'+
+  // COLUMNA IZQUIERDA
+  '<div class="col">'+
+    '<p style="text-align:right">'+dateStr+'</p>'+
+    '<br><p>Señores<br><strong>TOTAL AUSTRAL S.A</strong><br>Moreno 877, Piso 15,<br>Buenos Aires (C1091AAQ)<br>República Argentina</p>'+
+    '<br><p><strong>At:</strong> '+esc(contract.resp||'Responsable del Contrato')+'</p>'+
+    '<p><strong>Ref.:</strong>&nbsp;&nbsp;Propuesta de Enmienda N°'+enmNum+' a la OFERTA N.°&nbsp;'+esc(contract.num)+' '+esc(contract.det||contract.cont||'')+'.</p>'+
+    '<br><p>De mi mayor consideración:</p>'+
+    '<p>Me dirijo a TOTAL AUSTRAL S.A. (la &ldquo;COMPAÑÍA&rdquo;) en mi carácter de apoderado de <strong>'+esc(contract.cont||'EL CONTRATISTA')+'</strong> a los fines de efectuar la siguiente propuesta de Enmienda N°'+enmNum+' al '+esc(contract.det||'servicio contratado')+' (la &ldquo;PROPUESTA&rdquo;).</p>'+
+    '<div class="center" style="margin-top:32pt">'+
+      '<p style="font-weight:700;font-size:12pt">PROPUESTA DE ENMIENDA N°'+enmNum+'</p>'+
+      '<br><p>a la OFERTA N.° '+esc(contract.num)+'</p>'+
+      '<br><p style="font-weight:700;text-transform:uppercase">'+esc((contract.det||contract.cont||'').toUpperCase())+'</p>'+
+      '<br><p>entre</p>'+
+      '<br><p style="font-weight:700">TOTAL AUSTRAL S.A.</p>'+
+      '<p>y</p>'+
+      '<p style="font-weight:700">'+esc(contract.cont||'EL CONTRATISTA')+'</p>'+
+    '</div>'+
+  '</div>'+
+  // COLUMNA DERECHA
+  '<div class="col">'+
+    '<p class="section-title">1. OBJETO</p>'+
+    '<p>Por la presente Enmienda a las Condiciones Particulares y en uso del Artículo 2 &ldquo;Definiciones&rdquo; de las Condiciones Generales de la OFERTA N.°&nbsp;'+esc(contract.num)+' las Partes acuerdan lo que a continuación se detalla:</p>'+
+    '<p style="margin-left:16pt">1.1&nbsp;&nbsp;Establecer las tarifas para el mes de '+periodosTexto+' en adelante</p>'+
+    '<p style="margin-left:16pt;font-size:9pt;color:#555;margin-top:4pt">Fórmula aplicada: <em>'+esc(polyFormula)+'</em></p>'+
+    '<p class="section-title">2. PRECIO</p>'+
+    '<p>Se establecen las nuevas tarifas para aplicar a partir del <strong>01 de '+fmtM(selPeriods[0]||newPeriod)+'</strong>:</p>'+
+    periodBlocks+
+  '</div>'+
+  '</div>'+
+  '<script>window.onload=function(){window.print();}<\/script>'+
+  '</body></html>';
+}
 
 window.toggleAlertSection = function(section) {
   const content = document.getElementById('section' + section.charAt(0).toUpperCase() + section.slice(1));
