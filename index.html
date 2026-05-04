@@ -7247,6 +7247,14 @@ function renderAmendmentHtml(contract){
     '<p class="section-title">2. PRECIO</p>'+
     '<p>Se establecen las nuevas tarifas para aplicar a partir del <strong>01 de '+fmtM(selPeriods[0]||newPeriod)+'</strong>:</p>'+
     periodBlocks+
+    '<p class="section-title">3. GENERAL</p>'+
+    '<p>Las restantes condiciones de la OFERTA permanecen vigentes e inalterables.</p>'+
+    '<p>La presente PROPUESTA será considerada <u>aceptada</u> por la COMPAÑÍA <u>con la continuidad</u> en la demanda del servicio y/o <u>con el ingreso</u> de equipos y/o personal del OFERENTE a <u>las instalaciones</u> de la COMPAÑÍA.</p>'+
+    '<p>Atentamente,</p>'+
+    '<br><p style="font-weight:700">POR '+esc((contract.cont||'EL CONTRATISTA').toUpperCase())+'</p>'+
+    '<br><p>Firma:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
+    '<p>Nombre:&nbsp;___________________________</p>'+
+    '<p>Cargo:&nbsp;&nbsp;&nbsp;&nbsp;___________________________</p>'+
   '</div>'+
   '</div>'+
   '<script>window.onload=function(){window.print();}<\/script>'+
