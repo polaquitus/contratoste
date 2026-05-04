@@ -607,7 +607,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v70</span>
+    <span class="ver" id="sbVerBadge">v71</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -649,7 +649,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v70-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v71-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1792,7 +1792,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v70-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v71-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6221,7 +6221,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v70-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v71-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6295,7 +6295,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v70-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v71-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6342,7 +6342,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v70-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v71-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -7048,8 +7048,31 @@ function generateSelectedPriceLists(cid){
         autoGenerated:true,
         fecha:new Date().toISOString()
       });
-      
+
       console.log('[generateSelectedPriceLists] AVE generado:', incrementoMonto.toFixed(2), contract.mon||'USD');
+
+      // Registrar enmienda asociada al ajuste polinómico
+      if(!contract.enmiendas) contract.enmiendas=[];
+      var basePerEnm=contract.btar_prev||rows[0]?.refYm||contract.fechaIni||'';
+      // recuperar btar previa antes de la sobreescritura: rows[0].refYm es la base de comparación
+      var prevBase=rows.length?rows[0].refYm:basePerEnm;
+      var enmNum=(contract.enmiendas.length)+1;
+      var newEnm={
+        num:enmNum,
+        tipo:'ACTUALIZACION_TARIFAS',
+        fecha:new Date().toISOString(),
+        motivo:'Actualización por fórmula polinómica · '+totalPctApplied.toFixed(2)+'%',
+        descripcion:'Ajuste acumulado '+totalPctApplied.toFixed(2)+'% sobre base '+formatYmLabel(prevBase)+' → '+formatYmLabel(maxPeriod),
+        pctPoli:totalPctApplied/100,
+        basePeriodo:prevBase,
+        nuevoPeriodo:maxPeriod,
+        ko:1+(totalPctApplied/100),
+        aveRef:aveId,
+        monto:Math.round(incrementoMonto*100)/100,
+        autoGenerated:true
+      };
+      contract.enmiendas.push(newEnm);
+      console.log('[generateSelectedPriceLists] ✓ Enmienda N°'+enmNum+' registrada · Ko='+newEnm.ko.toFixed(4));
     }
   }
   
@@ -7061,12 +7084,17 @@ function generateSelectedPriceLists(cid){
   // Actualizar contrato en window.DB array
   var idx = window.DB.findIndex(function(c){return c.id === cid;});
   if(idx !== -1) window.DB[idx] = contract;
-  
+
+  // Persistir SIEMPRE en localStorage como fallback
+  try{ localStorage.setItem('cta_v7', JSON.stringify(window.DB)); }catch(_e){}
   save();
   if(typeof window.detId!=='undefined') window.detId=cid;
   if(typeof renderDet==='function') renderDet();
   setTimeout(function(){ renderSelectedPeriodsSummary(cid); }, 50);
-  toast((created||rows.length)+' lista(s) de precios generada(s)','ok');
+  var enmCount=(contract.enmiendas||[]).length;
+  var lastEnm=enmCount?contract.enmiendas[enmCount-1]:null;
+  var msg=(created||rows.length)+' lista(s) generada(s)' + (lastEnm&&lastEnm.autoGenerated?' · ✓ Enmienda N°'+lastEnm.num+' registrada':'');
+  toast(msg,'ok');
 }
 function toggleAdjustmentMonthSelection(cid, ym, checked){
   var arr=getSelectedAdjustmentMonths(cid).slice();
