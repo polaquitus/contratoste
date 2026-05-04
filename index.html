@@ -6451,7 +6451,7 @@ var PolUpdate = (function(){
     var oldMonthly=(contract.monto||0)/contractMonths;
     var newMonthly=state.updatedPrices.reduce(function(sum,p){return sum+(p.unit_price*p.quantity);},0);
     var monthsRemaining=monthsRemainingInclusive(ymToday(),contract.fechaFin);
-    state.aveAmount=(newMonthly-oldMonthly)*monthsRemaining; state.newMonthlyEstimate=newMonthly;
+    state.aveAmount=(newMonthly-oldMonthly)*monthsRemaining; state.newMonthlyEstimate=newMonthly; state.Ko=Ko; state.baseDate=baseDate;
     return{updatedPrices:state.updatedPrices,aveAmount:state.aveAmount,newMonthlyEstimate:newMonthly,oldMonthlyEstimate:oldMonthly,monthsRemaining:monthsRemaining,Ko:Ko};
   }
   
@@ -6459,7 +6459,9 @@ var PolUpdate = (function(){
     if(!state.contractId||!state.baseData)return;
     var contract=state.baseData; var updateDate=ymToday();
     var enms=(contract.enmiendas||[]).slice();
-    var newEnm={num:(enms.length+1),tipo:'ACTUALIZACION_TARIFAS',fecha:updateDate,motivo:'Actualización automática por fórmula polinómica',pctPoli:((state.updatedPrices.length&&state.updatedPrices[0].unit_price/state.updatedPrices[0].old_price)||1)-1,basePeriodo:state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni,nuevoPeriodo:updateDate};
+    var koDecimal=(state.Ko||1)-1;
+    var basePer=state.baseDate||(state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni);
+    var newEnm={num:(enms.length+1),tipo:'ACTUALIZACION_TARIFAS',fecha:updateDate,motivo:'Actualización automática por fórmula polinómica',pctPoli:koDecimal,basePeriodo:basePer,nuevoPeriodo:updateDate,ko:state.Ko||1};
     enms.push(newEnm); contract.enmiendas=enms;
     var tars=getTar()||[]; var baseTar=tars.find(function(t){return t.period===(state.conditions?(state.conditions.baseDate||contract.btar):contract.btar);});
     if(baseTar){
@@ -6477,7 +6479,7 @@ var PolUpdate = (function(){
       if(state.conditions.resetBase)state.conditions.baseDate=updateDate;
       saveConditions(contract.id,state.conditions);
     }
-    toast('Actualización aplicada: AVE '+fN(state.aveAmount),'ok'); loadContract(contract.id);
+    toast('Actualización aplicada: AVE '+fN(state.aveAmount),'ok'); verDet(contract.id);
     if (typeof window.initFuzzySearch === 'function') {
       window.initFuzzySearch();
     }
@@ -7091,7 +7093,7 @@ function saveConditionsModal(cid){
     resetBase:document.getElementById('condReset').checked,
     lastUpdateDate:(PolUpdate.getConditions(cid)||{}).lastUpdateDate||null
   };
-  PolUpdate.saveConditions(cid,data); closeConditionsModal(); loadContract(cid); toast('Condiciones guardadas','ok');
+  PolUpdate.saveConditions(cid,data); closeConditionsModal(); verDet(cid); toast('Condiciones guardadas','ok');
 }
 
 function previewUpdate(cid){
