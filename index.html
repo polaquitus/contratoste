@@ -4009,6 +4009,21 @@ function idxRows(id){
   if(!IDX_STORE[id]) IDX_STORE[id] = {rows:[]};
   return (IDX_STORE[id]||{}).rows||[];
 }
+// Igual que idxRows pero NO crea entradas vacías y resuelve labels (ej 'PP' → 'mo_pp')
+// Usar en cálculos polinómicos para no envenenar el seed de indicator_snapshots
+function safeIdxRows(code){
+  var id=code;
+  if(!IDX_STORE[id]||(IDX_STORE[id].rows||[]).length===0){
+    var _lblMap={'PP':'mo_pp','UOCRA':'mo_uocra','COMERCIO':'mo_com','CAMIONEROS':'mo_cam',
+      'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17','USD DIVISA':'usd_div',
+      'FADEAAC':'fadeaac','GAS OIL G3 YPF NQN':'go_g3','GAS OIL G2 YPF NQN':'go_g2',
+      'IPIM GRAL':'ipim_gral','IPC PATAGONIA':'ipc_pat','IPC NAC GRAL':'ipc_nac',
+      'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29'};
+    var conv=_lblMap[String(code||'').trim()];
+    if(conv&&IDX_STORE[conv]&&(IDX_STORE[conv].rows||[]).length) id=conv;
+  }
+  return (IDX_STORE[id]&&Array.isArray(IDX_STORE[id].rows))?IDX_STORE[id].rows:[];
+}
 function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
 function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
@@ -6418,7 +6433,7 @@ var PolUpdate = (function(){
     var Ko=1;
     var baseYm=ymOf(baseDate), evalYm=ymOf(ymToday());
     poly.forEach(function(c){
-      var rows=idxRows(c.idx); if(!rows.length) return;
+      var rows=safeIdxRows(c.idx); if(!rows.length) return;
       // Modo pct compuesto (IPC, IPIM, etc.)
       var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)>0&&compareYm(r.ym,evalYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)); });
       if(monthRows.length){ var acc=1; monthRows.forEach(function(r){ acc*=1+(Number(r.pct)/100); }); Ko*=Math.pow(acc,Number(c.inc)||0); return; }
@@ -6763,7 +6778,7 @@ function computePoliDeltaPct(contract, refYm, targetYm){
   if(!poly.length) return null;
   var ko=1, count=0;
   poly.forEach(function(c){
-    var rows=idxRows(c.idx); if(!rows.length) return;
+    var rows=safeIdxRows(c.idx); if(!rows.length) return;
     // Modo pct compuesto: usa datos frescos de IDX_STORE directamente
     var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,refYm)>0&&compareYm(r.ym,targetYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)); });
     if(monthRows.length){
