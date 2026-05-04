@@ -6414,19 +6414,26 @@ var PolUpdate = (function(){
     var baseDate=state.conditions?(state.conditions.baseDate||contract.fechaIni):contract.fechaIni;
     var tars=getTar()||[]; var currentList=tars.filter(function(t){return t.period===contract.btar||(!t.period&&tars.indexOf(t)===0);});
     state.currentPrices=currentList.length&&currentList[0].rows?currentList[0].rows.map(function(r){return{description:r[1]||'',unit:r[2]||'',quantity:parseFloat(r[3])||1,unit_price:parseFloat(r[3])||0};}):[{description:'Item base',unit:'UN',quantity:1,unit_price:contract.monto||0}];
+    // Ko: leer directo de IDX_STORE (idxRows) — evita datos stale de indicator_snapshots
     var Ko=1;
+    var baseYm=ymOf(baseDate), evalYm=ymOf(ymToday());
     poly.forEach(function(c){
-      var baseSnap=getIndicatorAtDate(c.idx,baseDate); var currentSnap=getLatestIndicator(c.idx);
-      if(baseSnap&&currentSnap&&baseSnap.value&&currentSnap.value){
-        var ratio=currentSnap.value/baseSnap.value;
-        Ko*=Math.pow(ratio,c.inc);
-      }
+      var rows=idxRows(c.idx); if(!rows.length) return;
+      // Modo pct compuesto (IPC, IPIM, etc.)
+      var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)>0&&compareYm(r.ym,evalYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)); });
+      if(monthRows.length){ var acc=1; monthRows.forEach(function(r){ acc*=1+(Number(r.pct)/100); }); Ko*=Math.pow(acc,Number(c.inc)||0); return; }
+      // Fallback ratio de valores absolutos (USD, gasoil)
+      var bRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+      var eRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,evalYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+      if(bRow&&eRow&&Number(bRow.value)>0){ Ko*=Math.pow(Number(eRow.value)/Number(bRow.value),Number(c.inc)||0); }
     });
     state.updatedPrices=state.currentPrices.map(function(item){
       var newPrice=item.unit_price*Ko;
-      return{description:item.description,unit:item.unit,quantity:item.quantity,unit_price:newPrice,old_price:item.unit_price,variation:((newPrice-item.unit_price)/item.unit_price)*100};
+      return{description:item.description,unit:item.unit,quantity:item.quantity,unit_price:newPrice,old_price:item.unit_price,variation:Ko>0?((Ko-1)*100):0};
     });
-    var contractMonths=getContractMonths(contract)||1; var oldMonthly=(contract.monto||0)/contractMonths;
+    // contractMonths: usar monthDiffInclusive para evitar conflicto con la segunda definición de getContractMonths (devuelve array)
+    var contractMonths=monthDiffInclusive(contract.fechaIni,contract.fechaFin)||parseInt(contract.plazo_meses||contract.plazo||0)||1;
+    var oldMonthly=(contract.monto||0)/contractMonths;
     var newMonthly=state.updatedPrices.reduce(function(sum,p){return sum+(p.unit_price*p.quantity);},0);
     var monthsRemaining=monthsRemainingInclusive(ymToday(),contract.fechaFin);
     state.aveAmount=(newMonthly-oldMonthly)*monthsRemaining; state.newMonthlyEstimate=newMonthly;
@@ -6756,17 +6763,19 @@ function computePoliDeltaPct(contract, refYm, targetYm){
   if(!poly.length) return null;
   var ko=1, count=0;
   poly.forEach(function(c){
-    var baseSnap=getIndicatorAtDate(c.idx, normalizeToMonthStart(refYm));
-    var currentSnap=getIndicatorAtDate(c.idx, normalizeToMonthStart(targetYm));
-    if(baseSnap && currentSnap && isFinite(Number(baseSnap.value)) && Number(baseSnap.value)!==0 && isFinite(Number(currentSnap.value))){
-      var ratio=Number(currentSnap.value)/Number(baseSnap.value);
-      ko*=Math.pow(ratio, Number(c.inc)||0);
-      count++;
-      return;
+    var rows=idxRows(c.idx); if(!rows.length) return;
+    // Modo pct compuesto: usa datos frescos de IDX_STORE directamente
+    var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,refYm)>0&&compareYm(r.ym,targetYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)); });
+    if(monthRows.length){
+      var acc=1; monthRows.forEach(function(r){ acc*=1+(Number(r.pct)/100); });
+      ko*=Math.pow(acc, Number(c.inc)||0);
+      count++; return;
     }
-    var calc=computeAccumulatedVariationPct(c.idx, refYm, targetYm);
-    if(calc && isFinite(calc.pct)){
-      ko*=Math.pow(1+(Number(calc.pct)/100), Number(c.inc)||0);
+    // Fallback ratio de valores absolutos (USD, gasoil)
+    var bRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,refYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+    var eRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,targetYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+    if(bRow&&eRow&&Number(bRow.value)>0){
+      ko*=Math.pow(Number(eRow.value)/Number(bRow.value), Number(c.inc)||0);
       count++;
     }
   });
