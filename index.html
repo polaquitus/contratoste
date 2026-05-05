@@ -609,7 +609,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v76</span>
+    <span class="ver" id="sbVerBadge">v77</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -651,7 +651,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v76-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v77-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1794,7 +1794,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v76-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v77-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -2607,7 +2607,7 @@ function renderDet(){
       </div>
       ${burn?(()=>{
         const col=burn.status==='green'?'#16a34a':burn.status==='yellow'?'#d97706':'#dc2626';
-        const bg=burn.status==='green'?'rgba(22,163,74,.10)':burn.status==='yellow'?'rgba(217,119,6,.12)':'rgba(220,38,38,.12)';
+        const bg=burn.status==='green'?'#f0fdf4':burn.status==='yellow'?'#fffbeb':'#fef2f2';
         const useProj=(burn.pendingPolyPct!=null && burn.pendingPolyPct>0.5);
         const showRate=useProj?burn.runRateProj:burn.runRate;
         const showExhaust=useProj?burn.exhaustDateProj:burn.exhaustDate;
@@ -2615,16 +2615,16 @@ function renderDet(){
         const exhaustStr=showExhaust.toLocaleDateString('es-AR',{month:'short',year:'numeric'});
         const finCStr=c.fechaFin?new Date(c.fechaFin+'T00:00:00').toLocaleDateString('es-AR',{month:'short',year:'numeric'}):'';
         const marginTxt=showMargin>=0?(' (+'+showMargin.toFixed(1)+'m margen)'):(' ('+Math.abs(showMargin).toFixed(1)+'m antes)');
-        const pendBadge=useProj?'<span style="display:inline-block;padding:2px 7px;background:rgba(251,146,60,.22);color:#fb923c;border:1px solid rgba(251,146,60,.45);border-radius:99px;font-size:10px;font-weight:700;margin-left:6px" title="Variación polinómica acumulada desde la última base tarifaria, aún no aplicada">+'+burn.pendingPolyPct.toFixed(1)+'% pendiente</span>':'';
-        const scenarioLbl=useProj?'<span style="font-size:10px;opacity:.6;margin-left:4px">(c/redeterminación)</span>':'';
-        return '<div style="display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px 16px;background:'+bg+';border:1px solid '+col+'33;border-left:4px solid '+col+';border-radius:8px">'
+        const pendBadge=useProj?'<span style="display:inline-block;padding:2px 7px;background:#fed7aa;color:#9a3412;border:1px solid #fb923c;border-radius:99px;font-size:10px;font-weight:700;margin-left:6px" title="Variación polinómica acumulada desde la última base tarifaria, aún no aplicada">+'+burn.pendingPolyPct.toFixed(1)+'% pendiente</span>':'';
+        const scenarioLbl=useProj?'<span style="font-size:10px;color:#64748b;margin-left:4px">(c/redeterminación)</span>':'';
+        return '<div style="display:flex;gap:14px;align-items:center;margin-top:14px;padding:12px 16px;background:'+bg+';border:1px solid '+col+'55;border-left:4px solid '+col+';border-radius:8px;color:#0f172a">'
           +'<span style="font-size:22px;line-height:1">'+burn.emoji+'</span>'
           +'<div style="flex:1;min-width:0">'
             +'<div style="font-weight:700;font-size:13px;color:'+col+';letter-spacing:.02em">'+burn.label+' · Burn rate'+pendBadge+'</div>'
-            +'<div style="font-size:11.5px;color:rgba(255,255,255,.78);margin-top:3px;font-family:JetBrains Mono,monospace">'
-              +'Run rate: <strong style="color:#fff">'+(c.mon||'ARS')+' '+fN(Math.round(showRate))+'/mes</strong>'+scenarioLbl
-              +' · Agota: <strong style="color:#fff">'+exhaustStr+'</strong>'+marginTxt
-              +(finCStr?' · Fin contrato: <span style="opacity:.65">'+finCStr+'</span>':'')
+            +'<div style="font-size:11.5px;color:#1e293b;margin-top:3px;font-family:JetBrains Mono,monospace">'
+              +'Run rate: <strong style="color:#0f172a">'+(c.mon||'ARS')+' '+fN(Math.round(showRate))+'/mes</strong>'+scenarioLbl
+              +' · Agota: <strong style="color:#0f172a">'+exhaustStr+'</strong>'+marginTxt
+              +(finCStr?' · Fin contrato: <span style="color:#475569">'+finCStr+'</span>':'')
             +'</div>'
           +'</div>'
           +'<button class="btn btn-s btn-sm" onclick="openBurnRate(\''+c.id+'\')" title="Ver gráfico burn rate y proyección">📊 Ver detalle</button>'
@@ -6454,7 +6454,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v76-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v77-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6528,7 +6528,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v76-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v77-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6575,7 +6575,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v76-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v77-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
