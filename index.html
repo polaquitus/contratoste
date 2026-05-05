@@ -609,7 +609,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v79</span>
+    <span class="ver" id="sbVerBadge">v80</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -651,7 +651,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v79-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v80-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1794,7 +1794,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v79-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v80-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -2648,6 +2648,58 @@ function renderDet(){
           +'<button class="btn btn-s btn-sm" onclick="openBurnRate(\''+c.id+'\')" title="Ver gráfico burn rate y proyección">📊 Ver detalle</button>'
         +'</div>';
       })():''}
+      ${c.tipo==='OBRA'?(()=>{
+        const poData=ME2N[c.num];
+        const pos=poData&&Array.isArray(poData)&&Array.isArray(poData[2])?poData[2]:[];
+        const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0);
+        const avancePct=montoBase>0?round2((totalCerts/montoBase)*100):0;
+        const remanente=Math.max(0,montoBase-totalCerts);
+        return `
+        <div class="sec" style="margin-top:18px">
+          <div class="sh"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance ${avancePct}% · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></div>
+          <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--p50);border:1px solid var(--p200);border-radius:6px">
+            💡 Seleccioná las POs que querés incluir en el ajuste polinómico. Lo seleccionado será el monto base sobre el que se aplica el % al "Generar lista(s) de precios".
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:40px"><input type="checkbox" id="cert_selectAll" onchange="toggleAllCerts()" style="cursor:pointer"></th>
+                <th>N° PO</th><th>Plant</th><th>Net Order Value</th><th>Pend. Fact.</th><th>Avance %</th><th>Ajustado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pos.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
+                pos.map((p)=>{
+                  const poNum=p[0]||'—';
+                  const plant=p[2]||'—';
+                  const nov=p[3]||0;
+                  const still=p[4]||0;
+                  const avPct=montoBase>0?round2((nov/montoBase)*100):0;
+                  const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
+                  const lastAdj=ajustado&&c.posAjustadasMeta?c.posAjustadasMeta[poNum]:null;
+                  const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+'">✓ '+(lastAdj.ym||'')+'</span>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span>'):'—';
+                  return `<tr>
+                    <td><input type="checkbox" class="cert-check" data-po="${esc(poNum)}" data-nov="${nov}" onchange="updateCertSelectionSummary()" style="cursor:pointer"></td>
+                    <td class="mono" style="font-weight:600">${esc(poNum)}</td>
+                    <td>${esc(plant)}</td>
+                    <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
+                    <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
+                    <td>${avPct}%</td>
+                    <td>${ajLbl}</td>
+                  </tr>`;
+                }).join('')
+              }
+            </tbody>
+          </table>
+          <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:var(--g50);border-radius:6px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g700)">
+              <input type="checkbox" id="ajustarRemanente" onchange="updateCertSelectionSummary()" style="cursor:pointer">
+              <span>Incluir remanente sin certificar (${c.mon||'ARS'} ${fN(remanente)})</span>
+            </label>
+            <div id="certScopeSummary" style="margin-left:auto;font-size:12px;color:var(--g700);font-weight:600">Scope: <span id="certScopeAmount">${c.mon||'ARS'} 0</span></div>
+          </div>
+        </div>`;
+      })():''}
       <div class="section-box">
         <h3>📑 Enmiendas <span class="tcnt">${enms.length} registradas</span></h3>
         <table class="enm-tbl"><thead><tr><th>#</th><th>Tipo / Concepto</th><th>Detalle</th><th>Fecha</th><th>Descripción</th><th></th></tr></thead><tbody>${enmRows}</tbody></table>
@@ -3005,61 +3057,6 @@ function renderDet(){
         '</div>';
       })()}
 
-      ${c.tipo==='OBRA'?(()=>{
-        // Obtener POs asociadas a este contrato desde ME2N
-        const poData=ME2N[c.num];
-        const pos=poData&&Array.isArray(poData)&&Array.isArray(poData[2])?poData[2]:[];
-        const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0); // p[3] = Net Order Value
-        const avancePct=montoBase>0?round2((totalCerts/montoBase)*100):0;
-        
-        return `
-        <div class="sec" style="margin-top:24px">
-          <div class="sh"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance: ${avancePct}%</span></div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width:40px">
-                  <input type="checkbox" id="cert_selectAll" onchange="toggleAllCerts()" style="cursor:pointer">
-                </th>
-                <th>N° PO</th>
-                <th>Plant</th>
-                <th>Net Order Value</th>
-                <th>Pend. Fact.</th>
-                <th>Avance %</th>
-                <th>Ajustado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${pos.length===0?'<tr><td colspan="7" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
-                pos.map((p,idx)=>{
-                  const poNum=p[0]||'—';
-                  const plant=p[2]||'—';
-                  const nov=p[3]||0;
-                  const still=p[4]||0;
-                  const avancePct=montoBase>0?round2((nov/montoBase)*100):0;
-                  const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
-                  
-                  return `<tr>
-                    <td><input type="checkbox" class="cert-check" data-po="${esc(poNum)}" style="cursor:pointer"></td>
-                    <td class="mono" style="font-weight:600">${esc(poNum)}</td>
-                    <td>${esc(plant)}</td>
-                    <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
-                    <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
-                    <td>${avancePct}%</td>
-                    <td>${ajustado?'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span>':'—'}</td>
-                  </tr>`;
-                }).join('')
-              }
-            </tbody>
-          </table>
-          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g700)">
-              <input type="checkbox" id="ajustarRemanente" style="cursor:pointer">
-              <span>Incluir remanente en ajuste (${c.mon||'ARS'} ${fN(Math.max(0,montoBase-totalCerts))})</span>
-            </label>
-          </div>
-        </div>`;
-      })():''}
     </div>`;
   } catch(err) {
     console.error('renderDet error', err);
@@ -4080,6 +4077,40 @@ async function undoValidationCc(cid, validationId){
 function toggleAllCerts(){
   const checked=document.getElementById('cert_selectAll')?.checked||false;
   document.querySelectorAll('.cert-check').forEach(cb=>cb.checked=checked);
+  updateCertSelectionSummary();
+}
+// Lee la selección actual del panel Certificaciones / POs (solo OBRA).
+// Retorna {pos:[{po,nov}], includeRemanente, remanente, totalBase}
+function getCertSelectionScope(cid){
+  const c=window.DB.find(x=>x.id===cid);
+  if(!c||c.tipo!=='OBRA') return null;
+  const poData=ME2N[c.num];
+  const pos=(poData&&Array.isArray(poData)&&Array.isArray(poData[2]))?poData[2]:[];
+  const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0);
+  const aves=c.aves||[];
+  const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+  const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const montoBase=c.montoBase||((c.monto||0)-avePoly-aveOwner);
+  const remanente=Math.max(0,montoBase-totalCerts);
+  const selected=[];
+  document.querySelectorAll('.cert-check:checked').forEach(cb=>{
+    const po=cb.getAttribute('data-po')||'';
+    const nov=parseFloat(cb.getAttribute('data-nov'))||0;
+    selected.push({po, nov});
+  });
+  const includeRemanente=document.getElementById('ajustarRemanente')?.checked||false;
+  const totalSelected=selected.reduce((s,r)=>s+(r.nov||0),0);
+  const totalBase=totalSelected+(includeRemanente?remanente:0);
+  return {pos:selected, includeRemanente, remanente, totalSelected, totalBase, montoBase, totalCerts};
+}
+function updateCertSelectionSummary(){
+  try{
+    const cid=window.detId; if(!cid) return;
+    const c=window.DB.find(x=>x.id===cid); if(!c) return;
+    const sc=getCertSelectionScope(cid); if(!sc) return;
+    const el=document.getElementById('certScopeAmount');
+    if(el) el.textContent=(c.mon||'ARS')+' '+fN(sc.totalBase)+(sc.pos.length?(' · '+sc.pos.length+' PO'+(sc.pos.length>1?'s':'')):'')+(sc.includeRemanente?' + remanente':'');
+  }catch(_e){}
 }
 
 // ═══════════ RENDERLIST WITH REMANENTE ══════════════════
@@ -6472,7 +6503,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v79-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v80-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6546,7 +6577,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v79-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v80-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6593,7 +6624,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v79-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v80-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -7193,7 +7224,17 @@ function generateSelectedPriceLists(cid){
   if(!contract){ toast('Contrato no encontrado','er'); return; }
   var rows=getSelectedPeriodsSummaryRows(cid);
   if(!rows.length){ toast('Seleccioná al menos un período','er'); return; }
-  
+
+  // Para OBRA: capturar scope (POs seleccionadas + remanente) antes de generar
+  var obraScope=null;
+  if(contract.tipo==='OBRA'){
+    obraScope=getCertSelectionScope(cid);
+    if(!obraScope || obraScope.totalBase<=0){
+      toast('Tildá POs en el panel Certificaciones / POs (o el remanente) antes de generar','er');
+      return;
+    }
+  }
+
   // NO borrar AVEs AUTO previos - permitir múltiples ajustes por período
   if(!contract.aves) contract.aves = [];
   
@@ -7283,7 +7324,10 @@ function generateSelectedPriceLists(cid){
       var mensualBase=montoBase/plazo;
       var consumido=mensualBase*mesesTranscurridos;
       var montoRestante=montoBase-consumido;
-      var incrementoMonto=Math.round(montoRestante*(totalPctApplied/100)*100)/100;
+      // Para OBRA: usar el scope capturado (POs seleccionadas + remanente) en vez del montoRestante teórico
+      var baseAjuste=montoRestante;
+      if(obraScope && obraScope.totalBase>0){ baseAjuste=obraScope.totalBase; }
+      var incrementoMonto=Math.round(baseAjuste*(totalPctApplied/100)*100)/100;
       
       // NO modificar contract.monto - solo agregar AVE al array
       contract.montoMensualEst=Math.round(mensualBase*(1+totalPctApplied/100)*100)/100;
@@ -7295,21 +7339,38 @@ function generateSelectedPriceLists(cid){
       // Generar AVE por aplicación polinómica
       if(!contract.aves) contract.aves=[];
       var aveId=Date.now().toString(36)+Math.random().toString(36).substr(2,4);
+      var scopeForAve = obraScope ? {
+        pos: obraScope.pos.map(function(r){return r.po;}),
+        includeRemanente: obraScope.includeRemanente,
+        totalBase: obraScope.totalBase
+      } : null;
       contract.aves.push({
         id:aveId,
         tipo:'POLINOMICA',
         subtipo:'AUTO_ADJUST',
-        concepto:'Ajuste polinómico acumulado '+totalPctApplied.toFixed(2)+'% aplicado en generación de listas hasta '+formatYmLabel(maxPeriod),
+        concepto:'Ajuste polinómico acumulado '+totalPctApplied.toFixed(2)+'% aplicado en generación de listas hasta '+formatYmLabel(maxPeriod)+(obraScope?(' · scope: '+obraScope.pos.length+' PO'+(obraScope.pos.length!==1?'s':'')+(obraScope.includeRemanente?' + remanente':'')):''),
         monto:Math.round(incrementoMonto*100)/100,
         pct:totalPctApplied,
         mesesTranscurridos:mesesTranscurridos,
         mesesRestantes:mesesRestantes,
         montoRestante:montoRestante,
         baseContract:montoBase,
+        baseAjuste:baseAjuste,
+        scope:scopeForAve,
         periodo:maxPeriod,
         autoGenerated:true,
         fecha:new Date().toISOString()
       });
+
+      // Marcar POs como ajustadas (OBRA)
+      if(obraScope && obraScope.pos.length){
+        if(!contract.posAjustadas) contract.posAjustadas=[];
+        if(!contract.posAjustadasMeta) contract.posAjustadasMeta={};
+        obraScope.pos.forEach(function(r){
+          if(contract.posAjustadas.indexOf(r.po)<0) contract.posAjustadas.push(r.po);
+          contract.posAjustadasMeta[r.po]={ym:maxPeriod, enm:(contract.enmiendas||[]).length+1, pct:totalPctApplied, nov:r.nov};
+        });
+      }
 
       console.log('[generateSelectedPriceLists] AVE generado:', incrementoMonto.toFixed(2), contract.mon||'USD');
 
@@ -7323,14 +7384,15 @@ function generateSelectedPriceLists(cid){
         num:enmNum,
         tipo:'ACTUALIZACION_TARIFAS',
         fecha:new Date().toISOString(),
-        motivo:'Actualización por fórmula polinómica · '+totalPctApplied.toFixed(2)+'%',
-        descripcion:'Ajuste acumulado '+totalPctApplied.toFixed(2)+'% sobre base '+formatYmLabel(prevBase)+' → '+formatYmLabel(maxPeriod),
+        motivo:'Actualización por fórmula polinómica · '+totalPctApplied.toFixed(2)+'%'+(obraScope?(' · scope OBRA: '+obraScope.pos.length+' PO'+(obraScope.pos.length!==1?'s':'')+(obraScope.includeRemanente?' + remanente':'')):''),
+        descripcion:'Ajuste acumulado '+totalPctApplied.toFixed(2)+'% sobre base '+formatYmLabel(prevBase)+' → '+formatYmLabel(maxPeriod)+(obraScope?(' · base ajuste: '+(contract.mon||'ARS')+' '+fN(baseAjuste)):''),
         pctPoli:totalPctApplied/100,
         basePeriodo:prevBase,
         nuevoPeriodo:maxPeriod,
         ko:1+(totalPctApplied/100),
         aveRef:aveId,
         monto:Math.round(incrementoMonto*100)/100,
+        scope:scopeForAve,
         autoGenerated:true
       };
       contract.enmiendas.push(newEnm);
@@ -7406,16 +7468,60 @@ function renderEligibleMonthsModal(cid){
   });
   var selectedRows=getSelectedPeriodsSummaryRows(cid);
   var selectedText=selectedRows.length?selectedRows.map(function(r){return formatYmLabel(r.ym)+' ('+(r.pct!=null?(r.pct>=0?'+':'')+r.pct.toFixed(2)+'%':'s/d')+' sobre '+formatYmLabel(r.refYm)+')';}).join(' · '):'ninguno';
+
+  // Scope para OBRA: POs seleccionadas + remanente. Para SERVICIO: monto remanente del contrato.
+  var scopeBlock='';
+  var moneda=contract.mon||'ARS';
+  if(contract.tipo==='OBRA'){
+    var sc=getCertSelectionScope(cid);
+    if(sc){
+      var totalPctSum=0; var maxPct=null;
+      selectedRows.forEach(function(r){ if(r.pct!=null){ if(maxPct==null||r.pct>maxPct) maxPct=r.pct; } });
+      // El % aplicable al scope es el MAYOR % de los períodos seleccionados (el último cumulativo)
+      var pctApplied=maxPct!=null?maxPct:0;
+      var increment=sc.totalBase*(pctApplied/100);
+      var posTxt=sc.pos.length?sc.pos.map(function(r){return r.po+' ('+moneda+' '+fN(r.nov)+')';}).join(', '):'<span style="color:var(--g500);font-style:italic">ninguna PO seleccionada</span>';
+      var remanenteTxt=sc.includeRemanente?(' + remanente '+moneda+' '+fN(sc.remanente)):'';
+      var warn=sc.totalBase<=0?'<div style="margin-top:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#991b1b;font-size:12px">⚠️ Tildá POs en el panel "Certificaciones / POs" o el remanente para definir el scope antes de generar las listas.</div>':'';
+      scopeBlock='<div style="margin-top:14px;padding:12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;font-size:12px;color:#78350f">'+
+        '<div style="font-weight:700;margin-bottom:6px">🔧 Scope del ajuste (OBRA)</div>'+
+        '<div style="line-height:1.7"><strong>POs seleccionadas:</strong> '+posTxt+remanenteTxt+'</div>'+
+        '<div style="line-height:1.7"><strong>Monto base del ajuste:</strong> <span style="font-family:JetBrains Mono,monospace;font-weight:700">'+moneda+' '+fN(sc.totalBase)+'</span> '+(pctApplied?'· <strong>Ajuste a aplicar:</strong> '+pctApplied.toFixed(2)+'% = <span style="font-family:JetBrains Mono,monospace;font-weight:700;color:#15803d">+'+moneda+' '+fN(increment)+'</span>':'')+'</div>'+
+        warn+
+      '</div>';
+    }
+  } else {
+    // SERVICIO: scope = monto remanente del contrato (consumido vs tot)
+    try{
+      var consumed2=(typeof getConsumed==='function')?getConsumed(contract.num):null;
+      var aves2=contract.aves||[];
+      var avePoly2=aves2.filter(function(a){return a.tipo==='POLINOMICA';}).reduce(function(s,a){return s+(a.monto||0);},0);
+      var aveOwner2=aves2.filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
+      var montoBase2=contract.montoBase||((contract.monto||0)-avePoly2-aveOwner2);
+      var tot2=montoBase2+avePoly2+aveOwner2;
+      var rem2=consumed2!=null?Math.max(0,tot2-consumed2):tot2;
+      var maxPct2=null; selectedRows.forEach(function(r){ if(r.pct!=null){ if(maxPct2==null||r.pct>maxPct2) maxPct2=r.pct; } });
+      var pctApplied2=maxPct2!=null?maxPct2:0;
+      var increment2=rem2*(pctApplied2/100);
+      scopeBlock='<div style="margin-top:14px;padding:12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;font-size:12px;color:#78350f">'+
+        '<div style="font-weight:700;margin-bottom:6px">🔧 Scope del ajuste (SERVICIO)</div>'+
+        '<div style="line-height:1.7"><strong>Monto base:</strong> remanente del contrato (TV total − consumido) = <span style="font-family:JetBrains Mono,monospace;font-weight:700">'+moneda+' '+fN(rem2)+'</span></div>'+
+        (pctApplied2?'<div style="line-height:1.7"><strong>Ajuste a aplicar:</strong> '+pctApplied2.toFixed(2)+'% = <span style="font-family:JetBrains Mono,monospace;font-weight:700;color:#15803d">+'+moneda+' '+fN(increment2)+'</span></div>':'')+
+      '</div>';
+    }catch(_e){}
+  }
+
   var modal=document.createElement('div');
   modal.id='eligibleMonthsModal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px';
-  modal.innerHTML='<div style="background:#fff;border-radius:14px;max-width:960px;width:96%;box-shadow:var(--shm);padding:22px 22px 18px 22px">'+
+  modal.innerHTML='<div style="background:#fff;border-radius:14px;max-width:960px;width:96%;box-shadow:var(--shm);padding:22px 22px 18px 22px;max-height:90vh;overflow:auto">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">'+
       '<div><div style="font-size:16px;font-weight:800;color:var(--g900)">📆 Períodos con ajuste aplicable</div><div style="font-size:12px;color:var(--g600c);margin-top:4px">Si seleccionás un período, los porcentajes de los períodos posteriores se recalculan sobre ese período y no sobre la base original.</div></div>'+
       '<button class="btn btn-s btn-sm" onclick="closeEligibleMonthsModal()">✖ Cerrar</button>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;max-height:360px;overflow:auto;padding:4px 2px">'+chips+'</div>'+
     '<div style="margin-top:14px;padding:12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200);font-size:12px;color:var(--g700)"><strong>Seleccionados:</strong> '+selectedText+'</div>'+
+    scopeBlock+
     '<div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">'+
       '<button class="btn btn-s btn-sm" onclick="clearAdjustmentMonthSelection(\''+cid+'\')">🧹 Limpiar</button>'+
       '<button class="btn btn-p btn-sm" onclick="finishEligibleMonthsSelection(\''+cid+'\')">Listo</button>'+
