@@ -1,3 +1,18 @@
+// Parse fecha tipeada en DD/MM/AAAA o AAAA-MM-DD → ISO YYYY-MM-DD; devuelve '' si no es válida.
+function parseEnmDate(raw){
+  if(!raw) return '';
+  const s = String(raw).trim();
+  let y,m,d;
+  let mt = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(mt){ d=mt[1]; m=mt[2]; y=mt[3]; }
+  else { mt = s.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(mt){ y=mt[1]; m=mt[2]; d=mt[3]; } else return ''; }
+  const iso = `${y}-${m}-${d}`;
+  const dt = new Date(iso+'T00:00:00');
+  if(isNaN(dt.getTime())) return '';
+  if(dt.getFullYear()!=+y || (dt.getMonth()+1)!=+m || dt.getDate()!=+d) return '';
+  return iso;
+}
+
 function ymOf(v){
   if(!v)return '';
   if(/^\d{4}-\d{2}$/.test(v))return v;

@@ -1309,8 +1309,24 @@ async function delEnm(num) {
   const cc = window.DB.find(x => x.id === window.detId);
   if (!cc) return;
   if (!confirm(`¿Eliminar Enmienda N°${num}?`)) return;
+  const enmDeleted = (cc.enmiendas || []).find(e => e.num === num);
   cc.enmiendas = (cc.enmiendas || []).filter(e => e.num !== num);
   cc.enmiendas.forEach((e, i) => e.num = i + 1);
+  // Si era una EXTENSION, restaurar fechaFin a la última EXTENSION restante o al original
+  if (enmDeleted && enmDeleted.tipo === 'EXTENSION') {
+    const remaining = cc.enmiendas.filter(e => e.tipo === 'EXTENSION' && e.fechaFinNueva);
+    if (remaining.length > 0) {
+      cc.fechaFin = remaining[remaining.length - 1].fechaFinNueva;
+    } else if (cc._fechaFinOriginal) {
+      cc.fechaFin = cc._fechaFinOriginal;
+      delete cc._fechaFinOriginal;
+    }
+    if (cc.fechaIni && cc.fechaFin) {
+      const ini = new Date(cc.fechaIni + 'T00:00:00');
+      const fin = new Date(cc.fechaFin + 'T00:00:00');
+      cc.plazo = Math.max((fin.getFullYear() - ini.getFullYear()) * 12 + (fin.getMonth() - ini.getMonth()), 0);
+    }
+  }
   cc.tarifarios = (cc.tarifarios || []).filter(t => t.enmNum !== num);
   cc.tarifarios.forEach(t => {
     if (t.enmNum && t.enmNum > num) t.enmNum = t.enmNum - 1;
