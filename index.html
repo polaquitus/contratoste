@@ -609,7 +609,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v84</span>
+    <span class="ver" id="sbVerBadge">v85</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -651,7 +651,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v84-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v85-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -675,7 +675,10 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
     <div class="thdr">
       <h2>📊 Dashboard Ejecutivo</h2>
     </div>
-    
+
+    <!-- Executive Action Items -->
+    <div id="execSection" style="padding:20px;background:#f8fafc;border-bottom:1px solid var(--g200)"></div>
+
     <!-- KPIs -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px;background:var(--g50);">
       <div class="kpi-card">
@@ -1794,7 +1797,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v84-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v85-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -6508,7 +6511,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v84-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v85-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6582,7 +6585,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v84-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v85-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6629,7 +6632,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v84-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v85-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -7941,7 +7944,154 @@ function getTCFromStore() {
 let chartDominio = null;
 let chartProveedores = null;
 
+// Calcula métricas ejecutivas y renderiza el bloque "Acciones pendientes" del dashboard.
+function renderDashExecutive(){
+  const host=document.getElementById('execSection'); if(!host) return;
+  try{
+    const today=new Date(); today.setHours(0,0,0,0);
+    const todayYm=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+    const todayYmd=today.toISOString().substring(0,10);
+    const TC=(typeof getTCFromStore==='function'?getTCFromStore():null) || (Number(document.getElementById('tcInput')?.value)||1050);
+    const fmtUsd=v=>'USD '+Math.round(v||0).toLocaleString('en-US');
+    const toUsd=(v,mon)=>String(mon||'').toUpperCase().indexOf('USD')>=0?v:(TC>0?(v/TC):0);
+
+    const active=(window.DB||[]).filter(c=>c.fechaFin && new Date(c.fechaFin+'T00:00:00')>=today);
+
+    const redContracts=[]; const aicPending=[]; const ccPending=[]; const redetReady=[];
+    let totalUsd=0;
+
+    active.forEach(c=>{
+      const aves=c.aves||[];
+      const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+      const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+      const montoBase=c.montoBase||((c.monto||0)-avePoly-aveOwner);
+      const tot=montoBase+avePoly+aveOwner;
+      totalUsd+=toUsd(tot, c.mon);
+
+      // Burn rate rojo
+      try{
+        const consumed=(typeof getConsumed==='function')?getConsumed(c.num):null;
+        if(consumed!=null && c.fechaIni && c.fechaFin){
+          const totalMonths=monthDiffInclusive(c.fechaIni,c.fechaFin)||0;
+          let elapsed=monthDiffInclusive(c.fechaIni,todayYmd);
+          elapsed=Math.max(0,Math.min(elapsed,totalMonths));
+          if(elapsed>=1){
+            const remMonths=Math.max(totalMonths-elapsed,0);
+            const remAmount=Math.max(tot-consumed,0);
+            const runRate=consumed/elapsed;
+            if(isFinite(runRate)&&runRate>0){
+              const monthsToExhaust=remAmount/runRate;
+              const margin=monthsToExhaust-remMonths;
+              if(remAmount<=0||margin<0){
+                redContracts.push({c, margin, exhaustIn:monthsToExhaust});
+              }
+            }
+          }
+        }
+      }catch(_e){}
+
+      // Validaciones AIC/CC pendientes (sumando AVEs no validados)
+      const polyPendUsd=aves.filter(a=>a.tipo==='POLINOMICA'&&!a.aicValidated).reduce((s,a)=>s+toUsd(a.monto||0, c.mon),0);
+      const ownerPendUsd=aves.filter(a=>a.tipo==='OWNER'&&!a.ccValidated).reduce((s,a)=>s+toUsd(a.monto||0, c.mon),0);
+      if(polyPendUsd>250000) aicPending.push({c, montoUsd:polyPendUsd});
+      if(ownerPendUsd>250000) ccPending.push({c, montoUsd:ownerPendUsd});
+
+      // Redeterminaciones listas para aplicar este mes
+      try{
+        if(Array.isArray(c.poly) && c.poly.length && typeof PolUpdate!=='undefined' && typeof computePoliDeltaPct==='function'){
+          const cond=PolUpdate.getConditions(c.id);
+          if(cond && cond.enabled && cond.allComponentsThreshold>0){
+            const baseYm=c.btar||(c.fechaIni||'').substring(0,7);
+            if(baseYm && baseYm<todayYm){
+              const pct=computePoliDeltaPct(c, baseYm, todayYm);
+              if(pct!=null && pct>=cond.allComponentsThreshold){
+                // Verificar que no haya enmienda este mismo mes
+                const enmsThisMonth=(c.enmiendas||[]).filter(e=>e.tipo==='ACTUALIZACION_TARIFAS' && !e.superseded && (e.nuevoPeriodo||'')>=todayYm);
+                if(!enmsThisMonth.length){
+                  redetReady.push({c, pct, baseYm});
+                }
+              }
+            }
+          }
+        }
+      }catch(_e){}
+    });
+
+    redContracts.sort((a,b)=>a.margin-b.margin);
+    aicPending.sort((a,b)=>b.montoUsd-a.montoUsd);
+    ccPending.sort((a,b)=>b.montoUsd-a.montoUsd);
+    redetReady.sort((a,b)=>b.pct-a.pct);
+
+    const card=(emoji,label,value,sub,color,bg,onclickJs)=>'<div onclick="'+(onclickJs||'')+'" style="cursor:'+(onclickJs?'pointer':'default')+';background:#fff;border:1px solid var(--g200);border-left:4px solid '+color+';border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:4px">'
+      +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--g600c);text-transform:uppercase;letter-spacing:.04em"><span style="font-size:16px">'+emoji+'</span>'+label+'</div>'
+      +'<div style="font-size:24px;font-weight:800;color:'+color+';font-family:JetBrains Mono,monospace;line-height:1">'+value+'</div>'
+      +'<div style="font-size:11px;color:var(--g500)">'+(sub||'')+'</div>'
+      +'</div>';
+
+    const kpis='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">'
+      +card('🔴','Burn rate rojo', redContracts.length, redContracts.length?'agotan antes del fin':'todos en verde/amarillo','#dc2626','',redContracts.length?'document.getElementById(\'execList\').scrollIntoView({behavior:\'smooth\'})':'')
+      +card('💰','Exposición total', fmtUsd(totalUsd), active.length+' contratos activos · TC '+Math.round(TC),'#0ea5e9','')
+      +card('🟠','AIC pendiente', aicPending.length, aicPending.length?'>USD 250k polinómico s/validar':'sin pendientes','#d97706','',aicPending.length?'document.getElementById(\'execList\').scrollIntoView({behavior:\'smooth\'})':'')
+      +card('🟣','CC pendiente', ccPending.length, ccPending.length?'>USD 250k owner s/validar':'sin pendientes','#9333ea','',ccPending.length?'document.getElementById(\'execList\').scrollIntoView({behavior:\'smooth\'})':'')
+      +card('🔄','Redeterminar', redetReady.length, redetReady.length?'condiciones cumplidas':'sin pendientes','#16a34a','',redetReady.length?'document.getElementById(\'execList\').scrollIntoView({behavior:\'smooth\'})':'')
+      +'</div>';
+
+    // Action queue: una sola lista con todos los items que requieren acción
+    const items=[];
+    redContracts.forEach(r=>items.push({
+      tipo:'🔴 Burn red', color:'#dc2626', c:r.c,
+      detalle:'Agota en ~'+r.exhaustIn.toFixed(1)+'m · '+Math.abs(r.margin).toFixed(1)+'m antes del fin',
+      action:'Ver detalle'
+    }));
+    redetReady.forEach(r=>items.push({
+      tipo:'🔄 Redeterminar', color:'#16a34a', c:r.c,
+      detalle:'+'+r.pct.toFixed(2)+'% acumulado desde '+r.baseYm,
+      action:'Ir a redeterminar'
+    }));
+    aicPending.forEach(r=>items.push({
+      tipo:'🟠 AIC', color:'#d97706', c:r.c,
+      detalle:fmtUsd(r.montoUsd)+' polinómico sin validar',
+      action:'Validar AIC'
+    }));
+    ccPending.forEach(r=>items.push({
+      tipo:'🟣 CC', color:'#9333ea', c:r.c,
+      detalle:fmtUsd(r.montoUsd)+' owner sin validar',
+      action:'Validar CC'
+    }));
+
+    let queueHtml='';
+    if(items.length){
+      queueHtml='<div id="execList" style="background:#fff;border:1px solid var(--g200);border-radius:8px;overflow:hidden">'
+        +'<div style="padding:10px 14px;border-bottom:1px solid var(--g200);font-size:12px;font-weight:700;color:var(--g700);background:var(--g50)">📋 Cola de acciones — '+items.length+' item(s) requieren atención</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fafafa;color:var(--g600c);text-align:left">'
+          +'<th style="padding:8px 12px;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Tipo</th>'
+          +'<th style="padding:8px 12px;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Contrato</th>'
+          +'<th style="padding:8px 12px;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Detalle</th>'
+          +'<th style="padding:8px 12px;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.04em;text-align:right">Acción</th>'
+        +'</tr></thead><tbody>';
+      items.forEach(it=>{
+        const c=it.c;
+        queueHtml+='<tr style="border-top:1px solid var(--g100)">'
+          +'<td style="padding:8px 12px;color:'+it.color+';font-weight:600;white-space:nowrap">'+it.tipo+'</td>'
+          +'<td style="padding:8px 12px"><span class="mono" style="font-weight:600">'+esc(c.num||'')+'</span> <span style="color:var(--g500)">— '+esc((c.cont||'').substring(0,40))+'</span></td>'
+          +'<td style="padding:8px 12px;color:var(--g600c)">'+esc(it.detalle)+'</td>'
+          +'<td style="padding:8px 12px;text-align:right"><button class="btn btn-p btn-sm" style="font-size:11px" onclick="window.detId=\''+c.id+'\';go(\'detail\')">'+it.action+' →</button></td>'
+        +'</tr>';
+      });
+      queueHtml+='</tbody></table></div>';
+    } else {
+      queueHtml='<div id="execList" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;text-align:center;color:#15803d;font-size:13px;font-weight:600">✅ Sin acciones ejecutivas pendientes</div>';
+    }
+
+    host.innerHTML=kpis+queueHtml;
+  }catch(e){
+    console.warn('renderDashExecutive',e);
+    host.innerHTML='<div style="padding:12px;color:var(--g500);font-size:12px;font-style:italic">No se pudo calcular acciones ejecutivas: '+esc(e.message)+'</div>';
+  }
+}
+
 function renderDashboard() {
+  renderDashExecutive();
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   
