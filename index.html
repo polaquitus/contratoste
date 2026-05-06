@@ -609,7 +609,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v82</span>
+    <span class="ver" id="sbVerBadge">v83</span>
   </div>
   <!-- Search -->
   <div class="sb-search">
@@ -651,7 +651,7 @@ body.auth-locked #loginOverlay{pointer-events:auto!important}
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v82-redesign</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v83-redesign</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -1794,7 +1794,7 @@ function go(v){
   else if(v==='list'){
     document.getElementById('vList').classList.add('on');
     _navAct('list');
-    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v82-redesign</span>';
+    t.innerHTML='📋 Contratos <span class="bc" id="buildTag">v83-redesign</span>';
     a.innerHTML=`<div style="position:relative;width:100%;max-width:400px;">
       <input 
         type="text" 
@@ -2677,7 +2677,7 @@ function renderDet(){
                   const avPct=montoBase>0?round2((nov/montoBase)*100):0;
                   const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
                   const lastAdj=ajustado&&c.posAjustadasMeta?c.posAjustadasMeta[poNum]:null;
-                  const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+'">✓ '+(lastAdj.ym||'')+'</span>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span>'):'—';
+                  const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+(lastAdj.pct?(' · +'+Number(lastAdj.pct).toFixed(2)+'%'):'')+'">✓ '+(lastAdj.ym||'')+'</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>'):'—';
                   return `<tr>
                     <td><input type="checkbox" class="cert-check" data-po="${esc(poNum)}" data-nov="${nov}" onchange="updateCertSelectionSummary()" style="cursor:pointer"></td>
                     <td class="mono" style="font-weight:600">${esc(poNum)}</td>
@@ -4102,6 +4102,23 @@ function getCertSelectionScope(cid){
   const totalSelected=selected.reduce((s,r)=>s+(r.nov||0),0);
   const totalBase=totalSelected+(includeRemanente?remanente:0);
   return {pos:selected, includeRemanente, remanente, totalSelected, totalBase, montoBase, totalCerts};
+}
+// Quita la marca de "ajustada" de una PO. NO revierte el AVE/enmienda registrados (auditoría).
+function unadjustPo(cid, poNum){
+  const c=window.DB.find(x=>x.id===cid); if(!c){toast('Contrato no encontrado','er');return;}
+  const meta=c.posAjustadasMeta&&c.posAjustadasMeta[poNum];
+  const lbl=meta?(' (ajustada en '+(meta.ym||'?')+' · Enm.'+(meta.enm||'?')+')'):'';
+  if(!confirm('¿Destildar la PO '+poNum+lbl+' como ajustada?\n\nEsto solo quita la marca para permitir re-incluirla en futuros ajustes. NO revierte el AVE ni la enmienda ya registrados (quedan en el historial).'))return;
+  if(c.posAjustadas){
+    const i=c.posAjustadas.indexOf(poNum);
+    if(i>=0) c.posAjustadas.splice(i,1);
+  }
+  if(c.posAjustadasMeta && c.posAjustadasMeta[poNum]) delete c.posAjustadasMeta[poNum];
+  try{ if(typeof sbUpsertItem==='function') sbUpsertItem(c); }catch(_e){}
+  try{ localStorage.setItem('cta_v7', JSON.stringify(window.DB)); }catch(_e){}
+  if(typeof save==='function') save();
+  if(typeof renderDet==='function') renderDet();
+  toast('PO '+poNum+' destildada','ok');
 }
 function updateCertSelectionSummary(){
   try{
@@ -6503,7 +6520,7 @@ async function deleteLastAutoAve() {
 /* ==== PATCH v14-base: estable sin Usuarios ==== */
 (function(){
   window.APP_VERSION='v14-base';
-  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v82-redesign'; }catch(_e){} }
+  function setVersionBadgeV14(){ try{ var el=document.getElementById('buildTag'); if(el) el.textContent='v83-redesign'; }catch(_e){} }
   function ensureGlobalTarAiInput(){ var inp=document.getElementById('tarAiIn'); if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='tarAiIn'; inp.accept='.doc,.docx,.xls,.xlsx'; inp.style.display='none'; inp.onchange=function(){ try{ if(typeof importPriceListsFromFiles==='function') importPriceListsFromFiles(this.files); } finally{ this.value=''; } }; document.body.appendChild(inp);} return inp; }
   openPriceListImportPicker=function(){ var inp=ensureGlobalTarAiInput(); try{ inp.click(); }catch(e){ console.error('openPriceListImportPicker v14',e); if(typeof toast==='function') toast('No se pudo abrir el selector de listas','er'); } };
   function restoreTarSectionV14(){ try{ var card=document.getElementById('detCard'); if(!card) return; var boxes=Array.from(card.querySelectorAll('.section-box')); var sec=boxes.find(function(b){ return /Listas de Precios \/ Tarifarios/i.test((b.textContent||'')); }); if(!sec) return; if(!sec.querySelector('#tarContainer')){ var cc=(typeof window.DB!=='undefined'&&Array.isArray(window.DB))?window.DB.find(function(x){return x.id===window.detId;}):null; var count=((cc&&cc.tarifarios)||[]).length; sec.innerHTML='<h3>Listas de Precios / Tarifarios <span class="tcnt">'+count+' tablas</span></h3><div id="tarContainer"></div>'; } ensureGlobalTarAiInput(); if(typeof renderTarifario==='function') renderTarifario(); }catch(e){ console.error('restoreTarSectionV14',e);} }
@@ -6577,7 +6594,7 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v82-redesign';
+    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v83-redesign';
   }
   if(typeof go==='function'){
     var __origGoRole=go;
@@ -6624,7 +6641,7 @@ async function deleteLastAutoAve() {
       var g4=make('div','fgrp'); g4.appendChild(make('label','', 'Estado')); var selActive=make('select',''); selActive.id='usersModuleActive'; [{v:'true',t:'Activo'},{v:'false',t:'Inactivo'}].forEach(function(it){ var o=make('option','',it.t); o.value=it.v; selActive.appendChild(o); }); g4.appendChild(selActive);
       grid.appendChild(g1); grid.appendChild(g2); grid.appendChild(g3); grid.appendChild(g4); var info=make('div','info-box blue','Alta: usuario y contrasena son obligatorios. Edicion: la contrasena es opcional; si se completa, se resetea.'); body.appendChild(grid); body.appendChild(info); var foot=make('div','idx-modal-foot'); var cancel=make('button','btn btn-s','Cancelar'); cancel.type='button'; cancel.addEventListener('click', closeModal); var save=make('button','btn btn-p','Guardar'); save.type='button'; save.addEventListener('click', saveUser); foot.appendChild(cancel); foot.appendChild(save); box.appendChild(hdr); box.appendChild(body); box.appendChild(foot); back.appendChild(box); document.body.appendChild(back); cacheModal(); }
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
-      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v82-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
+      function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v83-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
       function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
@@ -7471,22 +7488,64 @@ function renderEligibleMonthsModal(cid){
 
   // Scope para OBRA: POs seleccionadas + remanente. Para SERVICIO: monto remanente del contrato.
   var scopeBlock='';
+  var poSelectorBlock='';
   var moneda=contract.mon||'ARS';
   if(contract.tipo==='OBRA'){
     var sc=getCertSelectionScope(cid);
+    // Selector de POs dentro del modal (sincroniza con panel principal vía .cert-check)
+    var poData=ME2N[contract.num];
+    var pos=(poData&&Array.isArray(poData)&&Array.isArray(poData[2]))?poData[2]:[];
+    var aves=contract.aves||[];
+    var avePoly=aves.filter(function(a){return a.tipo==='POLINOMICA';}).reduce(function(s,a){return s+(a.monto||0);},0);
+    var aveOwner=aves.filter(function(a){return a.tipo==='OWNER';}).reduce(function(s,a){return s+(a.monto||0);},0);
+    var montoBase=contract.montoBase||((contract.monto||0)-avePoly-aveOwner);
+    var totalCerts=pos.reduce(function(s,p){return s+(p[3]||0);},0);
+    var remanente=Math.max(0,montoBase-totalCerts);
+    var selectedPosSet={}; (sc?sc.pos:[]).forEach(function(r){selectedPosSet[r.po]=true;});
+    var allChecked=pos.length>0 && pos.every(function(p){return selectedPosSet[p[0]||''];});
+    var rowsHtml=pos.length?pos.map(function(p){
+      var poNum=p[0]||'—';
+      var plant=p[2]||'—';
+      var nov=p[3]||0;
+      var ajustado=contract.posAjustadas&&contract.posAjustadas.indexOf(poNum)>=0;
+      var meta=ajustado&&contract.posAjustadasMeta?contract.posAjustadasMeta[poNum]:null;
+      var checkedAttr=selectedPosSet[poNum]?'checked':'';
+      var ajLbl=ajustado?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px;margin-left:6px" title="'+(meta?'Ajustada en '+esc(meta.ym||'')+' · Enm.'+esc(String(meta.enm||'')):'Ya ajustada')+'">✓ '+(meta?esc(meta.ym||''):'')+'</span>':'';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:12px">'+
+        '<input type="checkbox" '+checkedAttr+' onchange="togglePoFromModal(\''+cid+'\',\''+esc(poNum)+'\',this.checked)">'+
+        '<span class="mono" style="font-weight:600;min-width:110px">'+esc(poNum)+'</span>'+
+        '<span style="color:var(--g500);min-width:80px;font-size:11px">'+esc(plant)+'</span>'+
+        '<span class="mono" style="margin-left:auto;font-weight:700">'+moneda+' '+fN(nov)+'</span>'+
+        ajLbl+
+      '</label>';
+    }).join(''):'<div style="padding:14px;text-align:center;color:var(--g500);font-style:italic;font-size:12px">Sin POs asociadas a este contrato</div>';
+    var remCheckedAttr=(sc&&sc.includeRemanente)?'checked':'';
+    var allCheckedAttr=allChecked?'checked':'';
+    poSelectorBlock='<div style="margin-top:14px;padding:14px;border-radius:8px;border:1px solid var(--g300);background:var(--g50)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+        '<div style="font-weight:700;font-size:13px;color:var(--g800)">📋 Scope OBRA — Tildá las POs a ajustar</div>'+
+        '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--g600c);cursor:pointer">'+
+          '<input type="checkbox" '+allCheckedAttr+' onchange="toggleAllPosFromModal(\''+cid+'\',this.checked)"> Todas'+
+        '</label>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:6px;max-height:220px;overflow:auto;padding:2px">'+rowsHtml+'</div>'+
+      '<label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--g700);padding:8px 10px;background:#fff;border:1px solid var(--g200);border-radius:6px">'+
+        '<input type="checkbox" '+remCheckedAttr+' onchange="toggleRemanenteFromModal(\''+cid+'\',this.checked)">'+
+        '<span>Incluir remanente sin certificar (<strong>'+moneda+' '+fN(remanente)+'</strong>)</span>'+
+      '</label>'+
+    '</div>';
     if(sc){
-      var totalPctSum=0; var maxPct=null;
+      var maxPct=null;
       selectedRows.forEach(function(r){ if(r.pct!=null){ if(maxPct==null||r.pct>maxPct) maxPct=r.pct; } });
-      // El % aplicable al scope es el MAYOR % de los períodos seleccionados (el último cumulativo)
       var pctApplied=maxPct!=null?maxPct:0;
       var increment=sc.totalBase*(pctApplied/100);
-      var posTxt=sc.pos.length?sc.pos.map(function(r){return r.po+' ('+moneda+' '+fN(r.nov)+')';}).join(', '):'<span style="color:var(--g500);font-style:italic">ninguna PO seleccionada</span>';
+      var posTxt=sc.pos.length?(sc.pos.length+' PO'+(sc.pos.length!==1?'s':'')):'ninguna PO';
       var remanenteTxt=sc.includeRemanente?(' + remanente '+moneda+' '+fN(sc.remanente)):'';
-      var warn=sc.totalBase<=0?'<div style="margin-top:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#991b1b;font-size:12px">⚠️ Tildá POs en el panel "Certificaciones / POs" o el remanente para definir el scope antes de generar las listas.</div>':'';
+      var warn=sc.totalBase<=0?'<div style="margin-top:8px;padding:8px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#991b1b;font-size:12px">⚠️ Tildá POs arriba o el remanente para definir el scope antes de generar las listas.</div>':'';
       scopeBlock='<div style="margin-top:14px;padding:12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;font-size:12px;color:#78350f">'+
         '<div style="font-weight:700;margin-bottom:6px">🔧 Scope del ajuste (OBRA)</div>'+
-        '<div style="line-height:1.7"><strong>POs seleccionadas:</strong> '+posTxt+remanenteTxt+'</div>'+
-        '<div style="line-height:1.7"><strong>Monto base del ajuste:</strong> <span style="font-family:JetBrains Mono,monospace;font-weight:700">'+moneda+' '+fN(sc.totalBase)+'</span> '+(pctApplied?'· <strong>Ajuste a aplicar:</strong> '+pctApplied.toFixed(2)+'% = <span style="font-family:JetBrains Mono,monospace;font-weight:700;color:#15803d">+'+moneda+' '+fN(increment)+'</span>':'')+'</div>'+
+        '<div style="line-height:1.7"><strong>Selección:</strong> '+posTxt+remanenteTxt+'</div>'+
+        '<div style="line-height:1.7"><strong>Monto base:</strong> <span style="font-family:JetBrains Mono,monospace;font-weight:700">'+moneda+' '+fN(sc.totalBase)+'</span> '+(pctApplied?'· <strong>Ajuste:</strong> '+pctApplied.toFixed(2)+'% = <span style="font-family:JetBrains Mono,monospace;font-weight:700;color:#15803d">+'+moneda+' '+fN(increment)+'</span>':'')+'</div>'+
         warn+
       '</div>';
     }
@@ -7521,6 +7580,7 @@ function renderEligibleMonthsModal(cid){
     '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;max-height:360px;overflow:auto;padding:4px 2px">'+chips+'</div>'+
     '<div style="margin-top:14px;padding:12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200);font-size:12px;color:var(--g700)"><strong>Seleccionados:</strong> '+selectedText+'</div>'+
+    poSelectorBlock+
     scopeBlock+
     '<div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">'+
       '<button class="btn btn-s btn-sm" onclick="clearAdjustmentMonthSelection(\''+cid+'\')">🧹 Limpiar</button>'+
@@ -7528,6 +7588,25 @@ function renderEligibleMonthsModal(cid){
     '</div>'+
   '</div>';
   document.body.appendChild(modal);
+}
+
+// Helpers para sincronizar selección de POs entre el panel del detalle y el modal
+function togglePoFromModal(cid, poNum, checked){
+  var cb=document.querySelector('.cert-check[data-po="'+poNum.replace(/"/g,'\\"')+'"]');
+  if(cb){ cb.checked=!!checked; }
+  updateCertSelectionSummary();
+  renderEligibleMonthsModal(cid);
+}
+function toggleAllPosFromModal(cid, checked){
+  document.querySelectorAll('.cert-check').forEach(function(cb){ cb.checked=!!checked; });
+  var saAll=document.getElementById('cert_selectAll'); if(saAll) saAll.checked=!!checked;
+  updateCertSelectionSummary();
+  renderEligibleMonthsModal(cid);
+}
+function toggleRemanenteFromModal(cid, checked){
+  var rem=document.getElementById('ajustarRemanente'); if(rem) rem.checked=!!checked;
+  updateCertSelectionSummary();
+  renderEligibleMonthsModal(cid);
 }
 function openEligibleMonthsModal(cid){
   renderEligibleMonthsModal(cid);
