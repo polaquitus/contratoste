@@ -634,7 +634,14 @@ function renderDet(){
               </div>
               <div class="fgrp">
                 <label>Nueva Fecha Fin <span class="req">*</span></label>
-                <input type="date" id="ne_ffin" min="${c.fechaFin||''}">
+                <div style="display:flex;gap:6px;align-items:stretch">
+                  <input type="text" id="ne_ffin" placeholder="DD/MM/AAAA" maxlength="10" autocomplete="off"
+                         oninput="this.value=this.value.replace(/[^\d/]/g,'').replace(/^(\d{2})(\d)/,'$1/$2').replace(/^(\d{2}\/\d{2})(\d)/,'$1/$2').slice(0,10);document.getElementById('ne_ffin_picker').value=parseEnmDate(this.value)||''"
+                         style="flex:1">
+                  <input type="date" id="ne_ffin_picker" min="${c.fechaFin||''}" title="Calendario"
+                         onchange="document.getElementById('ne_ffin').value=this.value?this.value.split('-').reverse().join('/'):''"
+                         style="width:42px;padding:0;cursor:pointer">
+                </div>
               </div>
             </div>
           </div>
@@ -1707,8 +1714,9 @@ async function guardarEnm(){
   const enm = { num, tipo, fecha: new Date().toISOString().split('T')[0] };
 
   if(tipo==='EXTENSION'){
-    const ff = document.getElementById('ne_ffin')?.value || '';
-    if(!ff){ toast('Ingresá nueva fecha fin', 'er'); return; }
+    const raw = (document.getElementById('ne_ffin')?.value || '').trim();
+    const ff = parseEnmDate(raw);
+    if(!ff){ toast('Ingresá nueva fecha fin (DD/MM/AAAA)', 'er'); return; }
     if(new Date(ff+'T00:00:00') <= new Date((cc.fechaFin||cc.fechaIni)+'T00:00:00')){
       toast('La fecha debe ser posterior a la actual ('+fD(cc.fechaFin)+')', 'er');
       return;
