@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de Usuario — Contratos TA</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📘</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --te-red:#EE3124;--te-blue:#005EB8;--te-orange:#FF6900;--te-green:#00A88F;--te-gray:#3C3C3B;
+  --p900:#003875;--p800:#004a94;--p700:#005EB8;--p600:#0071d9;--p500:#3399ff;--p100:#e6f2ff;--p50:#f0f7ff;
+  --r500:#EE3124;--r100:#fde8e7;
+  --g600:#008770;--g500:#00A88F;--g100d:#ccf2ec;
+  --a500:#FF6900;--a400:#ff8533;--a100:#ffe6cc;
+  --y800:#daa520;--y200:#f9e79f;--y50:#fef9e7;
+  --w:#fff;--g50:#fafafa;--g100:#f5f5f5;--g200:#eeeeee;--g300:#e0e0e0;--g400:#bdbdbd;--g500c:#9e9e9e;--g600c:#757575;--g700:#3C3C3B;--g800:#2a2a2a;--g900:#1a1a1a;
+  --rad:8px;--radl:14px;--sh:0 2px 8px rgba(0,0,0,.06);--shm:0 4px 16px rgba(0,0,0,.08);
+  --grad-brand:linear-gradient(95deg,#FF1A1A 0%,#FF6A00 18%,#C72BB6 38%,#2E6BE6 58%,#00B7E0 72%,#5EC23A 88%,#FFD400 100%);
+  --nv-900:#061427;--nv-800:#0A1F3A;--nv-700:#14315A;
+  --nv-line:rgba(255,255,255,.08);--nv-line-2:rgba(255,255,255,.14);
+  --nv-text:rgba(255,255,255,.62);--nv-text-strong:#FFFFFF;--nv-text-dim:rgba(255,255,255,.38);
+  --paper:#FFFFFF;--bg:#F4F6FA;--bg-2:#ECEFF5;--line:#E4E8EE;
+  --ink:#0F172A;--muted:#64748B;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Roboto',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:15px}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sb{width:280px;background:var(--nv-900);background-image:radial-gradient(ellipse 600px 400px at 0% 0%,rgba(46,107,230,.16),transparent 60%),radial-gradient(ellipse 500px 500px at 100% 100%,rgba(199,43,182,.10),transparent 60%),linear-gradient(180deg,var(--nv-800) 0%,var(--nv-900) 100%);color:var(--nv-text);position:fixed;top:0;left:0;bottom:0;z-index:100;display:flex;flex-direction:column;box-shadow:1px 0 0 var(--nv-line),4px 0 24px rgba(0,0,0,.18)}
+.sb::before{content:"";position:absolute;right:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,#FF1A1A 0%,#FF6A00 14%,#C72BB6 32%,#2E6BE6 50%,#00B7E0 66%,#5EC23A 84%,#FFD400 100%);opacity:.55}
+.sb-brand{padding:22px 18px 20px 18px;border-bottom:1px solid var(--nv-line);display:flex;align-items:center;gap:12px;position:relative}
+.sb-brand::after{content:"";position:absolute;left:18px;right:18px;bottom:-1px;height:2px;background:var(--grad-brand);opacity:.9;border-radius:2px}
+.sb-logo{width:44px;height:44px;border-radius:10px;background:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.sb-bn{font-size:14px;font-weight:700;color:var(--nv-text-strong);line-height:1.1}
+.sb-bn .light{font-weight:400;opacity:.7}
+.sb-bs{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--nv-text-dim);font-weight:600;margin-top:3px}
+.sb-env{margin:14px 18px 6px 18px;padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid var(--nv-line-2);border-radius:8px;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--nv-text)}
+.sb-env .dot{width:9px;height:9px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.25)}
+.sb-env .lab{flex:1}.sb-env .ver{font-family:monospace;font-size:10px;color:var(--nv-text-dim)}
+.sb-nav{flex:1;overflow-y:auto;padding:14px 12px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
+.sb-nav::-webkit-scrollbar{width:5px}.sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px}
+.sb-sec{font-size:9.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--nv-text-dim);padding:14px 14px 6px 14px;display:flex;align-items:center;gap:8px}
+.sb-sec::after{content:"";flex:1;height:1px;background:var(--nv-line)}
+.nv{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--nv-text);text-decoration:none;margin-bottom:1px;transition:.15s}
+.nv .ni{width:22px;display:inline-flex;justify-content:center;font-size:14px}
+.nv:hover{background:rgba(255,255,255,.05);color:var(--nv-text-strong)}
+
+/* Main */
+.mn{margin-left:280px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+.tb{background:var(--paper);border-bottom:1px solid var(--line);padding:0 36px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;backdrop-filter:saturate(180%) blur(8px)}
+.tb h1{font-size:17px;font-weight:700;color:var(--ink);display:flex;align-items:baseline;gap:12px;margin:0}
+.tb h1 .bc{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--bg-2);font-family:monospace}
+.ct{padding:36px 56px 80px;flex:1;max-width:1080px;width:100%}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,#003875 0%,#005EB8 50%,#0071d9 100%);color:#fff;border-radius:18px;padding:48px 44px;margin-bottom:36px;position:relative;overflow:hidden;box-shadow:0 12px 40px rgba(0,90,180,.25)}
+.hero::before{content:"";position:absolute;top:-80px;right:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(255,105,0,.30),transparent 70%);border-radius:50%}
+.hero::after{content:"";position:absolute;bottom:-60px;left:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(238,49,36,.25),transparent 70%);border-radius:50%}
+.hero-inner{position:relative;z-index:1}
+.hero-eyebrow{font-size:11px;letter-spacing:.25em;text-transform:uppercase;font-weight:600;opacity:.85;margin-bottom:14px}
+.hero h1{font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-bottom:14px}
+.hero p{font-size:17px;opacity:.92;max-width:640px;line-height:1.55}
+.hero-meta{display:flex;gap:28px;margin-top:26px;font-size:12.5px;opacity:.85}
+.hero-meta b{font-weight:700;display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;margin-bottom:3px}
+
+/* Sections */
+section{margin-bottom:56px;scroll-margin-top:80px}
+h2{font-size:28px;font-weight:700;color:var(--ink);letter-spacing:-.015em;margin-bottom:8px;display:flex;align-items:center;gap:14px}
+h2 .h2-num{font-size:13px;font-weight:600;color:var(--p700);background:var(--p100);padding:5px 11px;border-radius:6px;letter-spacing:.05em;font-family:monospace}
+h3{font-size:19px;font-weight:600;color:var(--ink);margin:28px 0 10px;letter-spacing:-.005em}
+h4{font-size:15px;font-weight:600;color:var(--g700);margin:18px 0 8px;letter-spacing:.01em}
+.lead{font-size:15.5px;color:var(--muted);margin-bottom:22px;max-width:700px}
+p{margin-bottom:12px;color:var(--g800)}
+ul,ol{margin:8px 0 14px 24px;color:var(--g800)}
+li{margin-bottom:5px}
+strong{color:var(--ink);font-weight:600}
+code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--bg-2);color:var(--p800);padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+
+/* Cards */
+.card{background:var(--w);border:1px solid var(--line);border-radius:var(--radl);padding:26px;margin:18px 0;box-shadow:var(--sh)}
+.card-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--g100)}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:var(--p100);color:var(--p700)}
+.card-icon.acc{background:var(--a100);color:var(--a500)}
+.card-icon.suc{background:var(--g100d);color:var(--g600)}
+.card-icon.dan{background:var(--r100);color:var(--r500)}
+.card-icon.war{background:var(--y50);color:var(--y800)}
+.card-title{font-size:16px;font-weight:600;color:var(--ink)}
+.card-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* Grid */
+.grid{display:grid;gap:14px;margin:18px 0}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:900px){.grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+.feat{background:var(--w);border:1px solid var(--line);border-radius:12px;padding:18px;transition:.2s;cursor:default}
+.feat:hover{box-shadow:var(--shm);transform:translateY(-2px);border-color:var(--p300, #99ccff)}
+.feat-icon{font-size:24px;margin-bottom:10px}
+.feat-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.feat-desc{font-size:12.5px;color:var(--muted);line-height:1.45}
+
+/* Steps */
+.steps{counter-reset:step;margin:18px 0;padding:0;list-style:none}
+.steps li{counter-increment:step;position:relative;padding:14px 18px 14px 56px;background:var(--w);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;font-size:14px}
+.steps li::before{content:counter(step);position:absolute;left:14px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;background:var(--grad-brand);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;font-family:monospace}
+
+/* Tables */
+.tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--w);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0;font-size:13.5px}
+.tbl th{background:var(--bg-2);color:var(--g700);font-weight:600;text-align:left;padding:11px 14px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--g100);color:var(--g800);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--p50)}
+.tbl .ok{color:var(--g600);font-weight:600}
+.tbl .no{color:var(--g400)}
+.tbl .yes{color:var(--g600)}
+
+/* Callouts */
+.cb{border-left:4px solid;border-radius:8px;padding:14px 18px;margin:16px 0;background:var(--w)}
+.cb-tip{border-color:var(--p700);background:var(--p50)}
+.cb-warn{border-color:var(--a500);background:#fff7ee}
+.cb-info{border-color:var(--g500);background:#ecfaf6}
+.cb-danger{border-color:var(--r500);background:var(--r100)}
+.cb-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.cb-tip .cb-title{color:var(--p800)}
+.cb-warn .cb-title{color:#92400e}
+.cb-info .cb-title{color:var(--g600)}
+.cb-danger .cb-title{color:var(--r500)}
+.cb p:last-child{margin-bottom:0}
+
+/* Badges */
+.bdg{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.02em}
+.bdg-blue{background:var(--p100);color:var(--p800)}
+.bdg-green{background:var(--g100d);color:var(--g600)}
+.bdg-orange{background:var(--a100);color:#92400e}
+.bdg-red{background:var(--r100);color:var(--r500)}
+.bdg-gray{background:var(--bg-2);color:var(--g700)}
+
+/* Code blocks */
+pre{background:#0F172A;color:#E2E8F0;padding:18px 22px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.55;overflow-x:auto;margin:14px 0}
+pre .k{color:#7dd3fc}
+pre .s{color:#fde68a}
+pre .n{color:#fca5a5}
+pre .c{color:#94a3b8;font-style:italic}
+
+/* TOC */
+.toc{background:var(--w);border:1px solid var(--line);border-radius:14px;padding:26px 30px;margin-bottom:36px;box-shadow:var(--sh)}
+.toc h2{font-size:17px;color:var(--g700);margin-bottom:14px;border:none;padding:0}
+.toc h2 .h2-num{display:none}
+.toc ol{margin:0;padding:0;list-style:none;columns:2;column-gap:36px}
+@media (max-width:700px){.toc ol{columns:1}}
+.toc li{padding:6px 0;border-bottom:1px dashed var(--g200);font-size:13.5px;break-inside:avoid}
+.toc li:last-child{border-bottom:none}
+.toc a{color:var(--p800);text-decoration:none;display:flex;align-items:baseline;gap:10px}
+.toc a:hover{color:var(--r500)}
+.toc a .num{font-family:monospace;font-size:11px;color:var(--muted);font-weight:600;min-width:28px}
+
+/* Demo widgets imitating the app */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:14px 0}
+@media (max-width:800px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--w);border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center}
+.kpi-i{width:44px;height:44px;border-radius:50%;background:var(--p100);color:var(--p700);font-size:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.kpi-v{font-size:24px;font-weight:700;font-family:monospace;color:var(--ink);margin-bottom:3px}
+.kpi-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+
+.btn-demo{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:6px;border:none;margin:2px 4px 2px 0}
+.bd-p{background:var(--p600);color:#fff}
+.bd-s{background:var(--g100);color:var(--g700);border:1px solid var(--g300)}
+.bd-d{background:var(--r100);color:var(--r500)}
+.bd-g{background:var(--g100d);color:var(--g600)}
+.bd-a{background:var(--a100);color:#92400e}
+
+/* Footer */
+.foot{margin-top:60px;padding:30px 0;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;text-align:center}
+.foot strong{color:var(--g700)}
+
+/* Print */
+@media print{
+  .sb{display:none}.mn{margin-left:0}.tb{display:none}
+  .ct{padding:0;max-width:none}
+  .hero{box-shadow:none}
+  section{page-break-inside:avoid}
+  .feat:hover{transform:none;box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Sidebar -->
+<aside class="sb">
+  <div class="sb-brand">
+    <div class="sb-logo">📘</div>
+    <div>
+      <div class="sb-bn"><span class="light">Manual</span> ContratosTA</div>
+      <div class="sb-bs">Argentina · v82</div>
+    </div>
+  </div>
+  <div class="sb-env">
+    <span class="dot"></span>
+    <span class="lab"><strong>Manual</strong> · v1.0</span>
+    <span class="ver">2026</span>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-sec">Inicio</div>
+    <a class="nv" href="#intro"><span class="ni">📖</span><span>Introducción</span></a>
+    <a class="nv" href="#login"><span class="ni">🔐</span><span>Acceso</span></a>
+    <a class="nv" href="#nav"><span class="ni">🧭</span><span>Navegación</span></a>
+
+    <div class="sb-sec">Operación</div>
+    <a class="nv" href="#dashboard"><span class="ni">📊</span><span>Dashboard</span></a>
+    <a class="nv" href="#contratos"><span class="ni">📋</span><span>Contratos</span></a>
+    <a class="nv" href="#detalle"><span class="ni">🗂️</span><span>Detalle</span></a>
+    <a class="nv" href="#enmiendas"><span class="ni">📝</span><span>Enmiendas</span></a>
+    <a class="nv" href="#redet"><span class="ni">🧮</span><span>Redeterminación</span></a>
+    <a class="nv" href="#timeline"><span class="ni">📅</span><span>Timeline</span></a>
+    <a class="nv" href="#alertas"><span class="ni">🔔</span><span>Alertas</span></a>
+
+    <div class="sb-sec">Datos y carga</div>
+    <a class="nv" href="#indices"><span class="ni">📈</span><span>Índices</span></a>
+    <a class="nv" href="#me2n"><span class="ni">🛒</span><span>Purchase Orders</span></a>
+    <a class="nv" href="#forecast"><span class="ni">📉</span><span>Proyección</span></a>
+    <a class="nv" href="#licit"><span class="ni">📑</span><span>Licitaciones</span></a>
+    <a class="nv" href="#prov"><span class="ni">🏢</span><span>Proveedores</span></a>
+    <a class="nv" href="#ia"><span class="ni">🤖</span><span>IA / Gemini</span></a>
+    <a class="nv" href="#export"><span class="ni">📤</span><span>Exportar</span></a>
+
+    <div class="sb-sec">Administración</div>
+    <a class="nv" href="#usuarios"><span class="ni">👥</span><span>Usuarios y roles</span></a>
+    <a class="nv" href="#faq"><span class="ni">💡</span><span>FAQ</span></a>
+    <a class="nv" href="#glosario"><span class="ni">📚</span><span>Glosario</span></a>
+  </nav>
+</aside>
+
+<!-- Main -->
+<main class="mn">
+  <header class="tb">
+    <h1>📘 Manual de Usuario <span class="bc">v82-redesign · 2026</span></h1>
+  </header>
+
+  <div class="ct">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-inner">
+        <div class="hero-eyebrow">TotalEnergies Argentina · Gestión de Contratos</div>
+        <h1>Manual de uso<br>de la aplicación</h1>
+        <p>Guía completa, paso a paso, para operar el sistema de gestión de contratos: alta, redeterminación polinómica, índices económicos, alertas, integración SAP y administración de usuarios.</p>
+        <div class="hero-meta">
+          <div><b>Versión app</b>v82-redesign</div>
+          <div><b>Stack</b>Web · Supabase · Gemini</div>
+          <div><b>Audiencia</b>Operadores · Administradores</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOC -->
+    <div class="toc">
+      <h2>📑 Tabla de contenidos</h2>
+      <ol>
+        <li><a href="#intro"><span class="num">01</span><span>Introducción y propósito</span></a></li>
+        <li><a href="#login"><span class="num">02</span><span>Acceso e inicio de sesión</span></a></li>
+        <li><a href="#nav"><span class="num">03</span><span>Navegación general</span></a></li>
+        <li><a href="#dashboard"><span class="num">04</span><span>Dashboard</span></a></li>
+        <li><a href="#contratos"><span class="num">05</span><span>Listado de contratos</span></a></li>
+        <li><a href="#detalle"><span class="num">06</span><span>Detalle de un contrato</span></a></li>
+        <li><a href="#enmiendas"><span class="num">07</span><span>Enmiendas (modificaciones)</span></a></li>
+        <li><a href="#redet"><span class="num">08</span><span>Redeterminación polinómica</span></a></li>
+        <li><a href="#timeline"><span class="num">09</span><span>Timeline / línea de tiempo</span></a></li>
+        <li><a href="#alertas"><span class="num">10</span><span>Alertas de vencimiento</span></a></li>
+        <li><a href="#indices"><span class="num">11</span><span>Índices económicos</span></a></li>
+        <li><a href="#me2n"><span class="num">12</span><span>Purchase Orders (SAP ME2N)</span></a></li>
+        <li><a href="#forecast"><span class="num">13</span><span>Proyección de costos</span></a></li>
+        <li><a href="#licit"><span class="num">14</span><span>Licitaciones</span></a></li>
+        <li><a href="#prov"><span class="num">15</span><span>Proveedores</span></a></li>
+        <li><a href="#ia"><span class="num">16</span><span>Importación con IA (Gemini)</span></a></li>
+        <li><a href="#export"><span class="num">17</span><span>Dossier y exportación</span></a></li>
+        <li><a href="#usuarios"><span class="num">18</span><span>Usuarios y permisos</span></a></li>
+        <li><a href="#faq"><span class="num">19</span><span>Preguntas frecuentes</span></a></li>
+        <li><a href="#glosario"><span class="num">20</span><span>Glosario</span></a></li>
+      </ol>
+    </div>
+
+    <!-- 1. INTRO -->
+    <section id="intro">
+      <h2><span class="h2-num">01</span>Introducción y propósito</h2>
+      <p class="lead"><strong>Contratos TA</strong> es la plataforma corporativa de TotalEnergies Argentina para administrar el ciclo de vida completo de los contratos de servicios y suministros: alta, ajustes polinómicos, redeterminaciones automáticas, alertas de vencimiento, integración con SAP y proyección de costos.</p>
+
+      <h3>¿Qué problemas resuelve?</h3>
+      <div class="grid grid-3">
+        <div class="feat">
+          <div class="feat-icon">🧮</div>
+          <div class="feat-title">Redeterminación automática</div>
+          <div class="feat-desc">Calcula el factor <code>Ko</code> a partir de la fórmula polinómica del contrato y los índices vigentes.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">🔔</div>
+          <div class="feat-title">Alertas tempranas</div>
+          <div class="feat-desc">Avisa de vencimientos críticos, gatillos polinómicos y condiciones contractuales.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">📈</div>
+          <div class="feat-title">Índices al día</div>
+          <div class="feat-desc">IPC, IPIM, USD, gasoil y otros índices se cargan automáticamente desde fuentes oficiales.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">🛒</div>
+          <div class="feat-title">SAP integrado</div>
+          <div class="feat-desc">Importa Purchase Orders ME2N y proyecta meses de continuidad por contrato.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">🤖</div>
+          <div class="feat-title">Lectura con IA</div>
+          <div class="feat-desc">Carga listas de precios y enmiendas desde Word/Excel con asistencia de Gemini.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon">📊</div>
+          <div class="feat-title">Reportes ejecutivos</div>
+          <div class="feat-desc">Dossier HTML, Dossier Excel y proyección financiera en un click.</div>
+        </div>
+      </div>
+
+      <h3>Plataforma</h3>
+      <ul>
+        <li><strong>Aplicación web</strong> — funciona 100% en el navegador (Chrome, Edge, Firefox).</li>
+        <li><strong>Backend Supabase</strong> — fuente única de verdad para índices y usuarios.</li>
+        <li><strong>Persistencia local</strong> — caché en el navegador para uso offline parcial.</li>
+        <li><strong>Despliegue</strong> — disponible vía GitHub Pages, sin instalación local.</li>
+      </ul>
+    </section>
+
+    <!-- 2. LOGIN -->
+    <section id="login">
+      <h2><span class="h2-num">02</span>Acceso e inicio de sesión</h2>
+      <p class="lead">Al abrir la aplicación se muestra un overlay de inicio de sesión con fondo degradado de la marca.</p>
+
+      <ol class="steps">
+        <li>Abrí la app en tu navegador. Aparece la pantalla de login.</li>
+        <li>Ingresá tu <strong>usuario</strong> y <strong>contraseña</strong> proporcionados por el administrador.</li>
+        <li>Presioná <span class="btn-demo bd-p">Ingresar</span> o la tecla <code>Enter</code>.</li>
+        <li>Al validarse, se muestra un toast de bienvenida y se redirige al módulo según tu rol.</li>
+      </ol>
+
+      <div class="cb cb-info">
+        <div class="cb-title">ℹ️ Sesión activa</div>
+        <p>Tu nombre y rol aparecen en el pie del menú lateral. Para cerrar sesión, presioná el ícono <strong>↪</strong> al lado de tu avatar.</p>
+      </div>
+
+      <h3>Recuperar contraseña</h3>
+      <p>Si olvidás tu contraseña, contactá al administrador del sistema (rol <span class="bdg bdg-blue">OWNER</span> o <span class="bdg bdg-blue">ADMIN</span>). El administrador puede resetearla desde el módulo <strong>Usuarios</strong>.</p>
+    </section>
+
+    <!-- 3. NAV -->
+    <section id="nav">
+      <h2><span class="h2-num">03</span>Navegación general</h2>
+      <p class="lead">La aplicación se organiza en una <strong>barra lateral fija</strong> a la izquierda y un <strong>encabezado superior</strong> con búsqueda global y acciones rápidas.</p>
+
+      <h3>Barra lateral</h3>
+      <p>Agrupa los módulos en tres secciones:</p>
+      <table class="tbl">
+        <thead><tr><th>Sección</th><th>Módulos</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Módulos</strong></td><td>📊 Dashboard · 📋 Contratos · 📅 Timeline · 🔔 Alertas · ➕ Nuevo Contrato · 🛒 Purchase Orders</td></tr>
+          <tr><td><strong>Módulos adicionales</strong></td><td>📈 Índices · 📊 Proyección · 📑 Licitaciones · 🏢 Proveedores</td></tr>
+          <tr><td><strong>Administración</strong></td><td>👥 Usuarios <span class="bdg bdg-orange">solo OWNER/ADMIN</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Encabezado superior</h3>
+      <ul>
+        <li><strong>Título de pantalla</strong> con el nombre del módulo activo y badge de versión.</li>
+        <li><strong>Búsqueda fuzzy global</strong> — escribí parte del número, contratista o proveedor; los resultados aparecen en un dropdown debajo del campo. También se activa con la tecla <code>/</code>.</li>
+        <li><strong>Botón ➕ Nuevo</strong> — atajo rápido al alta de contrato.</li>
+      </ul>
+
+      <h3>Atajos útiles</h3>
+      <table class="tbl">
+        <thead><tr><th>Atajo</th><th>Acción</th></tr></thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>Foco en búsqueda global</td></tr>
+          <tr><td><code>⌘K</code> / <code>Ctrl+K</code></td><td>Búsqueda en barra lateral</td></tr>
+          <tr><td><code>Esc</code></td><td>Cierra modales abiertos</td></tr>
+          <tr><td><code>Enter</code></td><td>Confirma formularios y diálogos</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 4. DASHBOARD -->
+    <section id="dashboard">
+      <h2><span class="h2-num">04</span>Dashboard</h2>
+      <p class="lead">Vista panorámica de la cartera de contratos con KPIs financieros, alertas críticas y top de proveedores.</p>
+
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-i">📋</div><div class="kpi-v">142</div><div class="kpi-l">Contratos activos</div></div>
+        <div class="kpi"><div class="kpi-i" style="background:var(--g100d);color:var(--g600)">💰</div><div class="kpi-v">$2.8B</div><div class="kpi-l">Monto total ARS</div></div>
+        <div class="kpi"><div class="kpi-i" style="background:var(--a100);color:var(--a500)">💵</div><div class="kpi-v">U$S 2.1M</div><div class="kpi-l">Equivalente USD</div></div>
+        <div class="kpi"><div class="kpi-i" style="background:var(--r100);color:var(--r500)">🔔</div><div class="kpi-v">7</div><div class="kpi-l">Alertas críticas</div></div>
+      </div>
+
+      <h3>Componentes</h3>
+      <ul>
+        <li><strong>KPIs principales</strong> — contratos activos, monto total ARS, equivalente USD (con tipo de cambio editable), alertas críticas.</li>
+        <li><strong>Top 10 proveedores</strong> — ranking por monto contractual.</li>
+        <li><strong>Próximos a vencer</strong> — lista de los contratos cuya fecha fin está más cercana.</li>
+        <li><strong>Distribución por estado</strong> — activos, en revisión, finalizados.</li>
+        <li><strong>Filtros</strong> — por estado, período (fecha inicio – fecha fin) y dominio.</li>
+      </ul>
+
+      <div class="cb cb-tip">
+        <div class="cb-title">💡 Tip</div>
+        <p>El campo <strong>TC (tipo de cambio)</strong> arriba del Dashboard se actualiza en tiempo real. Cambia el valor y todos los montos en USD se recalculan automáticamente.</p>
+      </div>
+    </section>
+
+    <!-- 5. CONTRATOS -->
+    <section id="contratos">
+      <h2><span class="h2-num">05</span>Listado de contratos</h2>
+      <p class="lead">Vista tabular con todos los contratos. Soporta búsqueda fuzzy, filtros y acciones masivas.</p>
+
+      <h3>Columnas mostradas</h3>
+      <table class="tbl">
+        <thead><tr><th>Columna</th><th>Descripción</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Número</strong></td><td>Identificador del contrato (formato libre, p.ej. <code>CTR-2024-001</code>)</td></tr>
+          <tr><td><strong>Contratista</strong></td><td>Razón social del proveedor</td></tr>
+          <tr><td><strong>Monto</strong></td><td>Valor contractual con su moneda (ARS / USD)</td></tr>
+          <tr><td><strong>Fechas</strong></td><td>Inicio y fin de vigencia</td></tr>
+          <tr><td><strong>Plazo</strong></td><td>Duración en meses</td></tr>
+          <tr><td><strong>Responsable</strong></td><td>Persona técnica a cargo</td></tr>
+          <tr><td><strong>Owner</strong></td><td>Responsable comercial / dueño del contrato</td></tr>
+          <tr><td><strong>Dominio</strong></td><td>YPF, Gas Argentino, etc.</td></tr>
+          <tr><td><strong>Estado</strong></td><td><span class="bdg bdg-green">Activo</span> <span class="bdg bdg-orange">Revisión</span> <span class="bdg bdg-gray">Finalizado</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Filtros disponibles</h3>
+      <ul>
+        <li>Por <strong>estado</strong> (activo, en revisión, finalizado)</li>
+        <li>Por <strong>contratista</strong> y <strong>responsable</strong></li>
+        <li>Por <strong>dominio</strong> y <strong>asset</strong> (ubicación)</li>
+        <li><strong>Búsqueda fuzzy</strong> en el campo superior — tolera errores de tipeo</li>
+      </ul>
+
+      <h3>Crear un contrato nuevo</h3>
+      <ol class="steps">
+        <li>Presioná <span class="btn-demo bd-p">➕ Nuevo</span> en el encabezado o en la barra lateral.</li>
+        <li>Completá los <strong>campos obligatorios</strong>: número, contratista, monto, fechas, plazo en meses.</li>
+        <li>Definí la <strong>fórmula polinómica</strong> si aplica (hasta 5 componentes con su ponderación).</li>
+        <li>Configurá los <strong>gatillos</strong> de redeterminación (umbral % o meses transcurridos).</li>
+        <li>Adjuntá documentación si corresponde (PDF, Word, Excel).</li>
+        <li>Presioná <span class="btn-demo bd-p">💾 Guardar contrato</span>.</li>
+      </ol>
+
+      <div class="cb cb-warn">
+        <div class="cb-title">⚠️ Importante — Plazo en meses</div>
+        <p>El campo <strong>plazo siempre se expresa en meses</strong>. La fórmula del sistema es <code>monto_total / plazo_meses</code>. Nunca ingreses días o años.</p>
+      </div>
+    </section>
+
+    <!-- 6. DETALLE -->
+    <section id="detalle">
+      <h2><span class="h2-num">06</span>Detalle de un contrato</h2>
+      <p class="lead">Al hacer click en una fila del listado, se abre la vista de detalle con todas las secciones del contrato.</p>
+
+      <h3>Secciones de la vista detalle</h3>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><div class="card-icon">📄</div><div><div class="card-title">Información básica</div><div class="card-sub">Número, contratista, monto, fechas, responsables</div></div></div>
+          <p>Datos identificatorios del contrato. Editables inline con el botón <strong>✏️ Editar</strong>.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon acc">🧮</div><div><div class="card-title">Cláusula de redeterminación</div><div class="card-sub">Fórmula polinómica, gatillos, factor Ko</div></div></div>
+          <p>Componentes polinómicos con sus pesos, gatillos B (variación %) y C (tiempo) y el Ko vigente.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon suc">📝</div><div><div class="card-title">Enmiendas</div><div class="card-sub">Modificaciones contractuales</div></div></div>
+          <p>Tabla de adendas con número, fecha, tipo (tarifaria, extensión, scope), descripción y monto.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon war">📋</div><div><div class="card-title">Tarifarios</div><div class="card-sub">Listas de precios por período</div></div></div>
+          <p>Tablas con items, descripciones, unidad y precio. Editables inline o cargables con IA.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon dan">📊</div><div><div class="card-title">Historial de AVEs</div><div class="card-sub">Adecuaciones de Valor Económico</div></div></div>
+          <p>Registro cronológico de ajustes: fecha, origen, período, % Ko, monto del ajuste y total acumulado.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon">🛒</div><div><div class="card-title">Purchase Orders SAP</div><div class="card-sub">Consumo y proyección</div></div></div>
+          <p>Total POs, consumo SAP, meses restantes, promedio mensual y desglose por planta.</p>
+        </div>
+      </div>
+
+      <h3>Botones del encabezado en detalle</h3>
+      <div>
+        <span class="btn-demo bd-s">← Lista</span>
+        <span class="btn-demo bd-g">🧮 Calc Ko</span>
+        <span class="btn-demo bd-a">📘 Dossier HTML</span>
+        <span class="btn-demo bd-a">📊 Dossier XLS</span>
+        <span class="btn-demo bd-p">🤖 Importar Listas IA</span>
+      </div>
+      <p style="margin-top:14px">Cada botón se describe en su sección correspondiente más abajo.</p>
+    </section>
+
+    <!-- 7. ENMIENDAS -->
+    <section id="enmiendas">
+      <h2><span class="h2-num">07</span>Enmiendas (modificaciones)</h2>
+      <p class="lead">Una enmienda es cualquier modificación formal al contrato. El sistema soporta varios tipos y los numera automáticamente de manera secuencial.</p>
+
+      <h3>Tipos de enmienda</h3>
+      <table class="tbl">
+        <thead><tr><th>Tipo</th><th>Cuándo se usa</th></tr></thead>
+        <tbody>
+          <tr><td><span class="bdg bdg-blue">ACTUALIZACION_TARIFAS</span></td><td>Ajuste de precios por fórmula polinómica o renegociación.</td></tr>
+          <tr><td><span class="bdg bdg-green">EXTENSION</span></td><td>Prórroga del plazo del contrato.</td></tr>
+          <tr><td><span class="bdg bdg-orange">SCOPE</span></td><td>Ampliación o reducción de alcance.</td></tr>
+          <tr><td><span class="bdg bdg-gray">CLAUSULAS</span></td><td>Cambio de términos y condiciones.</td></tr>
+          <tr><td><span class="bdg bdg-red">OTRO</span></td><td>Cualquier otra modificación no clasificable.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cargar una enmienda</h3>
+      <ol class="steps">
+        <li>En el detalle del contrato, ir a la sección <strong>Enmiendas</strong>.</li>
+        <li>Presionar <span class="btn-demo bd-p">➕ Nueva Enmienda</span>.</li>
+        <li>Seleccionar el <strong>tipo</strong> (lista desplegable).</li>
+        <li>Ingresar <strong>número</strong> (sugerido automático), <strong>fecha</strong>, <strong>descripción</strong> y <strong>monto</strong> si aplica.</li>
+        <li>Marcar la casilla <strong>"Corrige enmienda anterior"</strong> si remplaza una previa.</li>
+        <li>Presionar <span class="btn-demo bd-p">💾 Guardar</span>.</li>
+      </ol>
+
+      <div class="cb cb-tip">
+        <div class="cb-title">💡 Numeración automática</div>
+        <p>El sistema sugiere el siguiente número secuencial. Podés sobreescribirlo si tu organización usa una nomenclatura específica (p.ej. <code>ENM-2024-03</code>).</p>
+      </div>
+    </section>
+
+    <!-- 8. REDET -->
+    <section id="redet">
+      <h2><span class="h2-num">08</span>Redeterminación polinómica</h2>
+      <p class="lead">El núcleo del sistema. Calcula automáticamente el factor de ajuste <code>Ko</code> a partir de la fórmula polinómica del contrato y los índices económicos vigentes.</p>
+
+      <h3>Cómo funciona la fórmula</h3>
+      <p>Cada contrato puede tener hasta <strong>5 componentes polinómicos</strong>, cada uno con un índice y una incidencia (peso). El factor Ko se calcula como:</p>
+
+      <pre><span class="c">// Factor de ajuste polinómico (modo compuesto)</span>
+<span class="k">Ko</span> = ∏ (Índice_Final / Índice_Base) ^ <span class="k">incidencia</span>
+
+<span class="c">// Ejemplo con 2 componentes</span>
+<span class="k">Ko</span> = (IPC_actual / IPC_base) ^ <span class="n">0.60</span>
+   * (USD_actual / USD_base) ^ <span class="n">0.40</span>
+
+<span class="c">// Si Ko = 1.18 → ajuste de +18%</span></pre>
+
+      <h3>Gatillos de redeterminación</h3>
+      <table class="tbl">
+        <thead><tr><th>Gatillo</th><th>Significado</th><th>Configuración</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Gatillo B</strong></td><td>Variación acumulada de los componentes</td><td>Umbral % (ej. 5%)</td></tr>
+          <tr><td><strong>Gatillo C</strong></td><td>Meses transcurridos desde la base</td><td>N° de meses (ej. 6 o 12)</td></tr>
+        </tbody>
+      </table>
+      <p>Cuando se cumple <strong>cualquiera</strong> de los gatillos activos, el sistema marca el contrato como <strong>elegible para redeterminación</strong> y muestra un aviso.</p>
+
+      <h3>Aplicar una redeterminación</h3>
+      <ol class="steps">
+        <li>En el detalle del contrato, abrir la calculadora con <span class="btn-demo bd-g">🧮 Calc Ko</span>.</li>
+        <li>El modal muestra <strong>paso a paso</strong>: índice base, valor actual, factor individual y Ko acumulado.</li>
+        <li>Validar el resultado y presionar <span class="btn-demo bd-p">Aplicar</span>.</li>
+        <li>El sistema crea automáticamente:
+          <ul>
+            <li>Una <strong>enmienda tipo ACTUALIZACION_TARIFAS</strong> con número correlativo.</li>
+            <li>Un <strong>nuevo tarifario</strong> con todos los precios multiplicados por Ko.</li>
+            <li>Una <strong>AVE</strong> (Adecuación de Valor Económico) con el monto del ajuste.</li>
+            <li>Actualiza el <strong>monto total</strong> del contrato.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="cb cb-info">
+        <div class="cb-title">ℹ️ Modos de cálculo</div>
+        <p><strong>Modo compuesto</strong> (IPC, IPIM): usa variaciones porcentuales mes a mes.<br>
+        <strong>Modo ratio</strong> (USD, commodities): usa valores absolutos (final / base).</p>
+      </div>
+
+      <div class="cb cb-warn">
+        <div class="cb-title">⚠️ Antes de aplicar</div>
+        <p>Verificá que <strong>todos los índices del polinomio</strong> estén actualizados al período evaluado. Si un índice está desactualizado, el resultado puede subestimar el ajuste.</p>
+      </div>
+    </section>
+
+    <!-- 9. TIMELINE -->
+    <section id="timeline">
+      <h2><span class="h2-num">09</span>Timeline</h2>
+      <p class="lead">Visualización cronológica de la vigencia de todos los contratos en una línea de tiempo horizontal interactiva.</p>
+
+      <h3>Características</h3>
+      <ul>
+        <li><strong>Barras horizontales</strong> — cada contrato es una barra que va desde su fecha de inicio hasta la fecha de fin.</li>
+        <li><strong>Color por estado</strong> — verde (activo), naranja (en revisión), gris (finalizado).</li>
+        <li><strong>Tooltips</strong> — al pasar el mouse muestra contrato, fechas y responsable.</li>
+        <li><strong>Filtros</strong> — por estado, por asset/dominio y por responsable.</li>
+        <li><strong>Botón limpiar</strong> — <span class="btn-demo bd-s">🧹 Limpiar</span> resetea todos los filtros.</li>
+      </ul>
+
+      <div class="cb cb-tip">
+        <div class="cb-title">💡 Uso recomendado</div>
+        <p>Usá Timeline para detectar <strong>solapamientos</strong> entre contratos del mismo asset y planificar prórrogas con anticipación.</p>
+      </div>
+    </section>
+
+    <!-- 10. ALERTAS -->
+    <section id="alertas">
+      <h2><span class="h2-num">10</span>Alertas de vencimiento</h2>
+      <p class="lead">Sistema proactivo que clasifica los contratos según los días faltantes para su vencimiento.</p>
+
+      <h3>Niveles de alerta</h3>
+      <table class="tbl">
+        <thead><tr><th>Nivel</th><th>Color</th><th>Default</th><th>Acción sugerida</th></tr></thead>
+        <tbody>
+          <tr><td><span class="bdg bdg-red">🔴 Crítica</span></td><td>Rojo</td><td>≤ 30 días</td><td>Iniciar prórroga o nueva licitación inmediatamente.</td></tr>
+          <tr><td><span class="bdg bdg-orange">🟠 Advertencia</span></td><td>Naranja</td><td>≤ 60 días</td><td>Confirmar continuidad con el contratista.</td></tr>
+          <tr><td><span class="bdg bdg-blue">🔵 Información</span></td><td>Azul</td><td>≤ 90 días</td><td>Planificar revisión técnica.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Configuración</h3>
+      <p>En el módulo <strong>Alertas</strong> podés modificar los umbrales de cada nivel:</p>
+      <ol class="steps">
+        <li>Ir a <strong>🔔 Alertas</strong> en el menú.</li>
+        <li>Editar los campos de días para cada nivel.</li>
+        <li>Activar/desactivar el toggle <strong>"Mostrar contratos sin polinómica"</strong>.</li>
+        <li>Aplicar filtros por asset, dominio o responsable.</li>
+      </ol>
+
+      <div class="cb cb-info">
+        <div class="cb-title">ℹ️ Badge en sidebar</div>
+        <p>El número rojo junto al ícono 🔔 en la barra lateral muestra la cantidad de alertas <strong>críticas</strong> activas en tiempo real.</p>
+      </div>
+    </section>
+
+    <!-- 11. INDICES -->
+    <section id="indices">
+      <h2><span class="h2-num">11</span>Índices económicos</h2>
+      <p class="lead">Catálogo central de los índices económicos usados en las fórmulas polinómicas. Se cargan automáticamente desde fuentes oficiales (INDEC, BCRA, Energía).</p>
+
+      <h3>Catálogo de índices</h3>
+      <table class="tbl">
+        <thead><tr><th>ID</th><th>Nombre</th><th>Fuente</th></tr></thead>
+        <tbody>
+          <tr><td><code>ipc_nac</code></td><td>IPC Nacional</td><td>INDEC</td></tr>
+          <tr><td><code>ipc_gba</code></td><td>IPC GBA</td><td>INDEC</td></tr>
+          <tr><td><code>ipc_pat</code></td><td>IPC Patagonia</td><td>INDEC</td></tr>
+          <tr><td><code>ipc_nqn</code></td><td>IPC Neuquén</td><td>DPEyC NQN</td></tr>
+          <tr><td><code>ipim_gral</code></td><td>IPIM General</td><td>INDEC</td></tr>
+          <tr><td><code>fadeaac</code></td><td>FADEAAC Equipo Vial</td><td>FADEAAC</td></tr>
+          <tr><td><code>go_g3</code></td><td>Gas Oil G3 YPF NQN</td><td>S. Energía</td></tr>
+          <tr><td><code>go_g2</code></td><td>Gas Oil G2 YPF NQN</td><td>S. Energía</td></tr>
+          <tr><td><code>usd_div</code></td><td>USD DIVISA BNA</td><td>BCRA</td></tr>
+          <tr><td><code>usd_bill</code></td><td>USD BILLETE BNA</td><td>BCRA</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Vista de tarjetas</h3>
+      <p>Cada índice se muestra como una tarjeta con:</p>
+      <ul>
+        <li>Nombre y fuente</li>
+        <li>Último valor cargado y período</li>
+        <li>Mini-gráfico (sparkline)</li>
+        <li>Estado: <span class="bdg bdg-green">Actualizado</span> · <span class="bdg bdg-orange">Fallback</span> · <span class="bdg bdg-red">Pendiente</span></li>
+        <li>Botones <span class="btn-demo bd-p">🔄 Actualizar</span> y <span class="btn-demo bd-s">➕ Cargar</span></li>
+      </ul>
+
+      <h3>Detalle de un índice</h3>
+      <p>Al abrir un índice se ve:</p>
+      <ul>
+        <li><strong>Gráfico de barras histórico</strong> con todos los valores cargados.</li>
+        <li><strong>Tabla detallada</strong>: período, valor, % variación, estado de confirmación, nota y adjuntos.</li>
+        <li><strong>Calculadora de acumulado</strong> entre dos períodos.</li>
+        <li>Acciones: <span class="btn-demo bd-p">🔄 Actualizar</span> · <span class="btn-demo bd-g">✅ Confirmar todos</span> · <span class="btn-demo bd-d">🗑 Limpiar</span></li>
+      </ul>
+
+      <div class="cb cb-danger">
+        <div class="cb-title">🚫 Regla crítica</div>
+        <p>Los índices se cargan <strong>siempre de manera automatizada</strong> desde sus fuentes oficiales. Está prohibida la entrada manual masiva. Si una fuente falla, el sistema marca el índice como <strong>"Pendiente"</strong> para revisión.</p>
+      </div>
+
+      <div class="cb cb-info">
+        <div class="cb-title">ℹ️ Prioridad de datos</div>
+        <p>El sistema usa <strong>IDX_STORE</strong> (datos en vivo de Supabase) como fuente principal. Si no hay conexión, hace fallback a <strong>IDX_OFFICIAL_SEED</strong> (valores hardcoded de respaldo).</p>
+      </div>
+    </section>
+
+    <!-- 12. ME2N -->
+    <section id="me2n">
+      <h2><span class="h2-num">12</span>Purchase Orders (SAP ME2N)</h2>
+      <p class="lead">Integración con SAP para vincular las órdenes de compra (PO) a su contrato origen y proyectar el consumo.</p>
+
+      <h3>Importar POs desde SAP</h3>
+      <ol class="steps">
+        <li>Exportar el reporte ME2N desde SAP a Excel.</li>
+        <li>En la app, ir a <strong>🛒 Purchase Orders</strong>.</li>
+        <li>Presionar <span class="btn-demo bd-p">📤 Importar SAP</span>.</li>
+        <li>Seleccionar el archivo Excel exportado.</li>
+        <li>El sistema parsea, mapea POs a contratos y muestra resumen.</li>
+      </ol>
+
+      <h3>Dashboard de POs por contrato</h3>
+      <p>En el detalle de cada contrato se muestra:</p>
+      <ul>
+        <li><strong>Total POs</strong> emitidas contra el contrato.</li>
+        <li><strong>Consumido SAP</strong> — monto efectivamente comprometido.</li>
+        <li><strong>Meses restantes</strong> al ritmo actual de consumo.</li>
+        <li><strong>Promedio mensual</strong> de los últimos N meses (configurable).</li>
+        <li><strong>Gráfico de consumo</strong> mes a mes.</li>
+        <li><strong>Desglose por planta</strong>.</li>
+      </ul>
+
+      <div class="cb cb-tip">
+        <div class="cb-title">💡 Proyección</div>
+        <p>El sistema sugiere automáticamente <strong>"~ X meses al ritmo actual"</strong> ayudando a anticipar el agotamiento del cupo del contrato.</p>
+      </div>
+    </section>
+
+    <!-- 13. FORECAST -->
+    <section id="forecast">
+      <h2><span class="h2-num">13</span>Proyección de costos</h2>
+      <p class="lead">Predice el costo futuro de la cartera de contratos activos aplicando las fórmulas polinómicas y los índices proyectados.</p>
+
+      <h3>Qué muestra</h3>
+      <ul>
+        <li><strong>Gráfico de línea</strong> — evolución del monto total ARS mes a mes.</li>
+        <li><strong>Tabla mensual</strong> — período, monto base, monto con actualización polinómica.</li>
+        <li><strong>Desglose por contrato</strong> — contribución individual al total.</li>
+      </ul>
+
+      <h3>Datos utilizados</h3>
+      <ul>
+        <li>Contratos activos al momento de la proyección.</li>
+        <li>Fórmulas polinómicas vigentes y sus pesos.</li>
+        <li>Índices económicos cargados (con valores proyectados si están disponibles).</li>
+        <li>Plazo restante de cada contrato.</li>
+      </ul>
+    </section>
+
+    <!-- 14. LICIT -->
+    <section id="licit">
+      <h2><span class="h2-num">14</span>Licitaciones</h2>
+      <p class="lead">Registro y seguimiento de procesos licitatorios asociados a futuros contratos.</p>
+
+      <h3>Información por licitación</h3>
+      <ul>
+        <li>Número de licitación</li>
+        <li>Contratos asociados (uno o varios)</li>
+        <li>Fecha de convocatoria</li>
+        <li>Fecha límite de oferta</li>
+        <li>Lista de oferentes (con flag <strong>"cotizó"</strong>)</li>
+        <li>Montos de las ofertas</li>
+      </ul>
+
+      <p>Las licitaciones permiten dejar trazabilidad del proceso comercial previo a la firma del contrato.</p>
+    </section>
+
+    <!-- 15. PROV -->
+    <section id="prov">
+      <h2><span class="h2-num">15</span>Proveedores</h2>
+      <p class="lead">Catálogo central de proveedores con datos comerciales y valor contractual acumulado.</p>
+
+      <h3>Cargar proveedores desde SAP</h3>
+      <ol class="steps">
+        <li>Ir a <strong>🏢 Proveedores</strong>.</li>
+        <li>Presionar <span class="btn-demo bd-p">📤 Importar SAP</span>.</li>
+        <li>Seleccionar Excel con columnas: <code>Name of Vendor</code>, <code>VENDOR2</code>, país, etc.</li>
+        <li>El sistema crea o actualiza los proveedores existentes.</li>
+      </ol>
+
+      <h3>Crear proveedor manual</h3>
+      <ol class="steps">
+        <li>Presionar <span class="btn-demo bd-p">➕ Nuevo Proveedor</span>.</li>
+        <li>Completar nombre, país, contacto, valor y moneda.</li>
+        <li>Guardar.</li>
+      </ol>
+    </section>
+
+    <!-- 16. IA -->
+    <section id="ia">
+      <h2><span class="h2-num">16</span>Importación con IA (Gemini)</h2>
+      <p class="lead">El sistema usa Gemini AI a través de un Edge Function de Supabase para interpretar documentos en lenguaje natural y extraer datos estructurados.</p>
+
+      <h3>¿Qué se puede importar con IA?</h3>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><div class="card-icon">📋</div><div><div class="card-title">Listas de precios</div><div class="card-sub">Word, Excel, PDF</div></div></div>
+          <p>Detecta tablas con item, descripción, unidad y precio. Genera un nuevo tarifario en el contrato.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon acc">📝</div><div><div class="card-title">Enmiendas</div><div class="card-sub">Documentos contractuales</div></div></div>
+          <p>Extrae número, tipo, descripción y monto de adendas en formato libre.</p>
+        </div>
+      </div>
+
+      <h3>Cómo usar la importación con IA</h3>
+      <ol class="steps">
+        <li>En el detalle del contrato, presionar <span class="btn-demo bd-p">🤖 Importar Listas IA</span>.</li>
+        <li>Seleccionar el archivo (Word, Excel o PDF).</li>
+        <li>El sistema convierte el archivo y lo envía a Gemini.</li>
+        <li>Se muestra una <strong>vista previa</strong> con los datos extraídos.</li>
+        <li>Validar y confirmar — el tarifario se agrega al contrato.</li>
+      </ol>
+
+      <div class="cb cb-warn">
+        <div class="cb-title">⚠️ Validá siempre</div>
+        <p>La IA puede confundirse con tablas anidadas o formatos atípicos. <strong>Revisá los precios extraídos</strong> antes de aplicarlos al contrato.</p>
+      </div>
+    </section>
+
+    <!-- 17. EXPORT -->
+    <section id="export">
+      <h2><span class="h2-num">17</span>Dossier y exportación</h2>
+      <p class="lead">Genera reportes ejecutivos del contrato listos para imprimir o compartir.</p>
+
+      <h3>Tipos de exportación</h3>
+      <table class="tbl">
+        <thead><tr><th>Botón</th><th>Formato</th><th>Contenido</th></tr></thead>
+        <tbody>
+          <tr><td><span class="btn-demo bd-a">📘 Dossier HTML</span></td><td>HTML en nueva pestaña</td><td>Reporte visual con info básica, polinómica, enmiendas, AVEs, tarifarios y POs.</td></tr>
+          <tr><td><span class="btn-demo bd-a">📊 Dossier XLS</span></td><td>Excel multi-hoja</td><td>Resumen, polinómica, enmiendas, tarifarios y POs en hojas separadas.</td></tr>
+          <tr><td><span class="btn-demo bd-s">⬇ PNG</span></td><td>Imagen PNG</td><td>Gráfico de un índice como imagen.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Dossier XLS — estructura</h3>
+      <ul>
+        <li><strong>Resumen</strong> — KPIs, montos y fechas principales.</li>
+        <li><strong>Polinómica</strong> — fórmula, componentes y Ko histórico.</li>
+        <li><strong>Enmiendas</strong> — tabla completa con todas las modificaciones.</li>
+        <li><strong>Tarifarios</strong> — items y precios por período.</li>
+        <li><strong>POs</strong> — histórico de Purchase Orders SAP.</li>
+      </ul>
+      <p>El archivo se descarga con el nombre <code>contrato_[NUM]_[FECHA].xlsx</code>.</p>
+    </section>
+
+    <!-- 18. USUARIOS -->
+    <section id="usuarios">
+      <h2><span class="h2-num">18</span>Usuarios y permisos</h2>
+      <p class="lead">El sistema soporta 5 roles con distintos permisos. Solo OWNER y ADMIN pueden gestionar usuarios.</p>
+
+      <h3>Matriz de permisos</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>Contratos</th>
+            <th>Nuevo</th>
+            <th>Detalle</th>
+            <th>POs</th>
+            <th>Índices</th>
+            <th>Licit.</th>
+            <th>Prov.</th>
+            <th>Usuarios</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="bdg bdg-blue">OWNER</span></td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+          <tr><td><span class="bdg bdg-blue">ADMIN</span></td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+          <tr><td><span class="bdg bdg-green">ING_CONTRATOS</span></td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="no">—</td><td class="ok">✓</td><td class="ok">✓</td><td class="no">—</td></tr>
+          <tr><td><span class="bdg bdg-orange">RESP_TECNICO</span></td><td class="ok">✓</td><td class="no">—</td><td class="ok">✓</td><td class="ok">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+          <tr><td><span class="bdg bdg-gray">SIN_ROL</span></td><td class="ok">✓</td><td class="no">—</td><td class="ok">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Crear un usuario</h3>
+      <ol class="steps">
+        <li>Ingresar como OWNER o ADMIN.</li>
+        <li>Ir al menú <strong>👥 Usuarios</strong> en la sección Administración.</li>
+        <li>Presionar <span class="btn-demo bd-p">➕ Nuevo Usuario</span>.</li>
+        <li>Ingresar usuario, contraseña temporal, rol y estado.</li>
+        <li>Guardar — el usuario podrá ingresar y deberá cambiar su contraseña.</li>
+      </ol>
+
+      <h3>Acciones disponibles por usuario</h3>
+      <ul>
+        <li><strong>Editar</strong> rol y estado.</li>
+        <li><strong>Reset contraseña</strong> a un valor temporal.</li>
+        <li><strong>Inactivar</strong> sin eliminar (preserva el historial).</li>
+        <li><strong>Eliminar</strong> definitivamente (con confirmación).</li>
+      </ul>
+
+      <div class="cb cb-danger">
+        <div class="cb-title">🚫 Protección de roles</div>
+        <p>Los roles <strong>OWNER</strong> y <strong>ADMIN</strong> siempre conservan acceso completo y no pueden ser limitados desde la matriz. Esto previene bloqueos accidentales del sistema.</p>
+      </div>
+    </section>
+
+    <!-- 19. FAQ -->
+    <section id="faq">
+      <h2><span class="h2-num">19</span>Preguntas frecuentes</h2>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Qué pasa si pierdo conexión a internet?</div></div>
+        <p>La app guarda en caché los datos básicos. Podés navegar la última versión cargada de los contratos, pero <strong>no</strong> podrás guardar cambios ni actualizar índices hasta recuperar conexión.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Por qué un índice aparece como "Pendiente"?</div></div>
+        <p>Significa que la última actualización automática falló (API caída, certificado vencido, etc.). Presioná <span class="btn-demo bd-p">🔄 Actualizar</span> para reintentar. Si persiste, contactá al administrador.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Cómo deshago una redeterminación aplicada?</div></div>
+        <p>Eliminá la enmienda generada (tipo ACTUALIZACION_TARIFAS) desde la sección Enmiendas del contrato. Esto revierte el tarifario y la AVE asociada. <strong>Confirmá con el responsable</strong> antes de hacerlo.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Qué hago si la IA extrae mal una lista de precios?</div></div>
+        <p>Cancelá la importación en la vista previa. Podés intentar nuevamente con el archivo en otro formato (PDF en lugar de Word, por ejemplo) o cargar el tarifario manualmente desde el detalle del contrato.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Puedo tener varios tarifarios en un mismo contrato?</div></div>
+        <p>Sí. Cada redeterminación genera un nuevo tarifario asociado a un período. El sistema marca cuál está vigente según la fecha actual.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-icon">❓</div><div class="card-title">¿Quién puede ver mis cambios?</div></div>
+        <p>Todos los usuarios con permiso al módulo Contratos ven los datos en tiempo real. La sincronización es vía Supabase. No hay vista privada por usuario.</p>
+      </div>
+    </section>
+
+    <!-- 20. GLOSARIO -->
+    <section id="glosario">
+      <h2><span class="h2-num">20</span>Glosario</h2>
+      <table class="tbl">
+        <thead><tr><th>Término</th><th>Definición</th></tr></thead>
+        <tbody>
+          <tr><td><strong>AVE</strong></td><td>Adecuación de Valor Económico — ajuste monetario al contrato resultado de una redeterminación.</td></tr>
+          <tr><td><strong>Asset</strong></td><td>Ubicación física u operativa del contrato (yacimiento, planta, etc.).</td></tr>
+          <tr><td><strong>Dominio</strong></td><td>Empresa operadora bajo cuyo nombre se ejecuta el contrato (YPF, Gas Argentino, etc.).</td></tr>
+          <tr><td><strong>Dossier</strong></td><td>Reporte ejecutivo del contrato exportable a HTML o Excel.</td></tr>
+          <tr><td><strong>Fórmula polinómica</strong></td><td>Expresión matemática que vincula varios índices económicos con sus pesos para calcular el ajuste de un contrato.</td></tr>
+          <tr><td><strong>Fuzzy search</strong></td><td>Búsqueda tolerante a errores de tipeo.</td></tr>
+          <tr><td><strong>Gatillo</strong></td><td>Condición que dispara la posibilidad de redeterminar (B = variación %, C = tiempo).</td></tr>
+          <tr><td><strong>IDX_CATALOG</strong></td><td>Catálogo de índices económicos disponibles en el sistema.</td></tr>
+          <tr><td><strong>IDX_STORE</strong></td><td>Almacén central de los valores cargados de cada índice (en Supabase).</td></tr>
+          <tr><td><strong>Ko</strong></td><td>Factor de ajuste polinómico (Ko = 1.18 → +18%).</td></tr>
+          <tr><td><strong>ME2N / ME3N</strong></td><td>Reportes de SAP — ME2N para Purchase Orders, ME3N para contratos.</td></tr>
+          <tr><td><strong>PO</strong></td><td>Purchase Order — orden de compra emitida contra un contrato marco.</td></tr>
+          <tr><td><strong>Redeterminación</strong></td><td>Proceso de actualización del valor del contrato según la fórmula polinómica.</td></tr>
+          <tr><td><strong>Tarifario</strong></td><td>Lista de precios por item del contrato, vigente para un período.</td></tr>
+          <tr><td><strong>Toast</strong></td><td>Notificación temporal en la esquina inferior de la pantalla.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="foot">
+      <p><strong>Contratos TA</strong> · Manual de Usuario v1.0 · Mayo 2026</p>
+      <p>TotalEnergies Argentina · Documento interno</p>
+    </div>
+
+  </div>
+</main>
+</div>
+</body>
+</html>
