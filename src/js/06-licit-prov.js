@@ -1489,7 +1489,7 @@ async function deleteLastAutoAve() {
     };
   }
 
-  var UsersAdmin=(function(){
+  var UsersAdmin = window.UsersAdmin = (function(){
     var state={list:[],loaded:false,currentId:null};
     var refs={root:null,body:null,count:null,nav:null,modal:null,title:null,inpUser:null,selRole:null,selActive:null,inpPass:null,panel:null};
     function q(id){ return document.getElementById(id); }
