@@ -56,7 +56,8 @@ function renderDashExecutive(){
         if(Array.isArray(c.poly) && c.poly.length && typeof PolUpdate!=='undefined' && typeof computePoliDeltaPct==='function'){
           const cond=PolUpdate.getConditions(c.id);
           if(cond && cond.enabled && cond.allComponentsThreshold>0){
-            const baseYm=c.btar||(c.fechaIni||'').substring(0,7);
+            const tarPeriods=(c.tarifarios||[]).map(t=>t&&t.period).filter(p=>typeof p==='string'&&/^\d{4}-\d{2}$/.test(p)).sort();
+            const baseYm=(tarPeriods.length?tarPeriods[tarPeriods.length-1]:null)||c.btar||(c.fechaIni||'').substring(0,7);
             if(baseYm && baseYm<todayYm){
               const pct=computePoliDeltaPct(c, baseYm, todayYm);
               if(pct!=null && pct>=cond.allComponentsThreshold){
