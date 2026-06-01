@@ -364,25 +364,39 @@ function idxPubBadge(def){
 async function idxFetchIndec(id, ym){
   const def=IDX_CATALOG.find(d=>d.id===id);
   if(!def||!def.seriesId) throw new Error('Sin seriesId para '+id);
-  // Request from prevYm to get both months and compute pct
-  const prevYm=idxPrevYm(ym);
-  const url=`https://apis.datos.gob.ar/series/api/series?ids=${def.seriesId}&format=json&start_date=${prevYm}&limit=5`;
+  // Pedimos varios meses para cubrir el caso en que el target todavía no esté publicado.
+  // start_date = 6 meses antes del target → siempre se obtienen al menos algunas filas
+  const startDt = (function(){
+    const [y,m]=String(ym).split('-').map(Number);
+    if(!y||!m) return ym;
+    const d=new Date(y, m-1-6, 1);
+    return d.toISOString().substring(0,7);
+  })();
+  const url=`https://apis.datos.gob.ar/series/api/series?ids=${def.seriesId}&format=json&start_date=${startDt}&limit=20`;
   const r=await fetch(url);
   if(!r.ok) throw new Error('INDEC API '+r.status);
   const j=await r.json();
-  const data=j.data||[];
-  const ymEntry=data.find(([d])=>d&&d.startsWith(ym));
-  if(!ymEntry||ymEntry[1]==null) throw new Error('Sin dato INDEC para '+ym);
-  const val=Number(ymEntry[1]);
-  const prevEntry=data.find(([d])=>d&&d.startsWith(prevYm));
+  const data=(j.data||[]).filter(row=>row&&row[0]&&row[1]!=null);
+  if(!data.length) throw new Error('INDEC API sin datos');
+  // Ordenamos por fecha y filtramos a los meses <= target
+  const rows=data
+    .map(([d,v])=>({ym:String(d).substring(0,7), value:Number(v)}))
+    .filter(r=>r.ym && r.ym<=ym && isFinite(r.value))
+    .sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!rows.length) throw new Error('Sin dato INDEC ≤ '+ym);
+  // Elegimos el último mes publicado disponible (puede ser anterior al target)
+  const last=rows[rows.length-1];
+  // pct vs mes anterior, sea de la respuesta o del store
   let pct=null;
-  if(prevEntry&&prevEntry[1]){
-    pct=Number(((val/Number(prevEntry[1])-1)*100).toFixed(2));
+  const prevYm=idxPrevYm(last.ym);
+  const prevInResp=rows.find(r=>r.ym===prevYm);
+  if(prevInResp && prevInResp.value){
+    pct=Number(((last.value/prevInResp.value-1)*100).toFixed(2));
   } else {
     const prevRow=idxRows(id).find(r=>r.ym===prevYm);
-    if(prevRow&&prevRow.value) pct=Number(((val/prevRow.value-1)*100).toFixed(2));
+    if(prevRow&&prevRow.value) pct=Number(((last.value/prevRow.value-1)*100).toFixed(2));
   }
-  return {ym,value:val,pct,source:'INDEC API',confirmed:false};
+  return {ym:last.ym, value:last.value, pct, source:'INDEC API', confirmed:false, _allRows:rows};
 }
 
 // ── Gas Oil fetch vía energia-proxy ──────────────────────────────────
@@ -469,8 +483,19 @@ async function runIdxUpdate(id){
     if(mode==='indec'){
       try{
         const row=await idxFetchIndec(id,target);
-        await idxUpsert(id,{...row,confirmed:false,status:'updated',publishedAt:row.publishedAt||null,sourceUrl:row.sourceUrl||null,note:row.note||''});
-        renderIdxView(); toast(def.name+' actualizado (INDEC API)','ok'); return;
+        // Upsert todos los meses devueltos por la API que no estén ya cargados (o estén stale)
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        const allRows=Array.isArray(row._allRows)?row._allRows:[{ym:row.ym,value:row.value}];
+        let lastPrev=null;
+        for(const r of allRows){
+          if(existing.has(r.ym)) { lastPrev=r; continue; }
+          let pct=null;
+          const prev=lastPrev||idxRows(id).find(x=>x.ym===idxPrevYm(r.ym));
+          if(prev && prev.value) pct=Number(((r.value/prev.value-1)*100).toFixed(2));
+          await idxUpsert(id,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC API', note:''});
+          lastPrev=r;
+        }
+        renderIdxView(); toast(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC API)','ok'); return;
       }catch(apiErr){
         console.warn('idxFetchIndec failed, trying seed/AI',apiErr.message);
         // Fall through to seed/AI
