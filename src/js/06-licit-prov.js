@@ -1333,6 +1333,25 @@ async function delEnm(num) {
     if (t.name) t.name = t.name.replace(/\(Enm\.(\d+)\)/, (m,n)=>`(Enm.${Number(n)>num?Number(n)-1:Number(n)})`);
   });
   (cc.aves || []).forEach(a => { if (a.enmRef === num) a.enmRef = null; else if (a.enmRef > num) a.enmRef = a.enmRef - 1; });
+  // Si era ACTUALIZACION_TARIFAS, restaurar btar y monto a partir de las enmiendas tarifarias restantes
+  if (enmDeleted && enmDeleted.tipo === 'ACTUALIZACION_TARIFAS') {
+    const tarRemaining = cc.enmiendas
+      .filter(e => e.tipo === 'ACTUALIZACION_TARIFAS' && !e.superseded)
+      .sort((a, b) => String(a.nuevoPeriodo||'').localeCompare(String(b.nuevoPeriodo||'')));
+    if (tarRemaining.length > 0) {
+      const last = tarRemaining[tarRemaining.length - 1];
+      if (last.nuevoPeriodo) cc.btar = last.nuevoPeriodo;
+    } else {
+      cc.btar = (cc.fechaIni || '').substring(0, 7) || cc.btar;
+    }
+    if (cc._montoOriginal) {
+      const factor = tarRemaining.reduce((acc, e) => acc * (1 + (Number(e.pctPoli) || 0)), 1);
+      cc.monto = Math.round(cc._montoOriginal * factor * 100) / 100;
+      if (tarRemaining.length === 0) delete cc._montoOriginal;
+    }
+    try { localStorage.removeItem('pol_eval_result_' + cc.id); } catch(_e){}
+    try { localStorage.removeItem('pol_selected_months_' + cc.id); } catch(_e){}
+  }
   cc.updatedAt = new Date().toISOString();
   if (!SB_OK) localStorage.setItem('cta_v7', JSON.stringify(window.DB));
   else await sbUpsertItem('contratos', cc);
