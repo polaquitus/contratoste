@@ -380,7 +380,10 @@ function renderDet(){
         let pendingPolyPct=null;
         try{
           if(Array.isArray(c.poly) && c.poly.length && typeof computeAccumulatedVariationPct==='function'){
-            const baseYm = c.btar || (c.fechaIni||'').substring(0,7);
+            // Base = período de la última lista de precios cargada (fuente de verdad).
+            // Si no hay tarifarios, caemos a c.btar y luego a fechaIni.
+            const tarPeriods = (c.tarifarios||[]).map(t=>t&&t.period).filter(p=>typeof p==='string'&&/^\d{4}-\d{2}$/.test(p)).sort();
+            const baseYm = (tarPeriods.length?tarPeriods[tarPeriods.length-1]:null) || c.btar || (c.fechaIni||'').substring(0,7);
             const evalYm = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
             if(baseYm && evalYm > baseYm){
               let ko=0, hasAny=false;

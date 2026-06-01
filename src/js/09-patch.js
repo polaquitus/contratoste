@@ -1725,10 +1725,14 @@ window.openBurnRate = function(cid){
     const margin=monthsToExhaust-remMonthsContract;
 
     // % polinómico pendiente desde último base hasta hoy
+    // Base = período de la última lista de precios cargada (fuente de verdad).
+    // Si no hay tarifarios, caemos a c.btar y luego a fechaIni.
+    const tarPeriods = (c.tarifarios||[]).map(t=>t&&t.period).filter(p=>typeof p==='string'&&/^\d{4}-\d{2}$/.test(p)).sort();
+    const baseYmForBurn = (tarPeriods.length?tarPeriods[tarPeriods.length-1]:null) || c.btar || (c.fechaIni||'').substring(0,7);
     let pendingPolyPct=null;
     try{
       if(Array.isArray(c.poly) && c.poly.length && typeof computeAccumulatedVariationPct==='function'){
-        const baseYm = c.btar || (c.fechaIni||'').substring(0,7);
+        const baseYm = baseYmForBurn;
         const evalYm = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
         if(baseYm && evalYm > baseYm){
           let ko=0, hasAny=false;
@@ -1816,7 +1820,7 @@ window.openBurnRate = function(cid){
     const exhaustStr2=exhaustDateProj.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
     const finStr=finC.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
     const moneda=c.mon||'ARS';
-    const baseTarStr=c.btar||(c.fechaIni||'').substring(0,7);
+    const baseTarStr=baseYmForBurn||c.btar||(c.fechaIni||'').substring(0,7);
 
     const headerLine = hasPoly
       ? 'Con la redeterminación pendiente aplicada (<strong>+'+pendingPolyPct.toFixed(2)+'%</strong> acumulado desde '+baseTarStr+'), el monto se agota en <strong>'+exhaustStr2+'</strong> ('+(marginProj>=0?'+'+marginProj.toFixed(1)+'m vs fin':Math.abs(marginProj).toFixed(1)+'m antes')+'). Sin aplicar la redeterminación: '+exhaustStr+'.'
