@@ -1445,13 +1445,13 @@ async function deleteLastAutoAve() {
 (function(){
   window.APP_VERSION='v19';
   var ROLE_DEFAULTS={
-    OWNER:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
-    ADMIN:{list:true,form:true,detail:true,me2n:true,idx:true,licit:true,prov:true,users:true},
-    ING_CONTRATOS:{list:true,form:true,detail:true,me2n:true,idx:false,licit:true,prov:true,users:false},
-    RESP_TECNICO:{list:true,form:false,detail:true,me2n:true,idx:false,licit:false,prov:false,users:false},
-    SIN_ROL:{list:true,form:false,detail:true,me2n:false,idx:false,licit:false,prov:false,users:false}
+    OWNER:{dashboard:true,list:true,timeline:true,alertas:true,form:true,detail:true,me2n:true,idx:true,forecast:true,licit:true,prov:true,users:true},
+    ADMIN:{dashboard:true,list:true,timeline:true,alertas:true,form:true,detail:true,me2n:true,idx:true,forecast:true,licit:true,prov:true,users:true},
+    ING_CONTRATOS:{dashboard:true,list:true,timeline:true,alertas:true,form:true,detail:true,me2n:true,idx:false,forecast:true,licit:true,prov:true,users:false},
+    RESP_TECNICO:{dashboard:true,list:true,timeline:true,alertas:true,form:false,detail:true,me2n:true,idx:false,forecast:false,licit:false,prov:false,users:false},
+    SIN_ROL:{dashboard:true,list:true,timeline:false,alertas:false,form:false,detail:true,me2n:false,idx:false,forecast:false,licit:false,prov:false,users:false}
   };
-  var ROLE_LABELS={list:'Contratos',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
+  var ROLE_LABELS={dashboard:'Dashboard',list:'Contratos',timeline:'Timeline',alertas:'Alertas',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',forecast:'Proyección',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
   var ROLE_STORAGE_KEY='role_permissions_v19';
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
   function forcePrivileged(matrix){
