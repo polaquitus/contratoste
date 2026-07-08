@@ -178,7 +178,7 @@ async function loginApp(){
   }
 }
 async function requireLogin(){
-  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); authUnlock(); return true; }
+  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); if(typeof applyPermissions==='function') applyPermissions(); authUnlock(); return true; }
   ensureLoginOverlay();
   return false;
 }

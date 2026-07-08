@@ -1493,8 +1493,13 @@ async function deleteLastAutoAve() {
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v86-redesign';
   }
+  // Exponer al scope global: loginApp() (en 02-supabase-auth.js) invoca applyPermissions()
+  // desde el scope global. Sin esto quedaba encerrado en el IIFE y nunca se ejecutaba,
+  // por lo que el menú jamás se filtraba según el rol al iniciar sesión.
+  window.applyPermissions = applyPermissions;
+  window.canAccess = canAccess;
+  window.getRoleMatrix = getRoleMatrix;
   if(typeof go==='function'){
     var __origGoRole=go;
     go=function(v){
