@@ -1453,28 +1453,64 @@ async function deleteLastAutoAve() {
   };
   var ROLE_LABELS={dashboard:'Dashboard',list:'Contratos',timeline:'Timeline',alertas:'Alertas',form:'Nuevo Contrato',detail:'Detalle',me2n:'Purchase Orders',idx:'Indices',forecast:'Proyección',licit:'Licitaciones',prov:'Proveedores',users:'Usuarios'};
   var ROLE_STORAGE_KEY='role_permissions_v19';
+  var ROLE_TABLE='role_perms';   // tabla Supabase single-row (patrón id/datos)
+  var _roleMatrixSbId=null;      // id de la fila en Supabase para PATCH
   function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
   function forcePrivileged(matrix){
     matrix.OWNER=clone(ROLE_DEFAULTS.OWNER);
     matrix.ADMIN=clone(ROLE_DEFAULTS.ADMIN);
     return matrix;
   }
+  function mergeMatrix(parsed){
+    var out=clone(ROLE_DEFAULTS);
+    Object.keys(out).forEach(function(role){
+      Object.keys(out[role]).forEach(function(mod){
+        if(parsed && parsed[role] && typeof parsed[role][mod] !== 'undefined') out[role][mod]=!!parsed[role][mod];
+      });
+    });
+    return forcePrivileged(out);
+  }
   function getRoleMatrix(){
     try{
       var raw=localStorage.getItem(ROLE_STORAGE_KEY);
       if(!raw) return forcePrivileged(clone(ROLE_DEFAULTS));
-      var parsed=JSON.parse(raw);
-      var out=clone(ROLE_DEFAULTS);
-      Object.keys(out).forEach(function(role){
-        Object.keys(out[role]).forEach(function(mod){
-          if(parsed && parsed[role] && typeof parsed[role][mod] !== 'undefined') out[role][mod]=!!parsed[role][mod];
-        });
-      });
-      return forcePrivileged(out);
+      return mergeMatrix(JSON.parse(raw));
     }catch(_e){ return forcePrivileged(clone(ROLE_DEFAULTS)); }
   }
-  function saveRoleMatrix(matrix){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(forcePrivileged(matrix))); }
-  function resetRoleMatrix(){ localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(forcePrivileged(clone(ROLE_DEFAULTS)))); }
+  // ── Persistencia en Supabase (fuente de verdad, compartida entre dispositivos) ──
+  // canAccess()/getRoleMatrix() son síncronos, así que la matriz vive en localStorage
+  // como caché: se lee de Supabase una vez al cargar (loadRoleMatrixFromSupabase) y se
+  // escribe en cada guardado. Si la tabla no existe o no hay conexión, degrada a localStorage.
+  async function _saveRoleMatrixToSupabase(matrix){
+    if(typeof SB_OK==='undefined' || !SB_OK || typeof sbFetch!=='function') return;
+    try{
+      var payload={datos: JSON.stringify(matrix)};
+      if(_roleMatrixSbId){
+        await sbFetch(ROLE_TABLE,'PATCH',payload,'?id=eq.'+_roleMatrixSbId);
+      }else{
+        var res=await sbFetch(ROLE_TABLE,'POST',payload);
+        if(res && res[0]) _roleMatrixSbId=res[0].id;
+      }
+    }catch(err){ console.warn('[roles] no se pudo guardar en Supabase:', err.message); }
+  }
+  async function loadRoleMatrixFromSupabase(){
+    if(typeof SB_OK==='undefined' || !SB_OK || typeof sbFetch!=='function') return;
+    try{
+      var rows=await sbFetch(ROLE_TABLE,'GET',null,'?select=id,datos&order=id.desc&limit=1');
+      if(rows && rows.length){
+        _roleMatrixSbId=rows[0].id;
+        var merged=mergeMatrix(JSON.parse(rows[0].datos));
+        localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(merged));
+        if(typeof applyPermissions==='function') applyPermissions();
+      }
+    }catch(err){ console.warn('[roles] no se pudo cargar de Supabase, usando localStorage:', err.message); }
+  }
+  function saveRoleMatrix(matrix){
+    var m=forcePrivileged(matrix);
+    localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(m));
+    _saveRoleMatrixToSupabase(m);
+  }
+  function resetRoleMatrix(){ saveRoleMatrix(clone(ROLE_DEFAULTS)); }
   function roleName(){
     try{
       var r=(typeof _APP_ROLE!=='undefined' && _APP_ROLE) ? _APP_ROLE : 'SIN_ROL';
@@ -1491,16 +1527,31 @@ async function deleteLastAutoAve() {
   }
   function applyPermissions(){
     document.querySelectorAll('.sb-nav .nv[data-mod]').forEach(function(el){ var mod=el.getAttribute('data-mod'); el.style.display=canAccess(mod)?'':'none'; });
+    // Ocultar encabezados de sección que quedaron sin ningún item visible
+    document.querySelectorAll('.sb-nav .sb-sec').forEach(function(sec){
+      var anyVisible=false, n=sec.nextElementSibling;
+      while(n && !n.classList.contains('sb-sec')){
+        if(n.classList.contains('nv') && n.style.display!=='none'){ anyVisible=true; break; }
+        n=n.nextElementSibling;
+      }
+      sec.style.display=anyVisible?'':'none';
+    });
     var pgA=document.getElementById('pgA');
     if(pgA){ pgA.querySelectorAll('button').forEach(function(btn){ var txt=(btn.textContent||'').toLowerCase(); if(txt.indexOf('nuevo contrato')>=0) btn.style.display=canAccess('form')?'':'none'; }); }
-    var tag=document.getElementById('buildTag'); if(tag) tag.textContent='v86-redesign';
   }
+  // Exponer al scope global: loginApp() (en 02-supabase-auth.js) invoca applyPermissions()
+  // desde el scope global. Sin esto quedaba encerrado en el IIFE y nunca se ejecutaba,
+  // por lo que el menú jamás se filtraba según el rol al iniciar sesión.
+  window.applyPermissions = applyPermissions;
+  window.canAccess = canAccess;
+  window.getRoleMatrix = getRoleMatrix;
+  window.loadRoleMatrix = loadRoleMatrixFromSupabase;
   if(typeof go==='function'){
     var __origGoRole=go;
     go=function(v){
-      var map={list:'list',form:'form',detail:'detail',me2n:'me2n',idx:'idx',licit:'licit',prov:'prov',users:'users'};
-      var mod=map[v] || 'list';
-      if(!canAccess(mod)){
+      var map={dashboard:'dashboard',list:'list',timeline:'timeline',alertas:'alertas',form:'form',detail:'detail',me2n:'me2n',idx:'idx',forecast:'forecast',licit:'licit',prov:'prov',users:'users'};
+      var mod=map[v];
+      if(mod && !canAccess(mod)){
         if(typeof toast==='function') toast('Tu rol no tiene permiso para entrar a este modulo','er');
         return __origGoRole.call(this,'list');
       }
@@ -1542,9 +1593,9 @@ async function deleteLastAutoAve() {
       function cacheModal(){ refs.modal=q('usersModuleModalBack'); refs.title=q('usersModuleModalTitle'); refs.inpUser=q('usersModuleUser'); refs.selRole=q('usersModuleRole'); refs.selActive=q('usersModuleActive'); refs.inpPass=q('usersModulePass'); }
       function setHeader(){ var t=q('pgT'),a=q('pgA'); if(!t||!a) return; clear(t); t.appendChild(document.createTextNode('Usuarios ')); var bc=make('span','bc','v86-redesign'); bc.id='buildTag'; t.appendChild(bc); clear(a); var wrap=make('div',''); wrap.style.display='flex'; wrap.style.gap='8px'; var rec=make('button','btn btn-s btn-sm','Recargar'); rec.type='button'; rec.addEventListener('click', reload); var add=make('button','btn btn-p btn-sm','Nuevo usuario'); add.type='button'; add.addEventListener('click', function(){ openModal(null); }); wrap.appendChild(rec); wrap.appendChild(add); a.appendChild(wrap); }
       function hideAllViews(){ ['vList','vForm','vDet','vMe2n','vMe2nDet','vIdx','vLicit','vProv','vUsersModule'].forEach(function(id){ var el=q(id); if(el) el.classList.remove('on'); }); document.querySelectorAll('.sb-nav .nv').forEach(function(n){ n.classList.remove('act'); }); }
-      function showPage(){ ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
+      function showPage(){ if(typeof canAccess==='function' && !canAccess('users')){ if(typeof toast==='function') toast('Tu rol no tiene permiso para entrar a este modulo','er'); return; } ensureNav(); ensureView(); setHeader(); hideAllViews(); refs.root.classList.add('on'); if(refs.nav) refs.nav.classList.add('act'); renderPermissionPanel(); if(!state.loaded) reload(); else renderUsers(); }
       async function reload(){ if(typeof sbFetch!=='function'){ toast('Conexion a usuarios no disponible','er'); return; } showLoader('Cargando usuarios...'); try{ state.list=await sbFetch('app_users','GET',null,'?select=id,username,role,active&order=username.asc&limit=500') || []; state.loaded=true; renderUsers(); renderPermissionPanel(); }catch(err){ console.error('users reload',err); toast(err.message||'No se pudieron cargar usuarios','er'); } finally{ hideLoader(); } }
-      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'OWNER y ADMIN siempre conservan acceso total. Los cambios se guardan en este navegador.'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); tr.appendChild(make('td','', role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(role==='OWNER' || role==='ADMIN'){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
+      function renderPermissionPanel(){ ensureView(); clear(refs.panel); var box=make('div','info-box blue'); box.style.margin='12px 0'; var title=make('div','', 'Permisos por rol'); title.style.fontWeight='700'; title.style.marginBottom='8px'; var desc=make('div','', 'OWNER y ADMIN siempre conservan acceso total. Los cambios se guardan en Supabase y se aplican a todos los usuarios.'); desc.style.fontSize='12px'; desc.style.marginBottom='10px'; box.appendChild(title); box.appendChild(desc); var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); hr.appendChild(make('th','', 'Rol')); Object.keys(ROLE_LABELS).forEach(function(mod){ hr.appendChild(make('th','', ROLE_LABELS[mod])); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); var matrix=getRoleMatrix(); Object.keys(matrix).forEach(function(role){ var tr=make('tr',''); tr.appendChild(make('td','', role)); Object.keys(ROLE_LABELS).forEach(function(mod){ var td=make('td',''); td.style.textAlign='center'; var chk=make('input',''); chk.type='checkbox'; chk.checked=!!matrix[role][mod]; chk.setAttribute('data-role',role); chk.setAttribute('data-mod',mod); if(role==='OWNER' || role==='ADMIN'){ chk.disabled=true; } td.appendChild(chk); tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); box.appendChild(tbl); var actions=make('div',''); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='10px'; var save=make('button','btn btn-p btn-sm','Guardar permisos'); save.type='button'; save.id='rolesSaveBtn'; var reset=make('button','btn btn-s btn-sm','Reset defaults'); reset.type='button'; reset.id='rolesResetBtn'; var restore=make('button','btn btn-s btn-sm','Restaurar OWNER y ADMIN'); restore.type='button'; restore.id='rolesRestorePrivBtn'; actions.appendChild(save); actions.appendChild(reset); actions.appendChild(restore); box.appendChild(actions); refs.panel.appendChild(box); }
       function collectPanelMatrix(){ var matrix=getRoleMatrix(); refs.panel.querySelectorAll('input[type="checkbox"][data-role][data-mod]').forEach(function(chk){ var role=chk.getAttribute('data-role'); var mod=chk.getAttribute('data-mod'); if(role==='OWNER' || role==='ADMIN') return; if(matrix[role] && typeof matrix[role][mod] !== 'undefined') matrix[role][mod]=chk.checked; }); return matrix; }
       function onPanelClick(ev){ var id=(ev.target&&ev.target.id)||''; if(id==='rolesSaveBtn'){ var matrix=collectPanelMatrix(); saveRoleMatrix(matrix); applyPermissions(); toast('Permisos guardados','ok'); } if(id==='rolesResetBtn'){ resetRoleMatrix(); renderPermissionPanel(); applyPermissions(); toast('Permisos reseteados','ok'); } if(id==='rolesRestorePrivBtn'){ var m=getRoleMatrix(); saveRoleMatrix(forcePrivileged(m)); renderPermissionPanel(); applyPermissions(); toast('OWNER y ADMIN restaurados','ok'); } }
       function renderUsers(){ ensureView(); clear(refs.body); text(refs.count,String((state.list||[]).length)); if(!state.list.length){ var empty=make('div','empty'); empty.appendChild(make('div','ei','U')); empty.appendChild(make('p','', 'No hay usuarios cargados.')); refs.body.appendChild(empty); return; } var tbl=make('table',''); var thead=make('thead',''); var hr=make('tr',''); ['Usuario','Rol','Estado','Seguridad','Acciones'].forEach(function(h){ hr.appendChild(make('th','',h)); }); thead.appendChild(hr); tbl.appendChild(thead); var tb=make('tbody',''); state.list.forEach(function(u){ var tr=make('tr',''); var td1=make('td','',u.username||''); td1.style.fontWeight='700'; var td2=make('td','',u.role||'SIN_ROL'); var td3=make('td',''); var badge=make('span','bdg '+(boolActive(u.active)?'act':'exp'), boolActive(u.active)?'ACTIVO':'INACTIVO'); td3.appendChild(badge); var td4=make('td',''); var small=make('span','', 'Contrasena oculta'); small.style.fontSize='11px'; small.style.color='var(--g500)'; td4.appendChild(small); var td5=make('td',''); td5.style.width='320px'; var actions=make('div',''); actions.style.display='flex'; actions.style.gap='6px'; actions.style.flexWrap='wrap'; actions.appendChild(actionButton('Editar','edit',u.id)); actions.appendChild(actionButton('Reset pass','reset',u.id)); actions.appendChild(actionButton(boolActive(u.active)?'Inactivar':'Activar','toggle',u.id)); actions.appendChild(actionButton('Eliminar','delete',u.id,true)); td5.appendChild(actions); [td1,td2,td3,td4,td5].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr); }); tbl.appendChild(tb); refs.body.appendChild(tbl); }

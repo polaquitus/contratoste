@@ -178,7 +178,7 @@ async function loginApp(){
   }
 }
 async function requireLogin(){
-  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); authUnlock(); return true; }
+  if(_APP_USER && _APP_ROLE){ setRoleBadge(); applyRolePermissions(); if(typeof applyPermissions==='function') applyPermissions(); authUnlock(); return true; }
   ensureLoginOverlay();
   return false;
 }
@@ -228,6 +228,8 @@ async function initApp(__fromLogin) {
     LICIT_DB = await sbLoadTable('licitaciones');
     SB_OK = true;
     setSBStatus(true);
+    // Permisos por rol: fuente de verdad en Supabase, caché en localStorage
+    if(typeof loadRoleMatrix==='function'){ try{ await loadRoleMatrix(); }catch(_e){} }
   } catch(e) {
     console.warn('Supabase core error:', e);
     try{window.DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!window.DB.length)window.DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){window.DB=[];}
