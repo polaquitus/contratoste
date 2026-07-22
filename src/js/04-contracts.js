@@ -455,7 +455,7 @@ function renderDet(){
     enms.forEach((e, idx)=>{
       const tc=e.tipo==='ACTUALIZACION_TARIFAS'?'tar':e.tipo==='EXTENSION'?'ext':e.tipo==='SCOPE'?'sc':e.tipo==='CLAUSULAS'?'cl':'ot';
       const tl=e.tipo==='ACTUALIZACION_TARIFAS'?'📐 Act.Tarifas':e.tipo==='EXTENSION'?'📅 Extensión':e.tipo==='SCOPE'?'🔧 Scope':e.tipo==='CLAUSULAS'?'📋 Cláusulas':'💬 Otro';
-      const extra=e.tipo==='EXTENSION'&&e.fechaFinNueva?'→ '+fD(e.fechaFinNueva):e.tipo==='ACTUALIZACION_TARIFAS'&&e.pctPoli?' +'+((e.pctPoli||0)*100).toFixed(2)+'% · '+formatMonth(e.basePeriodo||'')+'→'+formatMonth(e.nuevoPeriodo||''):'';
+      const extra=e.tipo==='EXTENSION'&&e.fechaFinNueva?'→ '+fD(e.fechaFinNueva):e.tipo==='ACTUALIZACION_TARIFAS'&&Array.isArray(e.tramos)&&e.tramos.length>1?e.tramos.map(t=>'+'+((t.pctPoli||0)*100).toFixed(2)+'% '+formatMonth(t.basePeriodo||'')+'→'+formatMonth(t.nuevoPeriodo||'')).join(' · '):e.tipo==='ACTUALIZACION_TARIFAS'&&e.pctPoli?' +'+((e.pctPoli||0)*100).toFixed(2)+'% · '+formatMonth(e.basePeriodo||'')+'→'+formatMonth(e.nuevoPeriodo||''):'';
       const corrBdg=e.correccionDeEnm?`<span class="bdg corr">CORR.ENM.${e.correccionDeEnm}</span> `:'';
       const supBdg=e.superseded?`<span class="bdg exp" style="font-size:8.5px">SUPERSEDED</span> `:'';
       enmRows+=`<tr ${e.superseded?'style="opacity:.5"':''}><td style="font-weight:700;font-size:12px">N°${e.num}</td><td>${corrBdg}${supBdg}<span class="ep ${tc}">${tl}</span></td><td style="font-size:11px">${extra}</td><td style="font-size:11px;color:var(--g500)">${fD((e.fecha||'').substring(0,10))}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.motivo||e.descripcion||'')}</td><td style="white-space:nowrap"><button class="btn btn-a btn-sm" style="padding:3px 8px;font-size:10px;margin-right:3px" onclick="openAmendmentDoc('${c.id}',${e.num})" title="Vista previa / Imprimir / PDF">📄</button><button class="btn btn-p btn-sm" style="padding:3px 8px;font-size:10px;margin-right:3px" onclick="downloadAmendmentDoc('${c.id}',${e.num})" title="Descargar Word .doc editable">📝</button><button class="btn btn-d btn-sm" style="padding:3px 8px;font-size:10px" onclick="delEnm(${e.num})">🗑</button></td></tr>`;
@@ -674,28 +674,20 @@ function renderDet(){
                 </select>
               </div>
             </div>
-            <div class="fg2">
-              <div class="fgrp"><label>Período base (tarifario origen)</label><input type="month" id="ne_basePer" value="${c.btar||''}" onchange="buildPolyForm()"></div>
-              <div class="fgrp"><label>Nuevo período <span class="req">*</span></label><input type="month" id="ne_newPer" onchange="calcAveSug()"></div>
+            <div id="ne_tramosWrap"></div>
+            <div style="margin:4px 0 14px">
+              <button class="btn btn-s btn-sm" onclick="addTramoPeriodo()">➕ Agregar otro período en esta misma enmienda</button>
             </div>
-            <div style="font-size:11px;font-weight:700;color:var(--p700);margin:10px 0 6px">📐 Términos de la fórmula polinómica:</div>
-            <div id="ne_polyTerms"></div>
-            <div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px 14px;background:var(--p100);border-radius:6px">
-              <span style="font-size:12px;font-weight:600;color:var(--p800)">% Polinómico total:</span>
-              <span id="ne_pctRes" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--p700)">0%</span>
-              <button class="btn btn-s btn-sm" onclick="previewPolyTar()">👁 Preview tarifario</button>
-            </div>
-            <div id="ne_tarPrev"></div>
             <div class="ave-sug" id="ne_aveSug" style="display:none">
               <h4>🟢 AVE Polinómica — se generará automáticamente al guardar</h4>
-              <div style="margin-bottom:6px;font-size:11px;color:var(--g700)" id="ne_aveFormula"></div>
-              <div style="font-size:11px;font-weight:600;color:var(--g700)">Monto calculado: <span class="sv" id="ne_aveMonto">—</span></div>
+              <div id="ne_aveBreakdown"></div>
+              <div style="font-size:12px;font-weight:700;color:var(--g700);margin-top:8px">AVE total: <span class="sv" id="ne_aveMonto">—</span></div>
               <div id="ne_obraGrp" style="display:none;margin:8px 0">
                 <label style="font-size:11px;font-weight:600">% avance pendiente (OBRA):</label>
-                <input type="number" id="ne_obraAdv" step="1" min="0" max="100" placeholder="%" oninput="calcAveSug()" style="width:120px;margin-top:4px">
+                <input type="number" id="ne_obraAdv" step="1" min="0" max="100" placeholder="%" oninput="calcAveSugAll()" style="width:120px;margin-top:4px">
               </div>
               <div style="margin-top:8px">
-                <label style="font-size:11px;font-weight:600;color:var(--g700)">Monto AVE manual (opcional):</label>
+                <label style="font-size:11px;font-weight:600;color:var(--g700)">Monto AVE manual (opcional, reemplaza el total calculado):</label>
                 <input type="number" id="ne_aveManual" step="0.01" placeholder="Deja vacío para usar el calculado" oninput="onAveManualChange()" style="margin-top:4px;width:220px">
                 <div id="ne_aveManualNote" style="font-size:11px;color:var(--g600c);margin-top:3px;display:none"></div>
               </div>
@@ -1289,10 +1281,10 @@ window.closeEnmModal = function closeEnmModal() {
 function closeEnmPanel(){
   const panel = document.getElementById('enmPanel');
   if(panel) panel.classList.remove('vis');
-  const ids = ['ne_tipo','ne_ffin','ne_mot','ne_newPer','ne_aveManual','ne_ext_tipo','ne_tar_subtipo','ne_scope_tipo','ne_basePer'];
+  const ids = ['ne_tipo','ne_ffin','ne_mot','ne_aveManual','ne_ext_tipo','ne_tar_subtipo','ne_scope_tipo'];
   ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const aveSug=document.getElementById('ne_aveSug');if(aveSug)aveSug.style.display='none';
-  const tarPrev=document.getElementById('ne_tarPrev');if(tarPrev)tarPrev.innerHTML='';
+  initTramos();
   if(typeof onEnmTipoChange==='function') onEnmTipoChange();
 }
 
@@ -1568,30 +1560,111 @@ function onEnmTipoChange(){
     const lblEl=document.getElementById('enm_mot_lbl');
     if(lblEl) lblEl.textContent=(lbl[t]||'Descripción *');
   }
-  if(t==='ACTUALIZACION_TARIFAS')buildPolyForm();
+  if(t==='ACTUALIZACION_TARIFAS')initTramos();
 }
 function onCorrToggle(){
   const on=document.getElementById('ne_isCorr').checked;
   document.getElementById('ne_isCorr_l').textContent=on?'Sí':'No';
   document.getElementById('ne_corrGrp').style.display=on?'':'none';
+  calcAveSugAll();
 }
 function prefillCorrEnm(){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
   const num=parseInt(document.getElementById('ne_corrEnm')?.value);
   const enm=cc.enmiendas?.find(e=>e.num===num);
-  if(enm){
-    const bp=document.getElementById('ne_basePer');const np=document.getElementById('ne_newPer');
-    if(bp&&enm.basePeriodo)bp.value=enm.basePeriodo;
-    if(np&&enm.nuevoPeriodo)np.value=enm.nuevoPeriodo;
-    buildPolyForm(enm);
-  }
+  if(!enm)return;
+  const tramosData=(Array.isArray(enm.tramos)&&enm.tramos.length)?enm.tramos:[{basePeriodo:enm.basePeriodo,nuevoPeriodo:enm.nuevoPeriodo,polyTerms:enm.polyTerms}];
+  _neTramoIds=tramosData.map((_,i)=>i);
+  _neTramoSeq=tramosData.length;
+  renderTramosWrap();
+  tramosData.forEach((t,i)=>{
+    const bp=document.getElementById('ne_basePer_'+i);if(bp&&t.basePeriodo)bp.value=t.basePeriodo;
+    const np=document.getElementById('ne_newPer_'+i);if(np&&t.nuevoPeriodo)np.value=t.nuevoPeriodo;
+    buildPolyFormTramo(i,t);
+  });
+  calcAveSugAll();
 }
-function buildPolyForm(prefill){
+
+// ═══════════ MÚLTIPLES PERÍODOS (TRAMOS) DENTRO DE UNA MISMA ENMIENDA ═══
+// Cada tramo define su propio [período base → nuevo período] + % por índice, y se
+// aplican en cadena: el tramo N usa como tarifa/monto de partida el resultado del
+// tramo N-1 (no el tarifario original). Ver getCurrentMonthlyRate/computeTramoChain.
+let _neTramoIds=[0];
+let _neTramoSeq=1;
+function initTramos(){
+  _neTramoIds=[0];
+  _neTramoSeq=1;
+  renderTramosWrap();
+}
+function addTramoPeriodo(){
+  const lastId=_neTramoIds[_neTramoIds.length-1];
+  const lastNewPer=gv('ne_newPer_'+lastId)||'';
+  const newId=_neTramoSeq++;
+  _neTramoIds.push(newId);
+  renderTramosWrap();
+  const baseEl=document.getElementById('ne_basePer_'+newId);
+  if(baseEl&&lastNewPer){baseEl.value=lastNewPer;baseEl.dataset.autoChained='1';}
+  buildPolyFormTramo(newId);
+  calcAveSugAll();
+}
+function removeTramoPeriodo(tramoId){
+  if(_neTramoIds.length<=1)return;
+  _neTramoIds=_neTramoIds.filter(id=>id!==tramoId);
+  renderTramosWrap();
+  calcAveSugAll();
+}
+function onTramoBaseChange(tramoId){
+  const el=document.getElementById('ne_basePer_'+tramoId);
+  if(el)el.dataset.autoChained='0';
+  buildPolyFormTramo(tramoId);
+  calcAveSugAll();
+}
+function onTramoNewPerChange(tramoId){
+  const newVal=gv('ne_newPer_'+tramoId)||'';
+  const idx=_neTramoIds.indexOf(tramoId);
+  if(idx>=0&&idx+1<_neTramoIds.length){
+    const nextId=_neTramoIds[idx+1];
+    const nextBaseEl=document.getElementById('ne_basePer_'+nextId);
+    if(nextBaseEl&&(!nextBaseEl.value||nextBaseEl.dataset.autoChained==='1')){
+      nextBaseEl.value=newVal;
+      nextBaseEl.dataset.autoChained='1';
+      buildPolyFormTramo(nextId);
+    }
+  }
+  calcAveSugAll();
+}
+function tramoBlockHtml(cc,tramoId,isFirst){
+  const defaultBase=isFirst?(cc.btar||''):'';
+  return `<div class="enm-tramo" id="ne_tramo_${tramoId}" style="border:1px solid var(--p200);border-radius:8px;padding:12px;margin-bottom:12px;background:var(--p50)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--p800);text-transform:uppercase">📐 Período de ajuste ${isFirst?'':'#'+(_neTramoIds.indexOf(tramoId)+1)}</div>
+      ${isFirst?'':`<button class="btn btn-d btn-sm" onclick="removeTramoPeriodo(${tramoId})" title="Quitar este período">🗑</button>`}
+    </div>
+    <div class="fg2">
+      <div class="fgrp"><label>Período base (tarifario origen)</label><input type="month" id="ne_basePer_${tramoId}" value="${defaultBase}" onchange="onTramoBaseChange(${tramoId})"></div>
+      <div class="fgrp"><label>Nuevo período <span class="req">*</span></label><input type="month" id="ne_newPer_${tramoId}" onchange="onTramoNewPerChange(${tramoId})"></div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--p700);margin:10px 0 6px">Términos de la fórmula polinómica:</div>
+    <div id="ne_polyTerms_${tramoId}"></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px 14px;background:var(--p100);border-radius:6px">
+      <span style="font-size:12px;font-weight:600;color:var(--p800)">% Polinómico de este período:</span>
+      <span id="ne_pctRes_${tramoId}" style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--p700)">0%</span>
+      <button class="btn btn-s btn-sm" onclick="previewPolyTarTramo(${tramoId})">👁 Preview tarifario</button>
+    </div>
+    <div id="ne_tarPrev_${tramoId}"></div>
+  </div>`;
+}
+function renderTramosWrap(){
+  const wrap=document.getElementById('ne_tramosWrap');if(!wrap)return;
+  const cc=window.DB.find(x=>x.id===window.detId)||{};
+  wrap.innerHTML=_neTramoIds.map((id,idx)=>tramoBlockHtml(cc,id,idx===0)).join('');
+  _neTramoIds.forEach(id=>buildPolyFormTramo(id));
+}
+function buildPolyFormTramo(tramoId,prefill){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
   const poly=(cc.poly||[]).filter(p=>p.idx);
-  const box=document.getElementById('ne_polyTerms');if(!box)return;
-  const basePer=gv('ne_basePer')||cc.btar||'';
-  const baseTar=getApplicableTariff(cc,basePer);
+  const box=document.getElementById('ne_polyTerms_'+tramoId);if(!box)return;
+  const basePer=gv('ne_basePer_'+tramoId)||cc.btar||'';
   if(!poly.length){box.innerHTML='<div class="info-box amber">Sin fórmula polinómica. Editá el contrato para cargar los índices.</div>';return;}
   let h='<div style="display:grid;grid-template-columns:22px 1.2fr 65px 75px 100px 100px;gap:5px;padding:3px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--g500);margin-bottom:3px"><span></span><span>Índice</span><span style="text-align:center">Incid.</span><span style="text-align:center">Inc×%</span><span>% Acumulado</span><span>Nueva Base</span></div>';
   poly.forEach((t,i)=>{
@@ -1601,62 +1674,131 @@ function buildPolyForm(prefill){
       <div style="width:20px;height:20px;border-radius:50%;background:var(--p200);color:var(--p800);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">${i+1}</div>
       <input type="text" value="${esc(t.idx)}" disabled style="font-size:11px;border-color:var(--g200)">
       <input type="text" value="${t.inc}" disabled style="font-size:11px;text-align:center;border-color:var(--g200)">
-      <input type="text" id="ne_ip_${i}" value="0%" disabled style="font-size:11px;text-align:center;font-weight:700;color:var(--g600);border-color:var(--g200)">
-      <input type="number" id="ne_acum_${i}" step="0.01" placeholder="%" value="${pa}" oninput="calcPoly()">
-      <input type="month" id="ne_nb_${i}" value="${esc(pb)}">
+      <input type="text" id="ne_ip_${tramoId}_${i}" value="0%" disabled style="font-size:11px;text-align:center;font-weight:700;color:var(--g600);border-color:var(--g200)">
+      <input type="number" id="ne_acum_${tramoId}_${i}" step="0.01" placeholder="%" value="${pa}" oninput="calcAveSugAll()">
+      <input type="month" id="ne_nb_${tramoId}_${i}" value="${esc(pb)}">
     </div>`;
   });
-  const baseTars=getApplicableTariffs(cc,basePer);
-  if(baseTars.length){const names=baseTars.map(t=>'"'+t.name+'"').join(', ');h+=`<div class="info-box blue" style="margin-top:6px;font-size:11px">Se actualizarán <strong>${baseTars.length} tabla${baseTars.length>1?'s':''}</strong>: ${esc(names)}. Nueva tarifa = tarifa_base × (1 + % polinómico).</div>`;}
-  else h+=`<div class="info-box amber" style="margin-top:6px;font-size:11px">Sin tarifario para el período base seleccionado.</div>`;
+  const idx=_neTramoIds.indexOf(tramoId);
+  const chainedFromPrev=idx>0&&basePer&&basePer===(gv('ne_newPer_'+_neTramoIds[idx-1])||'');
+  if(chainedFromPrev){
+    h+=`<div class="info-box blue" style="margin-top:6px;font-size:11px">Se aplicará sobre el tarifario resultante del período anterior de esta misma enmienda.</div>`;
+  } else {
+    const baseTars=getApplicableTariffs(cc,basePer);
+    if(baseTars.length){const names=baseTars.map(t=>'"'+t.name+'"').join(', ');h+=`<div class="info-box blue" style="margin-top:6px;font-size:11px">Se actualizarán <strong>${baseTars.length} tabla${baseTars.length>1?'s':''}</strong>: ${esc(names)}. Nueva tarifa = tarifa_base × (1 + % polinómico).</div>`;}
+    else h+=`<div class="info-box amber" style="margin-top:6px;font-size:11px">Sin tarifario para el período base seleccionado.</div>`;
+  }
   box.innerHTML=h;
 }
-function calcPoly(){
+function calcPolyTramo(tramoId){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return 0;
   const poly=(cc.poly||[]).filter(p=>p.idx);
   let pct=0;
   poly.forEach((t,i)=>{
-    const a=parseFloat(document.getElementById('ne_acum_'+i)?.value)||0;
+    const a=parseFloat(document.getElementById('ne_acum_'+tramoId+'_'+i)?.value)||0;
     const contrib=t.inc*(a/100);pct+=contrib;
-    const el=document.getElementById('ne_ip_'+i);
+    const el=document.getElementById('ne_ip_'+tramoId+'_'+i);
     if(el)el.value=(contrib*100).toFixed(3)+'%';
   });
-  const el=document.getElementById('ne_pctRes');
+  const el=document.getElementById('ne_pctRes_'+tramoId);
   if(el){el.textContent=(pct*100).toFixed(4)+'%';el.style.color=pct>0?'var(--g600)':'var(--r500)';}
   return pct;
 }
-function previewPolyTar(){
+// Tasa mensual vigente: parte de montoBase/plazo y va componiendo (1+pct) de cada
+// tramo ya guardado, en orden cronológico — así el % de una actualización se aplica
+// sobre la tarifa REAL vigente al momento, no sobre un promedio de todo el contrato.
+function getCurrentMonthlyRate(cc,excludeNum){
+  const totalMeses=Math.max(cc.plazo||1,1);
+  const avePolyPrev=(cc.aves||[]).filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+  const aveOwnerPrev=(cc.aves||[]).filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const montoBase=cc.montoBase||cc._montoOriginal||((cc.monto||0)-avePolyPrev-aveOwnerPrev);
+  let rate=montoBase/totalMeses;
+  const tramos=[];
+  (cc.enmiendas||[]).filter(e=>e.tipo==='ACTUALIZACION_TARIFAS'&&!e.superseded&&e.num!==excludeNum).forEach(e=>{
+    if(Array.isArray(e.tramos)&&e.tramos.length) e.tramos.forEach(t=>tramos.push(t));
+    else if(e.nuevoPeriodo) tramos.push({nuevoPeriodo:e.nuevoPeriodo,pctPoli:e.pctPoli});
+  });
+  tramos.sort((a,b)=>String(a.nuevoPeriodo||'').localeCompare(String(b.nuevoPeriodo||'')));
+  tramos.forEach(t=>{ rate=rate*(1+(t.pctPoli||0)); });
+  return rate;
+}
+// Calcula, en cadena, cada tramo definido en el formulario: % propio, tarifario
+// resultante (encadenado con el tramo anterior si corresponde) y AVE = delta de
+// tarifa mensual × meses remanentes desde ese nuevo período hasta el fin del contrato.
+function computeTramoChain(cc,excludeNum){
+  const totalMeses=Math.max(cc.plazo||1,1);
+  const iniYm=dateToMo(cc.fechaIni);
+  const tipoSel=(document.querySelector('input[name="ne_ctipo"]:checked')?.value)||cc.tipo;
+  const isObra=tipoSel==='OBRA';
+  let rate=getCurrentMonthlyRate(cc,excludeNum);
+  const avePolyPrev=(cc.aves||[]).filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+  const aveOwnerPrev=(cc.aves||[]).filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const montoBase=cc.montoBase||cc._montoOriginal||((cc.monto||0)-avePolyPrev-aveOwnerPrev);
+  let runningTot=montoBase+avePolyPrev+aveOwnerPrev;
+  const pp=parseFloat(document.getElementById('ne_obraAdv')?.value)||0;
+  const results=[];
+  _neTramoIds.forEach((tramoId,idx)=>{
+    const basePer=gv('ne_basePer_'+tramoId)||'';
+    const newPer=gv('ne_newPer_'+tramoId)||'';
+    const pct=calcPolyTramo(tramoId);
+    let srcTars=null;
+    for(let j=idx-1;j>=0;j--){ if(results[j]&&results[j].newPer&&results[j].newPer===basePer){ srcTars=results[j].tars; break; } }
+    if(!srcTars) srcTars=(typeof getApplicableTariffs==='function'?(getApplicableTariffs(cc,basePer)||[]):[]).map(t=>({name:t.name,cols:t.cols,rows:t.rows,sourceTableName:t.name}));
+    const factor=1+pct;
+    const newTars=srcTars.map(t=>({
+      name:t.name,cols:t.cols,sourceTableName:t.sourceTableName||t.name,
+      rows:(t.rows||[]).map(row=>(t.cols||[]).map((col,ci)=>{
+        const v=row[ci];
+        return (typeof isNumericCol==='function'&&isNumericCol(t,ci)&&v!==''&&v!=null)?Math.round((parseFloat(v)||0)*factor*100)/100:v;
+      }))
+    }));
+    let aveMonto=0,mM=0,mMnew=0,mR=0;
+    if(isObra){
+      aveMonto=pp>0?runningTot*(pp/100)*pct:0;
+      runningTot+=aveMonto;
+    } else {
+      let mD=0; if(newPer) mD=Math.max(monthDiff(iniYm,parseYM(newPer)),0);
+      mR=Math.max(totalMeses-mD,0);
+      mM=rate; mMnew=rate*factor;
+      aveMonto=(mMnew-mM)*mR;
+      rate=mMnew;
+    }
+    results.push({tramoId,basePer,newPer,pct,tars:newTars,srcTars,mM,mMnew,mR,aveMonto,isObra});
+  });
+  return results;
+}
+function previewPolyTarTramo(tramoId){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
-  const pct=calcPoly();
-  if(Math.abs(pct)<0.000001){toast('Ingresá los % acumulados de cada índice','er');return;}
-  const basePer=gv('ne_basePer');
-  const tars=getApplicableTariffs(cc,basePer);
-  const box=document.getElementById('ne_tarPrev');if(!box)return;
-  if(!tars.length){box.innerHTML='<div class="info-box amber" style="margin-top:8px">Sin tarifario para ese período base.</div>';return;}
-  const adj=1+pct;
-  let h=`<div class="info-box blue" style="margin-top:8px;font-size:11px">Factor <strong>×${adj.toFixed(6)}</strong> (+${(pct*100).toFixed(4)}%) — actualizando <strong>${tars.length} tabla${tars.length>1?'s':''}</strong></div>`;
-  tars.forEach(tar=>{
+  const isCorr=document.getElementById('ne_isCorr')?.checked;
+  const corrNum=isCorr?(parseInt(document.getElementById('ne_corrEnm')?.value)||null):null;
+  const results=computeTramoChain(cc,corrNum);
+  const r=results.find(x=>x.tramoId===tramoId);
+  const box=document.getElementById('ne_tarPrev_'+tramoId);if(!box)return;
+  if(!r||Math.abs(r.pct)<0.000001){box.innerHTML='<div class="info-box amber" style="margin-top:8px">Ingresá los % acumulados de cada índice</div>';calcAveSugAll();return;}
+  if(!r.srcTars.length){box.innerHTML='<div class="info-box amber" style="margin-top:8px">Sin tarifario de referencia para este período.</div>';calcAveSugAll();return;}
+  const adj=1+r.pct;
+  let h=`<div class="info-box blue" style="margin-top:8px;font-size:11px">Factor <strong>×${adj.toFixed(6)}</strong> (+${(r.pct*100).toFixed(4)}%) — actualizando <strong>${r.srcTars.length} tabla${r.srcTars.length>1?'s':''}</strong></div>`;
+  r.srcTars.forEach((tar,ti)=>{
+    const newTar=r.tars[ti];
     h+=`<div style="font-size:11px;font-weight:700;color:var(--p800);margin:10px 0 4px;padding:4px 8px;background:var(--p50);border-radius:4px;border-left:3px solid var(--p400)">📋 ${esc(tar.name)}</div>`;
     h+='<div class="tar-preview"><table><thead><tr>';
     tar.cols.forEach((col,ci)=>h+=`<th>${esc(col)}${isNumericCol(tar,ci)?'<span style="opacity:.5"> (base→nuevo)</span>':''}</th>`);
     h+='</tr></thead><tbody>';
-    tar.rows.forEach(row=>{h+='<tr>';tar.cols.forEach((col,ci)=>{const v=row[ci];if(isNumericCol(tar,ci)&&v!==''&&v!=null){const nv=parseFloat(v)||0,nw=nv*adj;h+=`<td><span style="color:var(--g500);text-decoration:line-through;font-size:10px">${fN(nv)}</span> <span class="new-v">→ ${fN(nw)}</span></td>`;}else h+=`<td>${esc(String(v??''))}</td>`;});h+='</tr>';});
+    tar.rows.forEach((row,ri)=>{h+='<tr>';tar.cols.forEach((col,ci)=>{const v=row[ci];if(isNumericCol(tar,ci)&&v!==''&&v!=null){const nv=parseFloat(v)||0,nw=parseFloat(newTar.rows[ri][ci])||0;h+=`<td><span style="color:var(--g500);text-decoration:line-through;font-size:10px">${fN(nv)}</span> <span class="new-v">→ ${fN(nw)}</span></td>`;}else h+=`<td>${esc(String(v??''))}</td>`;});h+='</tr>';});
     h+='</tbody></table></div>';
   });
   box.innerHTML=h;
   const manEl=document.getElementById('ne_aveManual');if(manEl)manEl.value='';
   const noteEl=document.getElementById('ne_aveManualNote');if(noteEl)noteEl.style.display='none';
-  document.getElementById('ne_aveSug').style.display='';
-  calcAveSug();
+  calcAveSugAll();
 }
-let _polyLast=0;
 function onAveManualChange(){
   const el=document.getElementById('ne_aveManual');
   const noteEl=document.getElementById('ne_aveManualNote');
   const montoEl=document.getElementById('ne_aveMonto');
   if(!el||!noteEl)return;
   const manualVal=el.value.trim();
-  if(manualVal===''){noteEl.style.display='none';calcAveSug();}
+  if(manualVal===''){noteEl.style.display='none';calcAveSugAll();}
   else{
     const mv=parseFloat(manualVal)||0;
     const autoMonto=parseFloat(montoEl?.dataset?.monto)||0;
@@ -1665,47 +1807,51 @@ function onAveManualChange(){
     noteEl.innerHTML=`Usarás <strong>${fN(mv)}</strong> en lugar del calculado <strong>${fN(autoMonto)}</strong> <span style="color:${diff>=0?'var(--g600)':'var(--r500)'}">(${diff>=0?'+':''}${fN(diff)})</span>`;
   }
 }
-function calcAveSug(){
+function calcAveSugAll(){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
-  const pct=calcPoly();_polyLast=pct;
-  const avePoly=(cc.aves||[]).filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
-  const aveOwner=(cc.aves||[]).filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
-  const montoBase=cc.montoBase||cc._montoOriginal||((cc.monto||0)-avePoly-aveOwner);
-  const tot=montoBase+avePoly+aveOwner;
-  const tipo=(document.querySelector('input[name="ne_ctipo"]:checked')?.value)||cc.tipo;
-  const isObra=tipo==='OBRA';
-  document.getElementById('ne_obraGrp').style.display=isObra?'':'none';
-  const newPer=gv('ne_newPer')||'';
-  const iniYm=dateToMo(cc.fechaIni);
-  const totalMeses=Math.max(cc.plazo||1,1);
-  let aveMonto=0,formula='';
-  if(isObra){
-    const pp=parseFloat(document.getElementById('ne_obraAdv')?.value)||0;
-    aveMonto=pp>0?tot*(pp/100)*pct:0;
-    formula=pp>0?`${cc.mon} ${fN(tot)} × ${pp}% av.pend. × ${(pct*100).toFixed(4)}% = <strong>${cc.mon} ${fN(aveMonto)}</strong>`:'Ingresá el % de avance pendiente.';
-  } else {
-    let mD=0;
-    if(newPer){mD=Math.max(monthDiff(iniYm,parseYM(newPer)),0);}
-    const mR=Math.max(totalMeses-mD,0);
-    const mM=tot/totalMeses;
-    aveMonto=mM*mR*pct;
-    formula=`(${cc.mon} ${fN(tot)} ÷ ${totalMeses} m.) × ${mR} m.rest. × ${(pct*100).toFixed(4)}% = <strong>${cc.mon} ${fN(aveMonto)}</strong>`;
-  }
-  document.getElementById('ne_aveFormula').innerHTML=formula;
+  const tipoSel=(document.querySelector('input[name="ne_ctipo"]:checked')?.value)||cc.tipo;
+  const isObra=tipoSel==='OBRA';
+  const obraGrp=document.getElementById('ne_obraGrp');if(obraGrp)obraGrp.style.display=isObra?'':'none';
+  const isCorr=document.getElementById('ne_isCorr')?.checked;
+  const corrNum=isCorr?(parseInt(document.getElementById('ne_corrEnm')?.value)||null):null;
+  const results=computeTramoChain(cc,corrNum);
+  let totalAve=0,bd='';
+  results.forEach((r,idx)=>{
+    totalAve+=r.aveMonto;
+    const label=(typeof formatYmLabel==='function'&&r.newPer)?formatYmLabel(r.newPer):(r.newPer||'—');
+    if(r.isObra){
+      bd+=`<div style="font-size:11px;color:var(--g700);padding:4px 0;border-bottom:1px solid var(--g100)">Período ${idx+1} (${label}): ${cc.mon} ${fN(r.aveMonto)} <span style="color:var(--g500)">(+${(r.pct*100).toFixed(4)}% s/avance pendiente)</span></div>`;
+    } else {
+      bd+=`<div style="font-size:11px;color:var(--g700);padding:4px 0;border-bottom:1px solid var(--g100)">Período ${idx+1} (${label}): ${cc.mon} ${fN(r.mM)} → ${cc.mon} ${fN(r.mMnew)} · × ${r.mR} m.rest. = <strong>${cc.mon} ${fN(r.aveMonto)}</strong></div>`;
+    }
+  });
+  const bdEl=document.getElementById('ne_aveBreakdown');if(bdEl)bdEl.innerHTML=bd;
   const el=document.getElementById('ne_aveMonto');
-  if(el){el.textContent=aveMonto>0?cc.mon+' '+fN(aveMonto):'—';el.dataset.monto=aveMonto;}
+  if(el){el.textContent=totalAve>0?cc.mon+' '+fN(totalAve):'—';el.dataset.monto=totalAve;}
+  const sug=document.getElementById('ne_aveSug');if(sug)sug.style.display=results.length?'':'none';
 }
 function recalcTarChain(cc,fromPeriod){
   const pEnms=(cc.enmiendas||[]).filter(e=>e.tipo==='ACTUALIZACION_TARIFAS'&&e.nuevoPeriodo&&e.nuevoPeriodo>=fromPeriod&&!e.superseded).sort((a,b)=>a.nuevoPeriodo.localeCompare(b.nuevoPeriodo));
   pEnms.forEach(enm=>{
-    const bTars=getApplicableTariffs(cc,enm.basePeriodo||'');if(!bTars.length)return;
-    const adj=1+(enm.pctPoli||0);
+    // Enmiendas con varios períodos (tramos) se re-encadenan en memoria igual que al guardarlas;
+    // las viejas (sin tramos) caen al caso de un tramo único, comportamiento idéntico al previo.
+    const tramos=(Array.isArray(enm.tramos)&&enm.tramos.length)?enm.tramos:[{basePeriodo:enm.basePeriodo,pctPoli:enm.pctPoli,nuevoPeriodo:enm.nuevoPeriodo}];
     const existingForEnm=cc.tarifarios.filter(t=>t.enmNum===enm.num);
-    bTars.forEach((bTar,ti)=>{
-      const newRows=bTar.rows.map(row=>bTar.cols.map((col,ci)=>{const v=row[ci];return(isNumericCol(bTar,ci)&&v!==''&&v!=null)?Math.round((parseFloat(v)||0)*adj*100)/100:v;}));
-      const baseName=bTar.name.replace(/\s*\(Enm\.\d+\)$/, '').trim();
-      const match=existingForEnm.find(t=>t.sourceTableName===bTar.name)||existingForEnm[ti];
-      if(match){match.rows=newRows;match.name=baseName+' (Enm.'+enm.num+')';}
+    let chainTars=null;
+    tramos.forEach(tr=>{
+      const bTars=(chainTars&&chainTars.length)?chainTars:getApplicableTariffs(cc,tr.basePeriodo||'').map(t=>({name:t.name,cols:t.cols,rows:t.rows,sourceTableName:t.name}));
+      if(!bTars.length){ chainTars=null; return; }
+      const adj=1+(tr.pctPoli||0);
+      chainTars=bTars.map(bTar=>({
+        name:bTar.name,cols:bTar.cols,sourceTableName:bTar.sourceTableName||bTar.name,
+        rows:bTar.rows.map(row=>bTar.cols.map((col,ci)=>{const v=row[ci];return(isNumericCol(bTar,ci)&&v!==''&&v!=null)?Math.round((parseFloat(v)||0)*adj*100)/100:v;}))
+      }));
+    });
+    if(!chainTars)return;
+    chainTars.forEach((newTar,ti)=>{
+      const baseName=(newTar.name||'Tarifario').replace(/\s*\(Enm\.\d+\)$/, '').trim();
+      const match=existingForEnm.find(t=>t.sourceTableName===newTar.sourceTableName)||existingForEnm[ti];
+      if(match){match.rows=newTar.rows;match.name=baseName+' (Enm.'+enm.num+')';}
     });
   });
 }
@@ -1733,52 +1879,54 @@ async function guardarEnm(){
     cc.fechaFin = ff;
     cc.plazo = Math.max(((new Date(ff).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ff).getMonth()-new Date(cc.fechaIni).getMonth())),0);
   } else if(tipo==='ACTUALIZACION_TARIFAS'){
-    const pct = typeof calcPoly==='function' ? calcPoly() : 0;
-    if(Math.abs(pct) < 0.000001){ toast('Ingresá los % acumulados', 'er'); return; }
-    const basePer = gv('ne_basePer');
-    const newPer = gv('ne_newPer');
-    if(!newPer){ toast('Ingresá el nuevo período', 'er'); return; }
-    enm.basePeriodo = basePer;
-    enm.nuevoPeriodo = newPer;
-    enm.pctPoli = pct;
-    enm.tarSubtipo = document.getElementById('ne_tar_subtipo')?.value || 'POLINOMICA';
     const isCorr = document.getElementById('ne_isCorr')?.checked;
     const corrNum = isCorr ? (parseInt(document.getElementById('ne_corrEnm')?.value)||null) : null;
+    const results = computeTramoChain(cc, corrNum);
+    if(!results.length || results.every(r=>Math.abs(r.pct)<0.000001)){ toast('Ingresá los % acumulados', 'er'); return; }
+    for(const r of results){ if(!r.newPer){ toast('Completá el nuevo período de todos los tramos', 'er'); return; } }
+    const lastR=results[results.length-1];
+
+    enm.tarSubtipo = document.getElementById('ne_tar_subtipo')?.value || 'POLINOMICA';
     enm.correccionDeEnm = corrNum || null;
     if(corrNum){
       const oe = cc.enmiendas.find(e=>e.num===corrNum);
       if(oe){ oe.superseded=true; oe.supersededBy=num; }
       cc.tarifarios = (cc.tarifarios||[]).filter(t=>t.enmNum!==corrNum);
     }
+
+    // Campos de nivel superior = último tramo, para compatibilidad con el resto de la app
+    // (listados, dashboard, generación de documentos). El detalle completo va en enm.tramos.
+    enm.basePeriodo = lastR.basePer;
+    enm.nuevoPeriodo = lastR.newPer;
+    enm.pctPoli = lastR.pct;
+
     const poly = (cc.poly||[]).filter(p=>p.idx);
-    enm.polyTerms = poly.map((t,i)=>({
-      idx:t.idx, inc:t.inc, baseOrig:t.base||'',
-      pctAcum:parseFloat(document.getElementById('ne_acum_'+i)?.value)||0,
-      nuevaBase:document.getElementById('ne_nb_'+i)?.value||''
+    enm.tramos = results.map(r=>({
+      basePeriodo:r.basePer, nuevoPeriodo:r.newPer, pctPoli:r.pct,
+      polyTerms: poly.map((t,i)=>({
+        idx:t.idx, inc:t.inc, baseOrig:t.base||'',
+        pctAcum:parseFloat(document.getElementById('ne_acum_'+r.tramoId+'_'+i)?.value)||0,
+        nuevaBase:document.getElementById('ne_nb_'+r.tramoId+'_'+i)?.value||''
+      }))
     }));
+    enm.polyTerms = enm.tramos[enm.tramos.length-1].polyTerms;
 
-    const bTars = typeof getApplicableTariffs==='function' ? (getApplicableTariffs(cc, basePer)||[]) : [];
-    if(bTars.length){
-      const adj = 1 + pct;
-      bTars.forEach((bTar)=>{
-        const newRows=(bTar.rows||[]).map(row=>(bTar.cols||[]).map((col,ci)=>{
-          const v=row[ci];
-          return (typeof isNumericCol==='function' && isNumericCol(bTar,ci) && v!=='' && v!=null) ? Math.round((parseFloat(v)||0)*adj*100)/100 : v;
-        }));
-        const baseName=String(bTar.name||'Tarifario').replace(/\s*\(Enm\.\d+\)$/,'').trim();
-        cc.tarifarios.push({name:baseName+' (Enm.'+num+')', cols:[...(bTar.cols||[])], rows:newRows, period:newPer, enmNum:num, sourceTableName:bTar.name||''});
-      });
-      if(typeof recalcTarChain==='function') recalcTarChain(cc,newPer);
-
-      // Actualizar base tarifaria
-      cc.btar=newPer;
-
-      localStorage.removeItem('pol_eval_result_'+cc.id);
-      localStorage.removeItem('pol_selected_months_'+cc.id);
-      console.log('[guardarEnm] Nueva base tarifaria:', newPer);
-    } else {
-      cc.tarifarios.push({ name:'Lista de Precios (Enm.'+num+')', cols:['ITEM','DESCRIPCION','UNIDAD','PRECIO'], rows:[], period:newPer, enmNum:num, sourceTableName:'PENDIENTE_BASE', placeholder:true });
-    }
+    results.forEach(r=>{
+      if(r.srcTars && r.srcTars.length){
+        r.srcTars.forEach((bTar,ti)=>{
+          const newRows=r.tars[ti].rows;
+          const baseName=String(bTar.name||'Tarifario').replace(/\s*\(Enm\.\d+\)$/,'').trim();
+          cc.tarifarios.push({name:baseName+' (Enm.'+num+')', cols:[...(bTar.cols||[])], rows:newRows, period:r.newPer, enmNum:num, sourceTableName:bTar.sourceTableName||bTar.name||''});
+        });
+        if(typeof recalcTarChain==='function') recalcTarChain(cc,r.newPer);
+        cc.btar=r.newPer;
+      } else {
+        cc.tarifarios.push({ name:'Lista de Precios (Enm.'+num+')', cols:['ITEM','DESCRIPCION','UNIDAD','PRECIO'], rows:[], period:r.newPer, enmNum:num, sourceTableName:'PENDIENTE_BASE', placeholder:true });
+      }
+    });
+    localStorage.removeItem('pol_eval_result_'+cc.id);
+    localStorage.removeItem('pol_selected_months_'+cc.id);
+    console.log('[guardarEnm] Períodos aplicados en Enm.'+num+':', results.map(r=>r.newPer).join(' → '));
 
     // Congelar montoBase (monto original del contrato, sin AVEs) la primera vez que se toca
     if(cc.montoBase==null){
@@ -1789,11 +1937,18 @@ async function guardarEnm(){
 
     const aveManualEl=document.getElementById('ne_aveManual');
     const aveManualVal=aveManualEl && String(aveManualEl.value).trim()!=='' ? (parseFloat(aveManualEl.value)||0) : null;
-    const aveAutoMonto=parseFloat(document.getElementById('ne_aveMonto')?.dataset?.monto)||0;
-    const aveMonto=aveManualVal!==null ? aveManualVal : aveAutoMonto;
-    if(aveMonto>0){
-      const isManual=aveManualVal!==null;
-      cc.aves.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4), tipo:'POLINOMICA', subtipo:isManual?'MANUAL':'AUTO', concepto:'Polinómica '+(isManual?'manual':'auto')+' — Enm.'+num+' (+'+((pct)*100).toFixed(2)+'%)', monto:Math.round(aveMonto*100)/100, enmRef:num, periodo:newPer, autoGenerated:!isManual, fecha:new Date().toISOString()});
+    if(aveManualVal!==null){
+      // Monto manual único: reemplaza el total calculado, referenciado al último período de la enmienda
+      if(aveManualVal>0){
+        cc.aves.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4), tipo:'POLINOMICA', subtipo:'MANUAL', concepto:'Polinómica manual — Enm.'+num, monto:Math.round(aveManualVal*100)/100, enmRef:num, periodo:lastR.newPer, autoGenerated:false, fecha:new Date().toISOString()});
+      }
+    } else {
+      results.forEach((r,idx)=>{
+        if(r.aveMonto>0){
+          const tag=results.length>1?' · período '+(idx+1)+'/'+results.length:'';
+          cc.aves.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+idx, tipo:'POLINOMICA', subtipo:'AUTO', concepto:'Polinómica auto — Enm.'+num+tag+' (+'+((r.pct)*100).toFixed(2)+'%)', monto:Math.round(r.aveMonto*100)/100, enmRef:num, periodo:r.newPer, autoGenerated:true, fecha:new Date().toISOString()});
+        }
+      });
     }
 
     // Monto vigente = montoBase + suma aditiva de todos los AVEs (sin multiplicar de nuevo por el %)
