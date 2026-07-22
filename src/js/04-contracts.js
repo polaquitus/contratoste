@@ -1673,7 +1673,7 @@ function calcAveSug(){
   const isObra=tipo==='OBRA';
   document.getElementById('ne_obraGrp').style.display=isObra?'':'none';
   const newPer=gv('ne_newPer')||'';
-  const iniDate=new Date(cc.fechaIni+'T00:00:00');
+  const iniYm=dateToMo(cc.fechaIni);
   const totalMeses=Math.max(cc.plazo||1,1);
   let aveMonto=0,formula='';
   if(isObra){
@@ -1682,7 +1682,7 @@ function calcAveSug(){
     formula=pp>0?`${cc.mon} ${fN(tot)} × ${pp}% av.pend. × ${(pct*100).toFixed(4)}% = <strong>${cc.mon} ${fN(aveMonto)}</strong>`:'Ingresá el % de avance pendiente.';
   } else {
     let mD=0;
-    if(newPer){const np=new Date(newPer+'-01');mD=Math.max((np.getFullYear()-iniDate.getFullYear())*12+(np.getMonth()-iniDate.getMonth()),0);}
+    if(newPer){mD=Math.max(monthDiff(iniYm,parseYM(newPer)),0);}
     const mR=Math.max(totalMeses-mD,0);
     const mM=tot/totalMeses;
     aveMonto=mM*mR*pct;
