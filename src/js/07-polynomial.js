@@ -269,8 +269,6 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
     var poly=(contract.poly||[]).filter(function(p){return p.idx;});
     if(!poly.length) return null;
     var perIdx=[];
-    var cumpleTodas=true;
-    var promCumplimiento=0;
     var countPoly=0;
     var anyMissing=false;
     poly.forEach(function(p){
@@ -283,22 +281,28 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
       }
       var incWeight=Number(p.inc)||0;
       if(variacion!=null){
-        var cumple=variacion>=conditions.allComponentsThreshold;
-        if(!cumple)cumpleTodas=false;
-        promCumplimiento+=Math.min(Math.max(variacion/conditions.allComponentsThreshold,0),1);
         countPoly++;
         var aporte=(Math.pow(1+variacion/100, incWeight)-1)*100;
-        perIdx.push({idx:p.idx, pct:variacion, cumple:cumple, manual:manual, hasData:true, inc:incWeight*100, aporte:aporte});
+        perIdx.push({idx:p.idx, pct:variacion, manual:manual, hasData:true, inc:incWeight*100, aporte:aporte});
       } else {
-        cumpleTodas=false; anyMissing=true;
-        perIdx.push({idx:p.idx, pct:null, cumple:false, manual:false, hasData:false, inc:incWeight*100, aporte:null});
+        anyMissing=true;
+        perIdx.push({idx:p.idx, pct:null, manual:false, hasData:false, inc:incWeight*100, aporte:null});
       }
     });
     if(countPoly>0){
-      // firstComplianceMonth: primer mes (desde baseMonth+1 hasta mesEval) donde la variación
-      // polinómica combinada (Ko-1) supera el umbral — solo se puede escanear con datos 100%
-      // automáticos (computePoliDeltaPct no acepta overrides, un override es un único valor
-      // "hasta hoy", no una serie mensual, así que no sirve para reconstruir meses pasados).
+      // El gatillo es sobre el Ko COMBINADO de la fórmula (todos los conceptos
+      // ponderados por su % de incidencia), no sobre cada concepto por separado —
+      // un concepto de baja incidencia no puede tapar a uno que ya superó el umbral.
+      var koTotal=null, cumpleUmbral=false;
+      if(!anyMissing){
+        koTotal=(perIdx.reduce(function(k,d){return k*(1+d.aporte/100);},1)-1)*100;
+        cumpleUmbral=koTotal>=conditions.allComponentsThreshold;
+      }
+      // firstComplianceMonth: primer mes (desde baseMonth+1 hasta mesEval) donde el Ko
+      // combinado supera el umbral — solo se puede escanear con datos 100% automáticos
+      // (computePoliDeltaPct no acepta overrides, un override es un único valor "hasta
+      // el mes de evaluación", no una serie mensual, así que no sirve para reconstruir
+      // meses pasados).
       if(!anyMissing){
         try{
           var scanFromYm=nextYm(ymOf(baseMonth));
@@ -314,38 +318,37 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
           }
         }catch(_e){ console.warn('firstComplianceMonth scan',_e); }
       }
-      var koTotal=null;
-      if(!anyMissing){
-        koTotal=(perIdx.reduce(function(k,d){return k*(1+d.aporte/100);},1)-1)*100;
-      }
       details.push({
-        condicion:'Variación acumulada ≥ '+conditions.allComponentsThreshold+'%',
-        cumplimiento:promCumplimiento/countPoly,
-        cumplido:cumpleTodas,
+        condicion:'Variación acumulada (Ko) ≥ '+conditions.allComponentsThreshold+'%',
+        cumplimiento:koTotal!=null?Math.min(Math.max(koTotal/conditions.allComponentsThreshold,0),1):0,
+        cumplido:cumpleUmbral,
         perIdx:perIdx,
         anyMissing:anyMissing,
         koTotal:koTotal,
         detalle:'Base '+formatYmLabel(baseMonth)+' → Eval '+formatYmLabel(mesEval)+' | '+perIdx.map(function(d){
           if(!d.hasData) return d.idx+': sin datos ⚠️';
-          return d.idx+': '+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%'+(d.manual?' (manual)':'')+' '+(d.cumple?'✓':'○');
+          return d.idx+': '+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%'+(d.manual?' (manual)':'');
         }).join(' | '),
         firstMet:firstComplianceMonth||''
       });
-      if(cumpleTodas)cumpleGeneral=true;
+      if(cumpleUmbral)cumpleGeneral=true;
     } else {
       return null;
     }
   }
   if(conditions.monthsElapsed>0){
-    var lastUpdate=ymOf(conditions.lastUpdateDate)||ymOf(contract.fechaIni);
-    var mesesTranscurridos=monthsBetween(normalizeToMonthStart(lastUpdate), normalizeToMonthStart(mesEval));
+    // La referencia es el MISMO período base que la condición de arriba (el último
+    // ajuste, editable por el usuario) — no la fecha de inicio del contrato ni un
+    // lastUpdateDate separado, que podían quedar desincronizados del período que
+    // se está evaluando.
+    var mesesTranscurridos=monthsBetween(normalizeToMonthStart(baseMonth), normalizeToMonthStart(mesEval));
     var cumpleMeses=mesesTranscurridos>=conditions.monthsElapsed;
-    var firstMesCond=lastUpdate; for(var i=1;i<=conditions.monthsElapsed;i++) firstMesCond=nextYm(firstMesCond);
+    var firstMesCond=ymOf(baseMonth); for(var i=1;i<=conditions.monthsElapsed;i++) firstMesCond=nextYm(firstMesCond);
     details.push({
       condicion:'Meses transcurridos ≥ '+conditions.monthsElapsed,
       cumplimiento:Math.min(mesesTranscurridos/conditions.monthsElapsed,1),
       cumplido:cumpleMeses,
-      detalle:'Base '+formatYmLabel(lastUpdate)+' → Eval '+formatYmLabel(mesEval)+' | Transcurridos: '+mesesTranscurridos+' meses',
+      detalle:'Base '+formatYmLabel(baseMonth)+' → Eval '+formatYmLabel(mesEval)+' | Transcurridos: '+mesesTranscurridos+' meses',
       firstMet:firstMesCond
     });
     if(cumpleMeses)cumpleGeneral=true;
@@ -457,7 +460,7 @@ function renderUpdateSection(contract){
     condHtml+='<div style="font-size:12px;color:#92400e">El mes de evaluación debe ser posterior al período base.</div>';
   } else if(!liveResult){
     condHtml+='<ul style="margin:0 0 0 20px;font-size:13px;color:var(--g600);line-height:2;font-weight:600">';
-    if(conditions.allComponentsThreshold>0) condHtml+='<li>Variación acumulada ≥ '+conditions.allComponentsThreshold+'%</li>';
+    if(conditions.allComponentsThreshold>0) condHtml+='<li>Variación acumulada (Ko) ≥ '+conditions.allComponentsThreshold+'%</li>';
     if(conditions.monthsElapsed>0) condHtml+='<li>'+conditions.monthsElapsed+' meses desde última actualización</li>';
     condHtml+='</ul><div style="font-size:12px;color:var(--g500);margin-top:6px">Sin datos suficientes para simular todavía.</div>';
   } else {
@@ -479,7 +482,7 @@ function renderUpdateSection(contract){
           condHtml+='<span style="font-weight:700;color:var(--g800)">'+esc(pi.idx)+'</span>';
           condHtml+='<span style="color:var(--g600c)">'+pi.inc.toFixed(1)+'%</span>';
           if(pi.hasData&&!pi.manual){
-            condHtml+='<span style="font-weight:700;color:'+(pi.cumple?'var(--g600)':'#92400e')+'">'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'% <span title="Fuente automática" style="font-size:9px;font-weight:800;color:var(--g600);background:var(--g100d);padding:1px 5px;border-radius:99px;vertical-align:middle">AUTO</span></span>';
+            condHtml+='<span style="font-weight:700;color:var(--g800)">'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'% <span title="Fuente automática" style="font-size:9px;font-weight:800;color:var(--g600);background:var(--g100d);padding:1px 5px;border-radius:99px;vertical-align:middle">AUTO</span></span>';
           } else {
             var curVal=pi.hasData?pi.pct:(overrides[pi.idx]!=null?overrides[pi.idx]:'');
             condHtml+='<span style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+
@@ -491,7 +494,7 @@ function renderUpdateSection(contract){
               '</span>';
           }
           if(pi.hasData){
-            condHtml+='<span style="font-weight:700;color:var(--g700)">'+(pi.aporte>=0?'+':'')+pi.aporte.toFixed(2)+'% '+(pi.cumple?'✓':'○')+'</span>';
+            condHtml+='<span style="font-weight:700;color:var(--p700)" title="Aporte ponderado al Ko combinado">'+(pi.aporte>=0?'+':'')+pi.aporte.toFixed(2)+'%</span>';
           } else {
             condHtml+='<span style="color:var(--g400);font-size:11px">— completá el %</span>';
           }
