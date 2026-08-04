@@ -403,8 +403,17 @@ async function idxFetchIndec(id, ym){
 }
 
 // ── Gas Oil fetch vía energia-proxy ──────────────────────────────────
-async function idxFetchFuel(id, ym){
-  const ckanUrl='https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=f8dda0d5-2a9f-4d34-b79b-4e63de3995df&limit=32000';
+// Hay dos datasets CKAN distintos:
+//  - HISTÓRICO (f8dda0d5…): cierres mensuales oficiales, pero el ETL que lo
+//    nutre suele quedar varios meses atrás (por eso Combustible aparecía con
+//    ~80 días de atraso pese a que YPF sí actualiza sus precios en Neuquén).
+//  - VIGENTES (80ac25de…, "Precios vigentes en surtidor" Res. 314/2016): precio
+//    declarado ACTUAL por cada EESS, sin recorte mensual — se usa como fuente
+//    primaria para el mes en curso, y el histórico queda como respaldo para
+//    meses ya cerrados que el vigente ya no tenga.
+const CKAN_FUEL_HIST_URL='https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=f8dda0d5-2a9f-4d34-b79b-4e63de3995df&limit=32000';
+const CKAN_FUEL_VIGENTES_URL='https://datos.energia.gob.ar/api/3/action/datastore_search?resource_id=80ac25de-a44a-4445-9215-090cf55cfda5&limit=32000';
+async function _ckanFetchViaProxy(ckanUrl){
   const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
@@ -413,25 +422,46 @@ async function idxFetchFuel(id, ym){
   if(!r.ok) throw new Error('energia-proxy '+r.status);
   const j=await r.json();
   if(!j.success) throw new Error('CKAN error: '+(j.error&&j.error.message||'desconocido'));
-  const records=(j.result&&j.result.records||[]).filter(rec=>{
-    const prov=(rec.provincia||rec.idprovincia||'').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    const emp=(rec.empresa||rec.razon_social||rec.empresabandera||'').toString().toUpperCase();
-    const prod=(rec.producto||rec.idproducto||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    const fecha=(rec.fecha_vigencia||rec.fechavigencia||rec.fecha||'').toString();
-    const esNQN=prov.includes('NEUQU')||prov==='58';
-    const esYPF=emp.includes('YPF');
-    const esGasoil=prod.includes('gasoil')||prod.includes('diesel')||prod.includes('gas oil');
-    const esYm=fecha.startsWith(ym);
-    const isG2=false;
-    const isG3=id==='go_g3'&&(prod.includes('grado 3')||prod.includes('grado_3')||prod.includes('g3')||prod.includes('premium')||prod.includes('ultra')||prod.includes('infinia'));
-    return esNQN&&esYPF&&esGasoil&&esYm&&(isG2||isG3);
-  });
-  if(!records.length) throw new Error('Sin datos combustible para '+ym+' en CKAN histórico');
-  const precio=Math.max(...records.map(rec=>parseFloat((rec.precio||rec.importe||'0').toString().replace(',','.'))));
+  return j.result&&j.result.records||[];
+}
+function _fuelMatchRecord(id,rec){
+  const prov=(rec.provincia||rec.idprovincia||'').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const emp=(rec.empresa||rec.razon_social||rec.empresabandera||'').toString().toUpperCase();
+  const prod=(rec.producto||rec.idproducto||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const esNQN=prov.includes('NEUQU')||prov==='58';
+  const esYPF=emp.includes('YPF');
+  const esGasoil=prod.includes('gasoil')||prod.includes('diesel')||prod.includes('gas oil');
+  const isG3=id==='go_g3'&&(prod.includes('grado 3')||prod.includes('grado_3')||prod.includes('g3')||prod.includes('premium')||prod.includes('ultra')||prod.includes('infinia'));
+  return esNQN&&esYPF&&esGasoil&&isG3;
+}
+async function idxFetchFuel(id, ym){
   const prevYm=idxPrevYm(ym);
   const prevRow=idxRows(id).find(r=>r.ym===prevYm);
-  const pct=prevRow&&prevRow.value?Number(((precio/prevRow.value-1)*100).toFixed(2)):null;
-  return {ym,value:Number(precio.toFixed(2)),pct,source:'S.Energía',confirmed:false};
+  const withPct=(precio,source)=>{
+    const pct=prevRow&&prevRow.value?Number(((precio/prevRow.value-1)*100).toFixed(2)):null;
+    return {ym,value:Number(precio.toFixed(2)),pct,source,confirmed:false};
+  };
+  // 1) Intentar VIGENTES (precio declarado actual) — es la fuente que sí se
+  //    mantiene al día; usamos el precio más reciente reportado como el valor
+  //    del mes objetivo.
+  try{
+    const vigRecords=(await _ckanFetchViaProxy(CKAN_FUEL_VIGENTES_URL)).filter(rec=>_fuelMatchRecord(id,rec));
+    if(vigRecords.length){
+      vigRecords.sort((a,b)=>String(a.fecha_vigencia||a.fechavigencia||a.fecha||'').localeCompare(String(b.fecha_vigencia||b.fechavigencia||b.fecha||'')));
+      const latestFecha=String(vigRecords[vigRecords.length-1].fecha_vigencia||vigRecords[vigRecords.length-1].fechavigencia||vigRecords[vigRecords.length-1].fecha||'');
+      const latestBatch=vigRecords.filter(rec=>String(rec.fecha_vigencia||rec.fechavigencia||rec.fecha||'')===latestFecha);
+      const precio=Math.max(...latestBatch.map(rec=>parseFloat((rec.precio||rec.importe||'0').toString().replace(',','.'))));
+      if(isFinite(precio)&&precio>0) return withPct(precio,'S.Energía (vigentes)');
+    }
+  }catch(vigErr){ console.warn('idxFetchFuel vigentes failed, trying histórico',vigErr.message); }
+  // 2) Respaldo: HISTÓRICO filtrado al mes exacto (para meses ya cerrados).
+  const histRecords=(await _ckanFetchViaProxy(CKAN_FUEL_HIST_URL)).filter(rec=>{
+    const fecha=(rec.fecha_vigencia||rec.fechavigencia||rec.fecha||'').toString();
+    return fecha.startsWith(ym)&&_fuelMatchRecord(id,rec);
+  });
+  if(!histRecords.length) throw new Error('Sin datos combustible para '+ym+' (ni vigentes ni histórico CKAN)');
+  const precio=Math.max(...histRecords.map(rec=>parseFloat((rec.precio||rec.importe||'0').toString().replace(',','.'))));
+  return withPct(precio,'S.Energía (histórico)');
 }
 
 // ── Agregar siguiente mes (auto o manual) ─────────────────────────────
@@ -579,8 +609,13 @@ async function runIdxUpdate(id){
 
     // ── Gemini AI (solo para manual/fallback) — la validación acá es
     // especialmente importante: un valor alucinado por la IA no debe
-    // colarse en un cálculo de AVE sin que alguien lo revise. ──────────
-    const rs=await idxResolveViaAI(def,target);
+    // colarse en un cálculo de AVE sin que alguien lo revise. Se envuelve en
+    // su propio try/catch para que si el proxy Gemini falla (red, cuota,
+    // timeout) el flujo siga hacia el fallback de seed en vez de saltar
+    // directo al catch general y dejar el índice "trabado" sin más intentos.
+    let rs=null;
+    try{ rs=await idxResolveViaAI(def,target); }
+    catch(aiErr){ console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
     if(rs && (rs.pct!=null||rs.value!=null)){
       const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
