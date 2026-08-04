@@ -852,13 +852,6 @@ function processSapProvImport(input){
   reader.readAsArrayBuffer(file);
 }
 
-// ── Wire licitaciones to use PROV_DB ─────────────────────────────────────
-// Override the offers datalist in licitacion modal to use PROV_DB
-function getProvNames(){
-  return PROV_DB.length?PROV_DB.map(p=>p.name):(SAP_VENDORS.slice(0,100).map(v=>v.l));
-}
-
-
 // ═══════════════════════════════════════
 // GEMINI PDF IMPORT FOR ENMIENDAS
 // ═══════════════════════════════════════
@@ -989,14 +982,6 @@ function normalizeImportedEnm(obj, fileName, fallbackNum=1){
     _confirmed: true
   };
 }
-function getGeminiKeyPool(){
-  let keys = [];
-  try { if (Array.isArray(window.__GEMINI_KEYS__)) keys = keys.concat(window.__GEMINI_KEYS__.filter(Boolean)); } catch(e){}
-  try { const ls = localStorage.getItem('gemini_keys'); if (ls) keys = keys.concat(JSON.parse(ls).filter(Boolean)); } catch(e){}
-  try { if (typeof GEMINI_KEY !== 'undefined' && GEMINI_KEY) keys.push(GEMINI_KEY); } catch(e){}
-  return [...new Set(keys.filter(Boolean))];
-}
-let _geminiKeyIdx = 0;
 async function callGeminiForEnm(parts) {
   // Use Supabase Edge Function as proxy — keys are stored as secrets server-side
   const SB_FUNC_URL = `${SB_URL}/functions/v1/gemini-proxy`;
@@ -1290,20 +1275,6 @@ async function resetHistorial(cid) {
   await sbUpsertItem('contratos', c);
   renderDet();
   toast('Historial reseteado ✅', 'ok');
-}
-
-// ═══════════════════════════════════════
-// DELETE TARIFARIO
-// ═══════════════════════════════════════
-async function delTar(idx) {
-  if (!confirm('¿Eliminar este tarifario?')) return;
-  const c = window.DB.find(x => x.id === window.detId);
-  if (!c) return;
-  c.tarifarios = (c.tarifarios || []).filter((_, i) => i !== idx);
-  c.updatedAt = new Date().toISOString();
-  await sbUpsertItem('contratos', c);
-  renderDet();
-  toast('Tarifario eliminado', 'ok');
 }
 
 // ═══════════════════════════════════════

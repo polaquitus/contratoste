@@ -286,20 +286,6 @@
     return deleteAdjustedPeriods([p], []);
   }
 
-  const oldDelAve = (typeof window.delAve === 'function') ? window.delAve : null;
-  window.delAve = async function(aid){
-    const cc = currentContract();
-    if (!cc) return oldDelAve ? oldDelAve(aid) : false;
-    const ave = (cc.aves || []).find(function(a){ return String(a.id) === String(aid); });
-    if (!ave) return oldDelAve ? oldDelAve(aid) : false;
-    const periods = avePeriods(ave);
-    const enmNums = ave.enmRef != null ? [Number(ave.enmRef)] : [];
-    if (!(periods.length || enmNums.length)) return oldDelAve ? oldDelAve(aid) : false;
-    if (!confirm('¿Eliminar este AVE y TODAS las listas del período asociado?')) return false;
-    return deleteAdjustedPeriods(periods, enmNums);
-  };
-  try { if (typeof delAve !== 'undefined') delAve = window.delAve; } catch(_e) {}
-
   const oldDelAveById = (typeof window.delAveById === 'function') ? window.delAveById : null;
   window.delAveById = async function(aid){
     const cc = currentContract();
@@ -327,20 +313,6 @@
     return deleteAdjustedPeriods(periods, enmNums);
   };
   try { if (typeof delTarTable !== 'undefined') delTarTable = window.delTarTable; } catch(_e) {}
-
-  const oldDelTar = (typeof window.delTar === 'function') ? window.delTar : null;
-  window.delTar = async function(i){
-    const cc = currentContract();
-    const tars = (cc && cc.tarifarios) || [];
-    const tar = tars && tars[i];
-    if (!tar) return oldDelTar ? oldDelTar(i) : false;
-    const periods = tariffPeriods(tar);
-    const enmNums = tar.enmNum != null ? [Number(tar.enmNum)] : [];
-    if (!(periods.length || enmNums.length)) return oldDelTar ? oldDelTar(i) : false;
-    if (!confirm('¿Eliminar TODAS las listas del período asociado y el AVE relacionado?')) return false;
-    return deleteAdjustedPeriods(periods, enmNums);
-  };
-  try { if (typeof delTar !== 'undefined') delTar = window.delTar; } catch(_e) {}
 
   function buildAvailablePeriods(cc){
     if (!cc) return [];
@@ -1792,7 +1764,7 @@ window.openBurnRate = function(cid){
     const exhaustX=xToPx(Math.min(exhaustDate.getTime(),xMax));
     const exhaustX2=xToPx(Math.min(exhaustDateProj.getTime(),xMax));
 
-    const fmtNum=v=>{ if(v>=1e9)return (v/1e9).toFixed(2)+'B'; if(v>=1e6)return (v/1e6).toFixed(2)+'M'; if(v>=1e3)return (v/1e3).toFixed(1)+'k'; return Math.round(v).toString(); };
+    const fmtNum=fmtCompactNum;
     const yTicks=[]; for(let i=0;i<=4;i++){const v=yMax*i/4; yTicks.push({v,y:yToPx(v)});}
     const yGrid=yTicks.map(t=>'<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+t.y.toFixed(1)+'" y2="'+t.y.toFixed(1)+'" stroke="rgba(0,0,0,.06)"/><text x="'+(padL-6)+'" y="'+(t.y+3).toFixed(1)+'" fill="rgba(0,0,0,.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono,monospace">'+fmtNum(t.v)+'</text>').join('');
     const xTicks=[]; for(let i=0;i<=4;i++){const t=xMin+(xMax-xMin)*i/4; xTicks.push(t);}

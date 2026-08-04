@@ -208,7 +208,6 @@ function safeIdxRows(code){
   }
   return (IDX_STORE[id]&&Array.isArray(IDX_STORE[id].rows))?IDX_STORE[id].rows:[];
 }
-function idxLastRow(id){const r=idxRows(id);return r.length?r[r.length-1]:null;}
 function idxTargetYm(){const now=new Date();return new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().substring(0,7);}
 function idxPrevYm(ym){const [y,m]=String(ym||'').split('-').map(Number); if(!y||!m)return ''; return new Date(y,m-2,1).toISOString().substring(0,7);}
 function idxLastBefore(id, ym){const rows=idxRows(id).filter(r=>String(r.ym||'')<String(ym)).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));return rows.length?rows[rows.length-1]:null;}
@@ -226,7 +225,6 @@ async function idxUpsert(id,row){
 }
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
 function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
-function idxMonthToText(ym){return ym?formatMonth(ym):'—';}
 // Last business day (Mon-Fri) of the given YYYY-MM month
 // ── Argentine holiday calendar ────────────────────────────────────────
 function _easterDate(y){
@@ -721,11 +719,6 @@ function openIdxDet(id){
   renderIdxView();
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function closeIdxDet(){
-  _idxSel=null;
-  renderIdxView();
-}
-
 // ── Detail panel ───────────────────────────────────────────────────────
 function renderIdxDet(id){
   const def=IDX_CATALOG.find(d=>d.id===id);

@@ -969,7 +969,7 @@ function renderDet(){
           const areaPath=path+'L'+xToPx(xMax).toFixed(1)+','+yToPx(0).toFixed(1)+' L'+xToPx(xMin).toFixed(1)+','+yToPx(0).toFixed(1)+' Z';
           // Y ticks
           const ticks=[]; for(let i=0;i<=4;i++){ const v=yMin+(yMax-yMin)*i/4; ticks.push({v, y:yToPx(v)}); }
-          const fmtNum=v=>{ if(v>=1e9)return (v/1e9).toFixed(2)+'B'; if(v>=1e6)return (v/1e6).toFixed(2)+'M'; if(v>=1e3)return (v/1e3).toFixed(1)+'k'; return Math.round(v).toString(); };
+          const fmtNum=fmtCompactNum;
           const yGrid=ticks.map(t=>'<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+t.y.toFixed(1)+'" y2="'+t.y.toFixed(1)+'" stroke="rgba(255,255,255,.08)"/><text x="'+(padL-8)+'" y="'+(t.y+3).toFixed(1)+'" fill="rgba(255,255,255,.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono,monospace">'+fmtNum(t.v)+'</text>').join('');
           // X ticks: 5 evenly spaced
           const xTicks=[]; for(let i=0;i<=4;i++){ const t=xMin+(xMax-xMin)*i/4; xTicks.push(t); }
@@ -1128,36 +1128,6 @@ function delTarCol(ti,ci){
 
 function editTarCell(ti,ri,ci,val){
   const tars=getTar();tars[ti].rows[ri][ci]=val;setTar(tars);
-}
-
-function importTarExcel(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      const data=new Uint8Array(e.target.result);
-      const wb=XLSX.read(data,{type:'array'});
-      const c=window.DB.find(x=>x.id===window.detId);if(!c)return;
-      if(!c.tarifarios)c.tarifarios=[];
-      wb.SheetNames.forEach(sn=>{
-        const ws=wb.Sheets[sn];
-        const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        if(json.length<1)return;
-        // First row = headers
-        const cols=json[0].map(h=>String(h||'').trim()||'Col');
-        const rows=json.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>{
-          // Ensure each row has same number of cols
-          const row=[];for(let i=0;i<cols.length;i++)row.push(r[i]!=null?r[i]:'');return row;
-        });
-        c.tarifarios.push({name:sn,cols,rows});
-      });
-      _tarTab=Math.max(0,c.tarifarios.length-1);
-      setTar(c.tarifarios);renderTarifario();
-      toast('Excel importado — '+wb.SheetNames.length+' hoja(s)','ok');
-    }catch(err){toast('Error leyendo Excel','er');console.error(err);}
-  };
-  reader.readAsArrayBuffer(file);
-  input.value='';
 }
 
 // ===== LISTAS DE PRECIOS CON IA (WORD/EXCEL) =====
@@ -1388,40 +1358,6 @@ function openEnmImportPicker(){
 }
 
 
-// onAveTipoChange / onAveSubChange — removidas, reemplazadas por onAvoSubChange
-function onAveTipoChange(){}
-function onAveSubChange(){}
-
-// POLY AVE CALC
-function calcPolyAve(){
-  const c=window.DB.find(x=>x.id===window.detId);if(!c)return;
-  const pct=parseFloat(document.getElementById('av_pct').value)||0;
-  const desde=document.getElementById('av_desde').value;
-  if(!pct||!desde){document.getElementById('av_calc').value='';return;}
-  const dDesde=new Date(desde+'-01');
-  const dIni=new Date(c.fechaIni+'T00:00:00');
-  const dFin=new Date(c.fechaFin+'T00:00:00');
-  const totalMeses=Math.max(c.plazo_meses||c.plazo||monthDiffInclusive(c.fechaIni,c.fechaFin),1);
-  const mesesTranscurridos=Math.max((dDesde.getFullYear()-dIni.getFullYear())*12+(dDesde.getMonth()-dIni.getMonth()),0);
-  const mesesRestantes=Math.max(totalMeses-mesesTranscurridos,0);
-  // Monto aplicable = monto_inicial * mesesRestantes/totalMeses * (pct/100)
-  const montoAjuste=c.monto*(mesesRestantes/totalMeses)*(pct/100);
-  document.getElementById('av_calc').value=montoAjuste.toFixed(2);
-}
-
-function usarCalcPoly(){
-  const v=document.getElementById('av_calc').value;
-  if(v) document.getElementById('av_monto').value=v;
-}
-
-
-function delAve(aid){
-  if(!confirm('¿Eliminar este AVE?'))return;
-  const c=window.DB.find(x=>x.id===window.detId);if(!c)return;
-  c.aves=(c.aves||[]).filter(a=>a.id!==aid);
-  c.updatedAt=new Date().toISOString();
-  save();renderDet();renderList();toast('AVE eliminado','ok');
-}
 
 function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document.getElementById('formErrBanner')?.remove();editId=id;
   populateProvSelect();
@@ -1616,21 +1552,11 @@ function renderPoSection(cc){
 }
 function togglePOM(i){document.getElementById('pom_'+i)?.classList.toggle('open');}
 
-// ═══════════ CONTRACT HELPERS ════════════════════════════
-function getContractMonths(cc){
-  const m=[];if(!cc.fechaIni||!cc.fechaFin)return m;
-  const d=new Date(cc.fechaIni+'T00:00:00'),end=new Date(cc.fechaFin+'T00:00:00');
-  while(d<=end){m.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d.setMonth(d.getMonth()+1);}
-  return m;
-}
 function isNumericCol(tar,ci){
   const col=(tar.cols[ci]||'').toLowerCase();
   if(/valor|precio|unitario|monto|tarifa|importe|cost|rate/.test(col))return true;
   let n=0,t=0;tar.rows.forEach(r=>{const v=r[ci];if(v!==''&&v!=null){t++;if(!isNaN(parseFloat(v))&&String(v).trim()!=='')n++;}});
   return t>2&&n/t>0.7;
-}
-function getApplicableTariff(cc,period){
-  const all=getApplicableTariffs(cc,period);return all.length?all[0]:null;
 }
 function getApplicableTariffs(cc,period){
   if(!cc.tarifarios||!cc.tarifarios.length)return[];
@@ -2440,8 +2366,6 @@ async function undoValidationCc(cid, validationId){
 }
 
 // ═══════════ CERTIFICACIONES (OBRA) ══════════════════
-// Stub legacy (panel ya no tiene checkboxes; modal maneja todo)
-function toggleAllCerts(){}
 // Selección de scope OBRA persistida por contrato. Estructura: {pos:[poNum,...], includeRemanente:bool}
 function getStoredScopeSelection(cid){
   try{ var raw=localStorage.getItem('obra_scope_sel_'+cid); return raw?JSON.parse(raw):{pos:[],includeRemanente:false}; }
@@ -2490,9 +2414,6 @@ function unadjustPo(cid, poNum){
   if(typeof renderDet==='function') renderDet();
   toast('PO '+poNum+' destildada','ok');
 }
-// Stub legacy: el panel ya no muestra summary; el modal lo recalcula en cada render.
-function updateCertSelectionSummary(){}
-
 // ═══════════ RENDERLIST WITH REMANENTE ══════════════════
 // ═══════════ TARIFARIO ENHANCED ══════════════════════════
 let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};

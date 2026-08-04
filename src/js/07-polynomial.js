@@ -138,7 +138,6 @@ var PolUpdate = (function(){
       var newPrice=item.unit_price*Ko;
       return{description:item.description,unit:item.unit,quantity:item.quantity,unit_price:newPrice,old_price:item.unit_price,variation:Ko>0?((Ko-1)*100):0};
     });
-    // contractMonths: usar monthDiffInclusive para evitar conflicto con la segunda definición de getContractMonths (devuelve array)
     var contractMonths=monthDiffInclusive(contract.fechaIni,contract.fechaFin)||parseInt(contract.plazo_meses||contract.plazo||0)||1;
     var oldMonthly=(contract.monto||0)/contractMonths;
     var newMonthly=state.updatedPrices.reduce(function(sum,p){return sum+(p.unit_price*p.quantity);},0);
@@ -445,13 +444,6 @@ function detectFirstCompliance(cid){
   var result=getEvaluationResult(cid,mesEval);
   if(result && result.firstComplianceMonth){ toast('Cumple por primera vez en '+formatYmLabel(result.firstComplianceMonth),'ok'); }
   else{ toast('Aún no se identifica un mes con cumplimiento','er'); }
-}
-function getIndicatorAtDate(code,date){
-  var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-  var filtered=snaps.filter(function(s){return s.indicator_code===code&&s.snapshot_date<=date;});
-  if(!filtered.length)return null;
-  filtered.sort(function(a,b){return new Date(b.snapshot_date)-new Date(a.snapshot_date);});
-  return filtered[0];
 }
 
 function getEvaluationResult(cid,mesEval){

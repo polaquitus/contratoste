@@ -289,8 +289,6 @@ async function initApp(__fromLogin) {
 }
 
 // ─── PUBLIC API (called throughout app) ──────
-function load() {}
-function loadMe2n() {}
 function loadIdx() { /* handled by initApp */ }
 function loadLicit() { /* handled by initApp */ }
 async function loadProv() {
