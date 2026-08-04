@@ -255,19 +255,64 @@ function setPolyLiveEval(cid, value){
   if(typeof renderDet==='function'){ renderDet(); }
   else if(typeof go==='function'){ go('detail'); }
 }
-
+// ── Aumentos mensuales de Mano de Obra / CCT — a diferencia de los otros
 // ── Evaluación de condiciones (pura, sin DOM) — usada por el estado en vivo
 // (visualización, sin efectos secundarios). Acepta overrides manuales para
 // conceptos sin datos automáticos. ──────────────────────────────────────
+function isMoLabel(label){ return (IDX['Mano de Obra']||[]).indexOf(label)>=0; }
+
 function computeConditionsResult(contract, conditions, baseMonth, mesEval, overrides){
   if(!conditions||!baseMonth||!mesEval||compareYm(mesEval,baseMonth)<=0) return null;
   overrides=overrides||{};
   var details=[];
   var cumpleGeneral=false;
   var firstComplianceMonth='';
-  if(conditions.allComponentsThreshold>0){
+
+  // ── Gatillo A: Mano de Obra / CCT (mes específico) ─────────────────────
+  // No es un % acumulado como los otros gatillos: un aumento de paritaria se
+  // otorga en un mes puntual. Se evalúa 100% desde lo cargado en el Master
+  // de Índices (cat 'mo' — PP, UOCRA, etc., carga manual ahí mismo) — apenas
+  // aparezca un mes con variación > 0% en el rango base→evaluación, ese mes
+  // gatilla la actualización. Solo aplica si el contrato tiene activado el
+  // gatillo A ("Actualización de Mano de Obra según CCT asociado").
+  var trigAEnabled=!!(contract.trigA||(contract.gatillos&&contract.gatillos.A&&contract.gatillos.A.enabled));
+  if(trigAEnabled){
+    var moLabels=(contract.poly||[]).filter(function(p){return p&&p.idx&&isMoLabel(p.idx);}).map(function(p){return p.idx;});
+    if(moLabels.length){
+      var moDetail=[];
+      var firstMoMonth='';
+      var anyMoEntry=false;
+      moLabels.forEach(function(label){
+        var snaps=getIndicatorSnapshots(label).filter(function(s){
+          var ym=ymOf(s.snapshot_date);
+          return ym && compareYm(ym,baseMonth)>0 && compareYm(ym,mesEval)<=0;
+        }).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
+        var raise=snaps.find(function(s){ var v=Number(s.pct); return isFinite(v)&&v>0; });
+        var labelFirst=raise?ymOf(raise.snapshot_date):'';
+        var acc=null;
+        if(snaps.length){
+          var prod=1; snaps.forEach(function(s){ var v=Number(s.pct); if(isFinite(v)) prod*=1+(v/100); });
+          acc=(prod-1)*100;
+        }
+        moDetail.push({idx:label, pctAcc:acc, firstMonth:labelFirst, monthsLoaded:snaps.length});
+        if(labelFirst){ anyMoEntry=true; if(!firstMoMonth||compareYm(labelFirst,firstMoMonth)<0) firstMoMonth=labelFirst; }
+      });
+      details.push({
+        condicion:'Actualización por Mano de Obra / CCT (mes específico)',
+        cumplimiento:anyMoEntry?1:0,
+        cumplido:anyMoEntry,
+        moDetail:moDetail,
+        detalle:anyMoEntry
+          ?('Aumento cargado en Índices en '+formatYmLabel(firstMoMonth))
+          :('Sin aumentos cargados en el Master de Índices entre '+formatYmLabel(baseMonth)+' y '+formatYmLabel(mesEval)+' para: '+moLabels.join(', ')),
+        firstMet:firstMoMonth||''
+      });
+      if(anyMoEntry){ cumpleGeneral=true; if(!firstComplianceMonth) firstComplianceMonth=firstMoMonth; }
+    }
+  }
+
+  if(conditions.allComponentsThreshold>0 && (contract.poly||[]).some(function(p){return p.idx;})){
     var poly=(contract.poly||[]).filter(function(p){return p.idx;});
-    if(!poly.length) return null;
     var perIdx=[];
     var countPoly=0;
     var anyMissing=false;
@@ -332,9 +377,10 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
         firstMet:firstComplianceMonth||''
       });
       if(cumpleUmbral)cumpleGeneral=true;
-    } else {
-      return null;
     }
+    // countPoly===0 (ningún concepto tiene dato ni override todavía): no se agrega
+    // el detalle de esta condición, pero se sigue evaluando el resto (Gatillo A,
+    // meses transcurridos) en vez de descartar toda la simulación.
   }
   if(conditions.monthsElapsed>0){
     // La referencia es el MISMO período base que la condición de arriba (el último
@@ -460,6 +506,7 @@ function renderUpdateSection(contract){
     condHtml+='<div style="font-size:12px;color:#92400e">El mes de evaluación debe ser posterior al período base.</div>';
   } else if(!liveResult){
     condHtml+='<ul style="margin:0 0 0 20px;font-size:13px;color:var(--g600);line-height:2;font-weight:600">';
+    if(contract.trigA) condHtml+='<li>Actualización por Mano de Obra / CCT (mes específico)</li>';
     if(conditions.allComponentsThreshold>0) condHtml+='<li>Variación acumulada (Ko) ≥ '+conditions.allComponentsThreshold+'%</li>';
     if(conditions.monthsElapsed>0) condHtml+='<li>'+conditions.monthsElapsed+' meses desde última actualización</li>';
     condHtml+='</ul><div style="font-size:12px;color:var(--g500);margin-top:6px">Sin datos suficientes para simular todavía.</div>';
@@ -472,7 +519,7 @@ function renderUpdateSection(contract){
         :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'No se cumple en '+formatYmLabel(evalYm)+' con los datos disponibles'));
       condHtml+='<div style="margin:10px 0;padding:12px;background:var(--w);border-radius:8px;border:1px solid var(--g200)">';
       condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px"><span style="font-weight:700;font-size:13.5px;color:'+color+'">'+icon+' '+d.condicion+'</span>'+(d.perIdx&&d.koTotal!=null?'<span style="font-size:12px;font-weight:700;color:var(--p700)">Ko simulado: '+(d.koTotal>=0?'+':'')+d.koTotal.toFixed(2)+'%</span>':'')+'</div>';
-      condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+(d.perIdx?'10px':'0')+'">'+statusLine+'</div>';
+      condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+((d.perIdx||d.moDetail)?'10px':'0')+'">'+statusLine+'</div>';
       if(d.perIdx){
         condHtml+='<div style="display:grid;grid-template-columns:1.2fr .7fr 1.4fr .9fr;gap:4px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--g500);padding-bottom:4px;border-bottom:1px solid var(--g200)">'+
           '<span>Concepto</span><span>% Incidencia</span><span>% Acumulado</span><span>Resultado</span></div>';
@@ -497,6 +544,20 @@ function renderUpdateSection(contract){
             condHtml+='<span style="font-weight:700;color:var(--p700)" title="Aporte ponderado al Ko combinado">'+(pi.aporte>=0?'+':'')+pi.aporte.toFixed(2)+'%</span>';
           } else {
             condHtml+='<span style="color:var(--g400);font-size:11px">— completá el %</span>';
+          }
+          condHtml+='</div>';
+        });
+      } else if(d.moDetail){
+        condHtml+='<div style="display:grid;grid-template-columns:1.4fr 1fr 1.4fr;gap:4px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--g500);padding-bottom:4px;border-bottom:1px solid var(--g200)">'+
+          '<span>Concepto (Índices)</span><span>Acumulado en rango</span><span>Mes del aumento</span></div>';
+        d.moDetail.forEach(function(mi){
+          condHtml+='<div style="display:grid;grid-template-columns:1.4fr 1fr 1.4fr;gap:4px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);font-size:12.5px">';
+          condHtml+='<span style="font-weight:700;color:var(--g800)">'+esc(mi.idx)+'</span>';
+          condHtml+='<span style="color:var(--g600c)">'+(mi.pctAcc!=null?(mi.pctAcc>=0?'+':'')+mi.pctAcc.toFixed(2)+'%':'—')+'</span>';
+          if(mi.firstMonth){
+            condHtml+='<span style="font-weight:700;color:var(--g600);background:var(--g100d);padding:2px 8px;border-radius:99px;display:inline-block;width:fit-content">'+formatYmLabel(mi.firstMonth)+'</span>';
+          } else {
+            condHtml+='<span style="color:var(--g400);font-size:11px">sin aumento cargado en Índices — cargalo en el módulo Índices</span>';
           }
           condHtml+='</div>';
         });
