@@ -240,10 +240,25 @@ function setPolyLiveBase(cid, value){
   if(typeof renderDet==='function'){ renderDet(); }
   else if(typeof go==='function'){ go('detail'); }
 }
+// ── Mes de evaluación editable — el usuario define para qué período quiere
+// ver si las condiciones se cumplen. Por defecto es hoy, pero es una
+// simulación pura: no persiste nada ni dispara ninguna generación real.
+function getPolyLiveEval(cid){
+  var v=localStorage.getItem('pol_live_eval_'+cid);
+  return v?ymOf(v):'';
+}
+function setPolyLiveEval(cid, value){
+  var ym=ymOf(value);
+  if(!ym){ localStorage.removeItem('pol_live_eval_'+cid); }
+  else{ localStorage.setItem('pol_live_eval_'+cid, ym); }
+  if(typeof window.detId!=='undefined') window.detId=cid;
+  if(typeof renderDet==='function'){ renderDet(); }
+  else if(typeof go==='function'){ go('detail'); }
+}
 
-// ── Evaluación de condiciones (pura, sin DOM) — usada tanto por el estado
-// en vivo del panel principal como por el panel de Auditoría con fechas
-// custom. Acepta overrides manuales para conceptos sin datos automáticos. ──
+// ── Evaluación de condiciones (pura, sin DOM) — usada por el estado en vivo
+// (visualización, sin efectos secundarios). Acepta overrides manuales para
+// conceptos sin datos automáticos. ──────────────────────────────────────
 function computeConditionsResult(contract, conditions, baseMonth, mesEval, overrides){
   if(!conditions||!baseMonth||!mesEval||compareYm(mesEval,baseMonth)<=0) return null;
   overrides=overrides||{};
@@ -409,32 +424,37 @@ function renderUpdateSection(contract){
   var autoBase=lastTarPeriod||ymOf(conditions.baseDate)||ymOf(contract.btar)||ymOf(contract.fechaIni);
   var baseEval=storedBase||autoBase;
   var todayYm=ymToday();
+  var storedEval=getPolyLiveEval(contract.id);
+  var evalYm=storedEval||todayYm;
   var overrides=getPolyOverrides(contract.id);
-  var liveResult=(baseEval&&compareYm(todayYm,baseEval)>0)?computeConditionsResult(contract,conditions,baseEval,todayYm,overrides):null;
-  // Persistir el resultado en vivo — reemplaza al viejo flujo de "Evaluar" manual:
-  // openEligibleMonthsModal / generateSelectedPriceLists / renderSelectedPeriodsSummary
-  // siguen leyendo pol_eval_result_<cid> vía getEvaluationResult().
-  if(liveResult) localStorage.setItem('pol_eval_result_'+contract.id,JSON.stringify(liveResult));
+  var liveResult=(baseEval&&evalYm&&compareYm(evalYm,baseEval)>0)?computeConditionsResult(contract,conditions,baseEval,evalYm,overrides):null;
 
-  // Mostrar condiciones ACTIVAS — estado calculado en vivo (base = último período
-  // tarifario/ajustado, editable por el usuario; evaluación = hoy), con el detalle
-  // de cada concepto de la fórmula: % incidencia, % acumulado (auto/manual) y
-  // resultado (aporte ponderado sobre el Ko). No requiere tocar ningún botón.
+  // Mostrar condiciones ACTIVAS — VISUALIZACIÓN pura: el usuario define tanto el
+  // período base (por defecto el último período tarifario/ajustado) como el mes
+  // de evaluación (por defecto hoy) y acá se recalcula al vuelo si las
+  // condiciones de gatillo se cumplirían para ese período — % incidencia, %
+  // acumulado (auto/manual) y aporte de cada concepto. No guarda nada ni
+  // habilita generar listas de precios / registrar una actualización real.
   var condDiv=document.createElement('div');
   condDiv.style.marginBottom='16px';
   condDiv.style.padding='14px 16px';
   condDiv.style.background=liveResult&&liveResult.cumpleGeneral?'var(--g100d)':'#fef3c7';
   condDiv.style.borderRadius='8px';
   condDiv.style.border='2px solid '+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#d97706');
-  var condHtml='<div style="font-size:12px;font-weight:800;color:'+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#92400e')+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+(liveResult&&liveResult.cumpleGeneral?'✓':'○')+' Condiciones de actualización activas</div>';
+  var condHtml='<div style="font-size:12px;font-weight:800;color:'+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#92400e')+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+(liveResult&&liveResult.cumpleGeneral?'✓':'○')+' Condiciones de actualización activas</div>';
+  condHtml+='<div style="font-size:10.5px;color:var(--g500);font-style:italic;margin-bottom:8px">Simulación — no registra ni genera ningún cambio en el contrato</div>';
   condHtml+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--g600c)">'+
-    '<label style="font-weight:600">Período base (último ajuste):</label>'+
+    '<label style="font-weight:600">Período base:</label>'+
     '<input type="month" value="'+(baseEval||'')+'" style="width:150px;font-size:12px;padding:5px 8px" onchange="setPolyLiveBase(\''+contract.id+'\',this.value)">'+
-    (storedBase?'<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="setPolyLiveBase(\''+contract.id+'\',\'\')" title="Volver al último período ajustado ('+esc(autoBase||'—')+')">↺ Auto</button>':'')+
-    '<span>· evaluación: <strong>'+formatYmLabel(todayYm)+'</strong> (hoy)</span>'+
+    (storedBase?'<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="setPolyLiveBase(\''+contract.id+'\',\'\')" title="Volver al último período ajustado ('+esc(autoBase||'—')+')">↺ auto</button>':'')+
+    '<label style="font-weight:600;margin-left:8px">Mes de evaluación:</label>'+
+    '<input type="month" value="'+(evalYm||'')+'" style="width:150px;font-size:12px;padding:5px 8px" onchange="setPolyLiveEval(\''+contract.id+'\',this.value)">'+
+    (storedEval?'<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="setPolyLiveEval(\''+contract.id+'\',\'\')" title="Volver a hoy ('+esc(todayYm)+')">↺ hoy</button>':'')+
     '</div>';
   if(!baseEval){
     condHtml+='<div style="font-size:12px;color:#92400e">No se pudo determinar el período base (sin tarifario ni fecha de inicio válida).</div>';
+  } else if(!evalYm||compareYm(evalYm,baseEval)<=0){
+    condHtml+='<div style="font-size:12px;color:#92400e">El mes de evaluación debe ser posterior al período base.</div>';
   } else if(!liveResult){
     condHtml+='<ul style="margin:0 0 0 20px;font-size:13px;color:var(--g600);line-height:2;font-weight:600">';
     if(conditions.allComponentsThreshold>0) condHtml+='<li>Variación acumulada ≥ '+conditions.allComponentsThreshold+'%</li>';
@@ -445,8 +465,8 @@ function renderUpdateSection(contract){
       var icon=d.cumplido?'✓':'○';
       var color=d.cumplido?'var(--g600)':'#92400e';
       var statusLine=d.cumplido
-        ?(d.firstMet?'Se cumple desde '+formatYmLabel(d.firstMet):'Se cumple hoy'+(d.anyMissing?' (con % manual cargado)':''))
-        :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'Aún no se cumple con los datos disponibles'));
+        ?(d.firstMet?'Se cumple desde '+formatYmLabel(d.firstMet):'Se cumple en '+formatYmLabel(evalYm)+(d.anyMissing?' (con % manual cargado)':''))
+        :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'No se cumple en '+formatYmLabel(evalYm)+' con los datos disponibles'));
       condHtml+='<div style="margin:10px 0;padding:12px;background:var(--w);border-radius:8px;border:1px solid var(--g200)">';
       condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px"><span style="font-weight:700;font-size:13.5px;color:'+color+'">'+icon+' '+d.condicion+'</span>'+(d.perIdx&&d.koTotal!=null?'<span style="font-size:12px;font-weight:700;color:var(--p700)">Ko simulado: '+(d.koTotal>=0?'+':'')+d.koTotal.toFixed(2)+'%</span>':'')+'</div>';
       condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+(d.perIdx?'10px':'0')+'">'+statusLine+'</div>';
@@ -463,7 +483,7 @@ function renderUpdateSection(contract){
           } else {
             var ovId='polOv_'+contract.id+'_'+pi.idx.replace(/[^a-zA-Z0-9]/g,'_');
             condHtml+='<span style="grid-column:span 2;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+
-              '<span style="color:#92400e;font-weight:600">⚠️ sin dato hasta '+formatYmLabel(todayYm)+'</span>'+
+              '<span style="color:#92400e;font-weight:600">⚠️ sin dato hasta '+formatYmLabel(evalYm)+'</span>'+
               '<input type="number" step="0.01" id="'+ovId+'" placeholder="% acum. manual" style="width:100px;font-size:12px;padding:3px 6px">'+
               '<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="applyPolyOverride(\''+contract.id+'\',\''+pi.idx.replace(/'/g,"\\'")+'\',document.getElementById(\''+ovId+'\').value)">Aplicar</button>'+
               '</span>';
@@ -486,18 +506,6 @@ function renderUpdateSection(contract){
         if(el&&overrides[pi.idx]!=null) el.value=overrides[pi.idx];
       });
     });
-  }
-
-  if(liveResult&&liveResult.cumpleGeneral){
-    var actionDiv=document.createElement('div');
-    actionDiv.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
-    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((liveResult.eligibleMonths&&liveResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button><button class="btn btn-s" onclick="generateSelectedPriceLists(\''+contract.id+'\')">🧾 Generar lista(s) de precios</button>':'');
-    body.appendChild(actionDiv);
-    var summaryDiv=document.createElement('div');
-    summaryDiv.id='selectedAdjustmentSummary_'+contract.id;
-    summaryDiv.style.cssText='display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--b50);border:1px solid var(--b200)';
-    body.appendChild(summaryDiv);
-    renderSelectedPeriodsSummary(contract.id);
   }
 
   section.appendChild(body);
