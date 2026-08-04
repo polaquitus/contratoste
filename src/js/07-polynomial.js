@@ -225,6 +225,22 @@ function applyPolyOverride(cid, idxLabel, rawValue){
   else if(typeof go==='function'){ go('detail'); }
 }
 
+// ── Período base editable por el usuario para el estado en vivo ────────────
+// Por defecto se usa el último período tarifario/ajustado del contrato, pero
+// el usuario puede fijar otro (ej. para simular contra una base distinta).
+function getPolyLiveBase(cid){
+  var v=localStorage.getItem('pol_live_base_'+cid);
+  return v?ymOf(v):'';
+}
+function setPolyLiveBase(cid, value){
+  var ym=ymOf(value);
+  if(!ym){ localStorage.removeItem('pol_live_base_'+cid); }
+  else{ localStorage.setItem('pol_live_base_'+cid, ym); }
+  if(typeof window.detId!=='undefined') window.detId=cid;
+  if(typeof renderDet==='function'){ renderDet(); }
+  else if(typeof go==='function'){ go('detail'); }
+}
+
 // ── Evaluación de condiciones (pura, sin DOM) — usada tanto por el estado
 // en vivo del panel principal como por el panel de Auditoría con fechas
 // custom. Acepta overrides manuales para conceptos sin datos automáticos. ──
@@ -250,15 +266,17 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
       } else if(overrides[p.idx]!=null && isFinite(Number(overrides[p.idx]))){
         variacion=Number(overrides[p.idx]); manual=true;
       }
+      var incWeight=Number(p.inc)||0;
       if(variacion!=null){
         var cumple=variacion>=conditions.allComponentsThreshold;
         if(!cumple)cumpleTodas=false;
         promCumplimiento+=Math.min(Math.max(variacion/conditions.allComponentsThreshold,0),1);
         countPoly++;
-        perIdx.push({idx:p.idx, pct:variacion, cumple:cumple, manual:manual, hasData:true});
+        var aporte=(Math.pow(1+variacion/100, incWeight)-1)*100;
+        perIdx.push({idx:p.idx, pct:variacion, cumple:cumple, manual:manual, hasData:true, inc:incWeight*100, aporte:aporte});
       } else {
         cumpleTodas=false; anyMissing=true;
-        perIdx.push({idx:p.idx, pct:null, cumple:false, manual:false, hasData:false});
+        perIdx.push({idx:p.idx, pct:null, cumple:false, manual:false, hasData:false, inc:incWeight*100, aporte:null});
       }
     });
     if(countPoly>0){
@@ -281,12 +299,17 @@ function computeConditionsResult(contract, conditions, baseMonth, mesEval, overr
           }
         }catch(_e){ console.warn('firstComplianceMonth scan',_e); }
       }
+      var koTotal=null;
+      if(!anyMissing){
+        koTotal=(perIdx.reduce(function(k,d){return k*(1+d.aporte/100);},1)-1)*100;
+      }
       details.push({
         condicion:'Variación acumulada ≥ '+conditions.allComponentsThreshold+'%',
         cumplimiento:promCumplimiento/countPoly,
         cumplido:cumpleTodas,
         perIdx:perIdx,
         anyMissing:anyMissing,
+        koTotal:koTotal,
         detalle:'Base '+formatYmLabel(baseMonth)+' → Eval '+formatYmLabel(mesEval)+' | '+perIdx.map(function(d){
           if(!d.hasData) return d.idx+': sin datos ⚠️';
           return d.idx+': '+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%'+(d.manual?' (manual)':'')+' '+(d.cumple?'✓':'○');
@@ -381,22 +404,35 @@ function renderUpdateSection(contract){
     return section;
   }
   
+  var storedBase=getPolyLiveBase(contract.id);
   var lastTarPeriod=getLastTariffPeriod(contract);
-  var baseEval=lastTarPeriod||ymOf(conditions.baseDate)||ymOf(contract.btar)||ymOf(contract.fechaIni);
+  var autoBase=lastTarPeriod||ymOf(conditions.baseDate)||ymOf(contract.btar)||ymOf(contract.fechaIni);
+  var baseEval=storedBase||autoBase;
   var todayYm=ymToday();
   var overrides=getPolyOverrides(contract.id);
   var liveResult=(baseEval&&compareYm(todayYm,baseEval)>0)?computeConditionsResult(contract,conditions,baseEval,todayYm,overrides):null;
+  // Persistir el resultado en vivo — reemplaza al viejo flujo de "Evaluar" manual:
+  // openEligibleMonthsModal / generateSelectedPriceLists / renderSelectedPeriodsSummary
+  // siguen leyendo pol_eval_result_<cid> vía getEvaluationResult().
+  if(liveResult) localStorage.setItem('pol_eval_result_'+contract.id,JSON.stringify(liveResult));
 
   // Mostrar condiciones ACTIVAS — estado calculado en vivo (base = último período
-  // tarifario/ajustado, evaluación = hoy) sin necesidad de tocar "Evaluar" abajo.
+  // tarifario/ajustado, editable por el usuario; evaluación = hoy), con el detalle
+  // de cada concepto de la fórmula: % incidencia, % acumulado (auto/manual) y
+  // resultado (aporte ponderado sobre el Ko). No requiere tocar ningún botón.
   var condDiv=document.createElement('div');
   condDiv.style.marginBottom='16px';
-  condDiv.style.padding='12px 16px';
+  condDiv.style.padding='14px 16px';
   condDiv.style.background=liveResult&&liveResult.cumpleGeneral?'var(--g100d)':'#fef3c7';
   condDiv.style.borderRadius='8px';
   condDiv.style.border='2px solid '+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#d97706');
-  var condHtml='<div style="font-size:11px;font-weight:700;color:'+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#92400e')+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+(liveResult&&liveResult.cumpleGeneral?'✓':'○')+' Condiciones de actualización activas</div>';
-  condHtml+='<div style="font-size:11px;color:var(--g600c);margin-bottom:10px">Estado al día de hoy · base: <strong>'+(baseEval?formatYmLabel(baseEval):'—')+'</strong> (último período ajustado) · evaluación: <strong>'+formatYmLabel(todayYm)+'</strong></div>';
+  var condHtml='<div style="font-size:12px;font-weight:800;color:'+(liveResult&&liveResult.cumpleGeneral?'var(--g600)':'#92400e')+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+(liveResult&&liveResult.cumpleGeneral?'✓':'○')+' Condiciones de actualización activas</div>';
+  condHtml+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--g600c)">'+
+    '<label style="font-weight:600">Período base (último ajuste):</label>'+
+    '<input type="month" value="'+(baseEval||'')+'" style="width:150px;font-size:12px;padding:5px 8px" onchange="setPolyLiveBase(\''+contract.id+'\',this.value)">'+
+    (storedBase?'<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="setPolyLiveBase(\''+contract.id+'\',\'\')" title="Volver al último período ajustado ('+esc(autoBase||'—')+')">↺ Auto</button>':'')+
+    '<span>· evaluación: <strong>'+formatYmLabel(todayYm)+'</strong> (hoy)</span>'+
+    '</div>';
   if(!baseEval){
     condHtml+='<div style="font-size:12px;color:#92400e">No se pudo determinar el período base (sin tarifario ni fecha de inicio válida).</div>';
   } else if(!liveResult){
@@ -411,24 +447,29 @@ function renderUpdateSection(contract){
       var statusLine=d.cumplido
         ?(d.firstMet?'Se cumple desde '+formatYmLabel(d.firstMet):'Se cumple hoy'+(d.anyMissing?' (con % manual cargado)':''))
         :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'Aún no se cumple con los datos disponibles'));
-      condHtml+='<div style="margin:10px 0;padding:10px 12px;background:var(--w);border-radius:6px;border:1px solid var(--g200)">';
-      condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px"><span style="font-weight:700;font-size:13px;color:'+color+'">'+icon+' '+d.condicion+'</span></div>';
-      condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+(d.perIdx?'8px':'0')+'">'+statusLine+'</div>';
+      condHtml+='<div style="margin:10px 0;padding:12px;background:var(--w);border-radius:8px;border:1px solid var(--g200)">';
+      condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px"><span style="font-weight:700;font-size:13.5px;color:'+color+'">'+icon+' '+d.condicion+'</span>'+(d.perIdx&&d.koTotal!=null?'<span style="font-size:12px;font-weight:700;color:var(--p700)">Ko simulado: '+(d.koTotal>=0?'+':'')+d.koTotal.toFixed(2)+'%</span>':'')+'</div>';
+      condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+(d.perIdx?'10px':'0')+'">'+statusLine+'</div>';
       if(d.perIdx){
-        condHtml+='<div style="display:flex;flex-direction:column;gap:5px">';
+        condHtml+='<div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr;gap:4px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--g500);padding-bottom:4px;border-bottom:1px solid var(--g200)">'+
+          '<span>Concepto</span><span>% Incidencia</span><span>% Acumulado</span><span>Resultado</span></div>';
         d.perIdx.forEach(function(pi){
+          condHtml+='<div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr;gap:4px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);font-size:12.5px">';
+          condHtml+='<span style="font-weight:700;color:var(--g800)">'+esc(pi.idx)+'</span>';
+          condHtml+='<span style="color:var(--g600c)">'+pi.inc.toFixed(1)+'%</span>';
           if(pi.hasData){
-            condHtml+='<div style="font-size:12px;color:var(--g700)">'+esc(pi.idx)+': <strong>'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'%</strong> '+(pi.cumple?'✓':'○')+(pi.manual?' <span style="color:#b45309;font-weight:700">(manual)</span>':'')+'</div>';
+            condHtml+='<span style="font-weight:700;color:'+(pi.cumple?'var(--g600)':'#92400e')+'">'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'%'+(pi.manual?' <span title="Cargado manualmente" style="font-size:9px;font-weight:800;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:99px;vertical-align:middle">MANUAL</span>':' <span title="Fuente automática" style="font-size:9px;font-weight:800;color:var(--g600);background:var(--g100d);padding:1px 5px;border-radius:99px;vertical-align:middle">AUTO</span>')+'</span>';
+            condHtml+='<span style="font-weight:700;color:var(--g700)">'+(pi.aporte>=0?'+':'')+pi.aporte.toFixed(2)+'% '+(pi.cumple?'✓':'○')+'</span>';
           } else {
             var ovId='polOv_'+contract.id+'_'+pi.idx.replace(/[^a-zA-Z0-9]/g,'_');
-            condHtml+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#92400e;flex-wrap:wrap">'+
-              '<span>⚠️ '+esc(pi.idx)+': sin dato automático hasta '+formatYmLabel(todayYm)+' —</span>'+
-              '<input type="number" step="0.01" id="'+ovId+'" placeholder="% acum. manual" style="width:110px;font-size:12px;padding:3px 6px">'+
+            condHtml+='<span style="grid-column:span 2;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+
+              '<span style="color:#92400e;font-weight:600">⚠️ sin dato hasta '+formatYmLabel(todayYm)+'</span>'+
+              '<input type="number" step="0.01" id="'+ovId+'" placeholder="% acum. manual" style="width:100px;font-size:12px;padding:3px 6px">'+
               '<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="applyPolyOverride(\''+contract.id+'\',\''+pi.idx.replace(/'/g,"\\'")+'\',document.getElementById(\''+ovId+'\').value)">Aplicar</button>'+
-              '</div>';
+              '</span>';
           }
+          condHtml+='</div>';
         });
-        condHtml+='</div>';
       }
       condHtml+='</div>';
     });
@@ -447,61 +488,10 @@ function renderUpdateSection(contract){
     });
   }
 
-  // PANEL AUDITORÍA
-  var auditDiv=document.createElement('div');
-  auditDiv.style.marginBottom='16px';
-  auditDiv.style.padding='14px 16px';
-  auditDiv.style.background='var(--g50)';
-  auditDiv.style.borderRadius='8px';
-  auditDiv.style.border='1px solid var(--g300)';
-
-  var mesEval=localStorage.getItem('pol_eval_month_'+contract.id)||todayYm;
-  var auditHtml='<div style="font-size:11px;font-weight:700;color:var(--g700);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">📊 Auditoría - Cumplimiento de condiciones</div>';
-  auditHtml+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'+
-    '<label style="font-size:12px;font-weight:600;color:var(--g700);white-space:nowrap">Base comparación:</label>'+
-    '<input type="month" id="polBaseMonth" value="'+baseEval+'" style="width:150px;font-size:12px;padding:6px 8px">'+
-    '<label style="font-size:12px;font-weight:600;color:var(--g700);white-space:nowrap">Mes evaluación:</label>'+
-    '<input type="month" id="polEvalMonth" value="'+mesEval+'" style="width:150px;font-size:12px;padding:6px 8px">'+
-    '<button class="btn btn-p btn-sm" onclick="evaluateConditions(\''+contract.id+'\')">🔍 Evaluar</button>'+
-    '<button class="btn btn-s btn-sm" onclick="detectFirstCompliance(\''+contract.id+'\')">🧭 Primer mes que cumple</button>'+
-    '</div>';
-  var evalResult=getEvaluationResult(contract.id,mesEval);
-  if(evalResult){
-    auditHtml+='<div style="background:var(--w);padding:14px;border-radius:6px;border:1px solid var(--g200)">';
-    auditHtml+='<div style="font-size:12px;color:var(--g600c);margin-bottom:12px"><strong>Base:</strong> '+formatYmLabel(evalResult.baseMonth||baseEval)+' · <strong>Evaluación:</strong> '+formatYmLabel(evalResult.mesEval||mesEval)+'</div>';
-    evalResult.details.forEach(function(d){
-      var pct=(d.cumplimiento*100).toFixed(1);
-      var color=d.cumplido?'var(--g600)':'var(--r500)';
-      var icon=d.cumplido?'✓':'○';
-      auditHtml+='<div style="padding:10px 0;border-bottom:1px solid var(--g100)">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px">'+
-          '<span style="font-size:13px;font-weight:600;color:var(--g800)">'+icon+' '+d.condicion+'</span>'+
-          '<span style="font-size:14px;font-weight:700;color:'+color+'">'+pct+'%</span>'+
-        '</div>'+
-        '<div style="width:100%;height:12px;background:var(--g200);border-radius:6px;overflow:hidden">'+
-          '<div style="width:'+pct+'%;height:100%;background:'+color+';transition:width 0.3s"></div>'+
-        '</div>'+
-        (d.detalle?'<div style="font-size:11px;color:var(--g600c);margin-top:6px;font-family:monospace;line-height:1.5">'+d.detalle+'</div>':'')+
-        (d.firstMet?'<div style="font-size:11px;color:var(--g600);margin-top:6px;font-weight:700">Se cumple por primera vez en: '+formatYmLabel(d.firstMet)+'</div>':'')+
-      '</div>';
-    });
-    if(evalResult.firstComplianceMonth){
-      auditHtml+='<div style="margin-top:12px;padding:10px 12px;border-radius:6px;background:var(--p50);border:1px solid var(--p200);font-size:12px;color:var(--p800)"><strong>Primer mes con cumplimiento:</strong> '+formatYmLabel(evalResult.firstComplianceMonth)+'</div>';
-    }
-    auditHtml+='<div style="margin-top:14px;padding:14px;border-radius:8px;background:'+(evalResult.cumpleGeneral?'var(--g100d)':'var(--g100)')+';border:2px solid '+(evalResult.cumpleGeneral?'var(--g600)':'var(--g300)')+'">'+
-      '<div style="font-size:14px;font-weight:700;color:'+(evalResult.cumpleGeneral?'var(--g600)':'var(--g700)')+'">'+
-      (evalResult.cumpleGeneral?'✓ CONDICIONES CUMPLIDAS - Actualización habilitada':'○ Condiciones no cumplidas - Continuar monitoreando')+
-      '</div></div>';
-    auditHtml+='</div>';
-  }
-  
-  auditDiv.innerHTML=auditHtml;
-  body.appendChild(auditDiv);
-  
-  if(evalResult&&evalResult.cumpleGeneral){
+  if(liveResult&&liveResult.cumpleGeneral){
     var actionDiv=document.createElement('div');
     actionDiv.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
-    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((evalResult.eligibleMonths&&evalResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button><button class="btn btn-s" onclick="generateSelectedPriceLists(\''+contract.id+'\')">🧾 Generar lista(s) de precios</button>':'');
+    actionDiv.innerHTML='<button class="btn btn-a" onclick="previewUpdate(\''+contract.id+'\')">🔄 Calcular actualización polinómica</button>' + ((liveResult.eligibleMonths&&liveResult.eligibleMonths.length)?'<button class="btn btn-s" onclick="openEligibleMonthsModal(\''+contract.id+'\')">📆 Elegir meses de ajuste</button><button class="btn btn-s" onclick="generateSelectedPriceLists(\''+contract.id+'\')">🧾 Generar lista(s) de precios</button>':'');
     body.appendChild(actionDiv);
     var summaryDiv=document.createElement('div');
     summaryDiv.id='selectedAdjustmentSummary_'+contract.id;
@@ -509,42 +499,9 @@ function renderUpdateSection(contract){
     body.appendChild(summaryDiv);
     renderSelectedPeriodsSummary(contract.id);
   }
-  
-  section.appendChild(body); 
-  return section;
-}
 
-function evaluateConditions(cid){
-  var mesEval=document.getElementById('polEvalMonth').value;
-  var baseMonth=document.getElementById('polBaseMonth')?document.getElementById('polBaseMonth').value:'';
-  if(!mesEval){toast('Seleccione un mes de evaluación','er');return;}
-  if(!baseMonth){toast('Seleccione un mes base','er');return;}
-  if(compareYm(mesEval,baseMonth)<=0){toast('El mes de evaluación debe ser posterior a la base','er');return;}
-  localStorage.setItem('pol_eval_month_'+cid,mesEval);
-  var contract=window.DB.find(function(c){return c.id==cid;});
-  if(!contract){toast('Contrato no encontrado','er');return;}
-  var conditions=PolUpdate.getConditions(cid);
-  if(!conditions){toast('Sin condiciones configuradas','er');return;}
-  conditions.baseDate=normalizeToMonthStart(baseMonth)||conditions.baseDate;
-  PolUpdate.saveConditions(cid,conditions);
-  var overrides=getPolyOverrides(cid);
-  var result=computeConditionsResult(contract,conditions,baseMonth,mesEval,overrides);
-  if(!result){toast('Sin datos de indicadores para evaluar (o sin condiciones configuradas)','er');return;}
-  localStorage.setItem('pol_eval_result_'+cid,JSON.stringify(result));
-  toast(result.cumpleGeneral?'✓ Condiciones cumplidas':'○ No cumple aún',result.cumpleGeneral?'ok':'er');
-  if(typeof window.detId!=='undefined') window.detId=cid;
-  if(typeof renderDet==='function'){ renderDet(); }
-  else if(typeof go==='function'){ go('detail'); }
-}
-function detectFirstCompliance(cid){
-  var baseMonth=document.getElementById('polBaseMonth')?document.getElementById('polBaseMonth').value:'';
-  var mesEval=document.getElementById('polEvalMonth')?document.getElementById('polEvalMonth').value:ymToday();
-  if(!baseMonth){toast('Seleccione un mes base','er');return;}
-  if(compareYm(mesEval,baseMonth)<=0){toast('El mes evaluación debe ser posterior a la base','er');return;}
-  evaluateConditions(cid);
-  var result=getEvaluationResult(cid,mesEval);
-  if(result && result.firstComplianceMonth){ toast('Cumple por primera vez en '+formatYmLabel(result.firstComplianceMonth),'ok'); }
-  else{ toast('Aún no se identifica un mes con cumplimiento','er'); }
+  section.appendChild(body);
+  return section;
 }
 
 function getEvaluationResult(cid,mesEval){
