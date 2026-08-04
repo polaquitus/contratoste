@@ -634,10 +634,20 @@ async function runAllIdxUpdates(){
       try{
         await runIdxUpdate(def.id);
         if(icoEl) icoEl.textContent='✅';
-        const row=idxRows(def.id).find(r=>r.ym===idxTargetYm());
+        // BUG previo: acá se buscaba una fila que matcheara EXACTO el período "objetivo"
+        // (idxTargetYm()) y si no existía se reportaba "sin dato" en rojo — pero
+        // runIdxUpdate cae correctamente al último período REALMENTE publicado cuando
+        // el objetivo todavía no salió (ej. el mes recién termina de publicarse ~20
+        // días después), que es el caso normal para casi todo salvo USD. Eso hacía
+        // que el resumen mintiera "sin dato" para índices que en realidad SÍ se
+        // habían actualizado correctamente al último período disponible.
+        const rowsNow=idxRows(def.id);
+        const lastRow=rowsNow.length?rowsNow[rowsNow.length-1]:null;
+        const hitTarget=lastRow&&lastRow.ym===idxTargetYm();
         if(stEl){
-          stEl.textContent=row?formatMonth(row.ym)+(row.status==='fallback'?' (fallback)':''):'sin dato';
-          stEl.style.color=row?'var(--g600)':'var(--r500)';
+          if(!lastRow){ stEl.textContent='sin dato'; stEl.style.color='var(--r500)'; }
+          else if(hitTarget){ stEl.textContent=formatMonth(lastRow.ym)+(lastRow.status==='fallback'?' (fallback)':''); stEl.style.color='var(--g600)'; }
+          else { stEl.textContent=formatMonth(lastRow.ym)+' (último disponible)'; stEl.style.color='#d97706'; }
         }
         ok++;
       }catch(e){
