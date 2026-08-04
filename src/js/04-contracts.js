@@ -1796,13 +1796,27 @@ function getAutoFromBaseTerm(cc,tramoId,i,idxLabel,excludeNum){
   const polyDef=(cc.poly||[]).find(p=>p.idx===idxLabel);
   return polyDef?.base||'';
 }
+// Lee directo de IDX_STORE vía safeIdxRows (mismo patrón que calculateUpdate en
+// 07-polynomial.js) en vez de la caché indicator_snapshots — así siempre ve el último
+// período cargado en el Master de Índices, sin depender de cuándo se sembró la caché.
 function computeAutoPctForIdx(idxLabel,fromYm,toYm){
   if(!idxLabel||!fromYm||!toYm)return null;
-  if(typeof computeAccumulatedVariationPct!=='function')return null;
   if(typeof compareYm==='function'&&compareYm(toYm,fromYm)<=0)return null;
+  if(typeof safeIdxRows!=='function')return null;
   try{
-    const r=computeAccumulatedVariationPct(idxLabel,fromYm,toYm);
-    return (r&&isFinite(r.pct))?r.pct:null;
+    const rows=safeIdxRows(idxLabel);
+    if(!rows.length)return null;
+    const monthRows=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)>0&&compareYm(r.ym,toYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)));
+    if(monthRows.length){
+      let acc=1;
+      monthRows.forEach(r=>{acc*=1+(Number(r.pct)/100);});
+      return (acc-1)*100;
+    }
+    // Fallback: ratio de valores absolutos (USD, gasoil, o cualquier índice sin % mensual cargado)
+    const bRow=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)<=0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
+    const eRow=rows.filter(r=>r.ym&&compareYm(r.ym,toYm)<=0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
+    if(bRow&&eRow&&Number(bRow.value)>0)return ((Number(eRow.value)/Number(bRow.value))-1)*100;
+    return null;
   }catch(e){console.warn('computeAutoPctForIdx',e);return null;}
 }
 function toggleTermManual(tramoId,i){

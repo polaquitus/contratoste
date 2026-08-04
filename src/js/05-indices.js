@@ -194,10 +194,10 @@ function safeIdxRows(code){
   var id=code;
   if(!IDX_STORE[id]||(IDX_STORE[id].rows||[]).length===0){
     var _lblMap={'PP':'mo_pp','UOCRA':'mo_uocra','COMERCIO':'mo_com','CAMIONEROS':'mo_cam',
-      'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17','USD DIVISA':'usd_div',
+      'UOM RAMA N°10':'mo_uom10','UOM RAMA N°17':'mo_uom17','USD DIVISA':'usd_div','USD BILLETE':'usd_bill',
       'FADEAAC':'fadeaac','GAS OIL G3 YPF NQN':'go_g3','GAS OIL G2 YPF NQN':'go_g2',
       'IPIM GRAL':'ipim_gral','IPC PATAGONIA':'ipc_pat','IPC NAC GRAL':'ipc_nac',
-      'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29'};
+      'IPC NQN GRAL':'ipc_nqn','IPC NQN ALIM':'ipc_nqnab','IPC GBA GRAL':'ipc_gba','IPIM R29':'ipim_r29','IPIM REFINADOS':'ipim_r29'};
     var conv=_lblMap[String(code||'').trim()];
     if(conv&&IDX_STORE[conv]&&(IDX_STORE[conv].rows||[]).length) id=conv;
   }

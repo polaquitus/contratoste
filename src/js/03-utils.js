@@ -83,32 +83,48 @@ function getIndicatorSnapshots(code){
       rows.forEach(function(r){
         if(!r || !r.ym) return;
         var snapDate = r.ym + '-01';
-        var exists = snaps.find(function(s){ return s.indicator_code===normalizedCode && s.snapshot_date===snapDate; });
-        
-        if(!exists){
+        var pct = r.pct!=null ? Number(r.pct) : null;
+        var value = r.value!=null ? Number(r.value) : null;
+        var seriesValue = r.seriesValue!=null ? Number(r.seriesValue) : value;
+        var confirmed = !!r.confirmed;
+        var existing = snaps.find(function(s){ return s.indicator_code===normalizedCode && s.snapshot_date===snapDate; });
+
+        if(!existing){
           snaps.push({
             indicator_code: normalizedCode,  // SIEMPRE usar código interno
             snapshot_date: snapDate,
-            pct: r.pct!=null ? Number(r.pct) : null,
-            value: r.value!=null ? Number(r.value) : null,
-            series_value: r.seriesValue!=null ? Number(r.seriesValue) : (r.value!=null ? Number(r.value) : null),
+            pct: pct,
+            value: value,
+            series_value: seriesValue,
             source: 'IDX_STORE',
-            confirmed: !!r.confirmed,
+            confirmed: confirmed,
             note: r.note || ''
           });
           changed = true;
+        } else if(existing.pct!==pct || existing.value!==value || existing.series_value!==seriesValue || existing.confirmed!==confirmed){
+          // IDX_STORE es la fuente de verdad: si un período que ya estaba en caché cambió
+          // (dato provisorio que se confirmó, corrección posterior, etc.) hay que sincronizarlo,
+          // si no el cálculo automático queda pegado a la primera foto para siempre.
+          existing.pct=pct; existing.value=value; existing.series_value=seriesValue; existing.confirmed=confirmed; existing.source='IDX_STORE';
+          changed = true;
         }
       });
-      
+
       if(changed){
         snaps.sort(function(a,b){ return String(a.snapshot_date).localeCompare(String(b.snapshot_date)); });
         localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
       }
-    }catch(e){ 
-      console.warn('seedSnapshotsFromIdxStore error for', inputCode, e); 
+    }catch(e){
+      console.warn('seedSnapshotsFromIdxStore error for', inputCode, e);
     }
   }
-  
+
+  // Sincronizar SIEMPRE contra IDX_STORE (fuente de verdad) antes de leer — no solo la
+  // primera vez. Antes esto solo corría si el caché estaba vacío, así que un índice que ya
+  // tenía algún período cargado nunca volvía a sumar los períodos nuevos (ej. IPIM/Combustible
+  // quedaban "desactualizados" en el cálculo aunque el Master de Índices ya los tuviera al día).
+  seedSnapshotsFromIdxStore(code);
+
   // Normalizar el código de entrada
   var normalizedCode = code;
   if(!IDX_STORE[code]){
@@ -117,17 +133,9 @@ function getIndicatorSnapshots(code){
       normalizedCode = converted;
     }
   }
-  
+
   var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-  var filtered = snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
-  
-  if(!filtered.length){
-    seedSnapshotsFromIdxStore(code);
-    snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
-    filtered = snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
-  }
-  
-  return filtered;
+  return snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
 }
 function computeAccumulatedVariationPct(code, baseMonth, evalMonth){
   var fromYm=ymOf(baseMonth), toYm=ymOf(evalMonth);
