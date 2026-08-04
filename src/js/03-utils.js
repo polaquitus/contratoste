@@ -41,6 +41,22 @@ function getContractMonths(contract){
   }
   return 0;
 }
+// Caché en memoria del blob "indicator_snapshots" — getIndicatorSnapshots se llama
+// repetidas veces por render (una vez por contrato × componente polinómico en
+// Alertas/Dashboard), y sin esto cada llamada volvía a JSON.parse el localStorage
+// completo. Se invalida cada vez que _snapshotsWrite() escribe.
+let _idxSnapshotsCache=null;
+function _snapshotsRead(){
+  if(_idxSnapshotsCache===null){
+    try{_idxSnapshotsCache=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');}
+    catch(e){_idxSnapshotsCache=[];}
+  }
+  return _idxSnapshotsCache;
+}
+function _snapshotsWrite(snaps){
+  localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
+  _idxSnapshotsCache=snaps;
+}
 function getIndicatorSnapshots(code){
   function labelToIdxId(label){
     var map={
@@ -77,7 +93,7 @@ function getIndicatorSnapshots(code){
       var rows = IDX_STORE[idxId].rows;
       if(!Array.isArray(rows)) return;
       
-      var snaps = JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+      var snaps = _snapshotsRead();
       var changed = false;
       
       rows.forEach(function(r){
@@ -112,7 +128,7 @@ function getIndicatorSnapshots(code){
 
       if(changed){
         snaps.sort(function(a,b){ return String(a.snapshot_date).localeCompare(String(b.snapshot_date)); });
-        localStorage.setItem('indicator_snapshots', JSON.stringify(snaps));
+        _snapshotsWrite(snaps);
       }
     }catch(e){
       console.warn('seedSnapshotsFromIdxStore error for', inputCode, e);
@@ -134,7 +150,7 @@ function getIndicatorSnapshots(code){
     }
   }
 
-  var snaps=JSON.parse(localStorage.getItem('indicator_snapshots')||'[]');
+  var snaps=_snapshotsRead();
   return snaps.filter(function(s){return s.indicator_code===normalizedCode;}).sort(function(a,b){return String(a.snapshot_date).localeCompare(String(b.snapshot_date));});
 }
 function computeAccumulatedVariationPct(code, baseMonth, evalMonth){
@@ -485,6 +501,7 @@ function fD(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:
 function fDf(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:00:00':d));return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fN(n){if(n==null||n==='')return'—';return Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function debounce(fn,ms){let t;return function(...args){clearTimeout(t);t=setTimeout(()=>fn.apply(this,args),ms||200);};}
 function toast(m,t){const e=document.getElementById('toast');e.textContent=(t==='ok'?'✓ ':'✕ ')+m;e.className='toast '+t;setTimeout(()=>e.classList.add('show'),10);setTimeout(()=>e.classList.remove('show'),3200);}
 
 // LIST

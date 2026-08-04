@@ -551,13 +551,14 @@ function renderProv(){
   }
 }
 
+function onProvSrchInput(v){_provSrch=v;debouncedRenderProvList();}
 function renderProvList(){
   const box=document.getElementById('provList');if(!box)return;
   const srch=_provSrch.toLowerCase();
   const arr=PROV_DB.filter(p=>!srch||(p.name||'').toLowerCase().includes(srch)||(p.vendorNum||'').includes(srch)||(p.rubro||'').toLowerCase().includes(srch));
   
   let h=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-    <input type="text" placeholder="Buscar proveedor, N° vendor, rubro..." value="${esc(_provSrch)}" oninput="_provSrch=this.value;renderProvList()" style="flex:1;max-width:320px;font-size:13px">
+    <input type="text" placeholder="Buscar proveedor, N° vendor, rubro..." value="${esc(_provSrch)}" oninput="onProvSrchInput(this.value)" style="flex:1;max-width:320px;font-size:13px">
     <span style="font-size:12px;color:var(--g500)">${arr.length} de ${PROV_DB.length} proveedores</span>
     <button class="btn btn-s btn-sm" onclick="importProvModal()">📥 Importar SAP</button>
   </div>`;
@@ -572,10 +573,23 @@ function renderProvList(){
     box.innerHTML=h;return;
   }
 
+  // Contar contratos vinculados por proveedor sin recorrer window.DB una vez por
+  // proveedor (antes era O(proveedores × contratos) — con el padrón SAP completo
+  // esto son millones de comparaciones en cada render/tecla del buscador).
+  const cttosByVendor=new Map(), cttosByName=new Map();
+  window.DB.forEach(c=>{
+    if(c.vendorNum){ if(!cttosByVendor.has(c.vendorNum))cttosByVendor.set(c.vendorNum,[]); cttosByVendor.get(c.vendorNum).push(c.id); }
+    if(c.cont){ if(!cttosByName.has(c.cont))cttosByName.set(c.cont,[]); cttosByName.get(c.cont).push(c.id); }
+  });
+  function cttosLinkedCount(p){
+    const ids=new Set([...(cttosByVendor.get(p.vendorNum)||[]),...(cttosByName.get(p.name)||[])]);
+    return ids.size;
+  }
+
   h+='<div class="prov-grid">';
   arr.forEach(p=>{
     const rubro=RUBROS.find(r=>r.code===p.rubro);
-    const cttos=window.DB.filter(c=>c.vendorNum===p.vendorNum||c.cont===p.name);
+    const cttosLen=cttosLinkedCount(p);
     h+=`<div class="prov-card" onclick="openProvDet('${p.id}')">
       <div class="prov-hdr">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
@@ -592,7 +606,7 @@ function renderProvList(){
       </div>
       <div class="prov-body">
         ${p.contacts&&p.contacts.length?p.contacts.slice(0,1).map(ct=>`<div style="font-size:11.5px;color:var(--g700)">👤 ${esc(ct.name)}${ct.role?' · '+esc(ct.role):''}</div>`).join(''):''}
-        ${cttos.length?`<div style="font-size:11px;color:var(--g500);margin-top:4px">📋 ${cttos.length} contrato${cttos.length!==1?'s':''} vinculado${cttos.length!==1?'s':''}</div>`:''}
+        ${cttosLen?`<div style="font-size:11px;color:var(--g500);margin-top:4px">📋 ${cttosLen} contrato${cttosLen!==1?'s':''} vinculado${cttosLen!==1?'s':''}</div>`:''}
         ${p.brochure?'<div style="font-size:11px;color:var(--b500);margin-top:2px">📎 Brochure adjunto</div>':''}
       </div>
     </div>`;
@@ -600,6 +614,7 @@ function renderProvList(){
   h+='</div>';
   box.innerHTML=h;
 }
+const debouncedRenderProvList=debounce(renderProvList,180);
 
 // ── Detail ────────────────────────────────────────────────────────────────
 function openProvDet(id){_provDet=id;renderProv();}
@@ -815,14 +830,18 @@ function processSapProvImport(input){
       const ws=wb.Sheets[wb.SheetNames[0]];
       const json=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       let added=0,skipped=0;
+      // Set en vez de PROV_DB.find() dentro del loop: con un padrón de ~1800 vendors
+      // ese find() se volvía O(n²) sobre el archivo importado.
+      const existingVendors=new Set(PROV_DB.map(p=>String(p.vendorNum||'').trim()).filter(Boolean));
       for(let i=1;i<json.length;i++){
         const r=json[i];
         const nameRaw=String(r[0]||'').trim();
         const vnum=String(r[1]||'').trim();
         if(!nameRaw||nameRaw==='nan')continue;
         const cleanName=nameRaw.replace(/^\d+\s+/,'').trim();
-        if(vnum && PROV_DB.find(p=>String(p.vendorNum||'').trim()===vnum)){skipped++;continue;}
+        if(vnum && existingVendors.has(vnum)){skipped++;continue;}
         PROV_DB.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+added,name:cleanName,vendorNum:vnum,rubro:'',website:'',obs:'',contacts:[],brochure:null,createdAt:new Date().toISOString()});
+        if(vnum)existingVendors.add(vnum);
         added++;
       }
       await saveProv();updNavProv();renderProvList();

@@ -239,7 +239,7 @@
   <div class="card">
     <div class="thdr"><h2>Contratos Registrados</h2><span class="tcnt" id="lcnt">0</span></div>
     <div class="tfl">
-      <input type="text" id="fSrch" placeholder="Buscar N° contrato o proveedor..." oninput="renderList()" style="flex:1;max-width:240px">
+      <input type="text" id="fSrch" placeholder="Buscar N° contrato o proveedor..." oninput="debouncedRenderList()" style="flex:1;max-width:240px">
       <select id="fEst" onchange="renderList()"><option value="">Todos</option><option value="ACTIVO">Activos</option><option value="VENCIDO">Vencidos</option></select>
       <select id="fAsset" onchange="renderList()" style="max-width:120px"><option value="">Asset</option><option>NQN</option><option>TDF</option><option>NQN + TDF</option></select>
       <select id="fDom" onchange="renderList()" style="max-width:120px"><option value="">Dominio</option><option value="B&GS">B&GS</option><option value="EDL">EDL</option><option value="P&P">P&P</option><option value="HSE">HSE</option><option value="FIN">FIN</option><option value="HR">HR</option><option value="IT">IT</option><option value="LEGAL">LEGAL</option><option value="OPS">OPS</option><option value="OTHER">OTHER</option></select>

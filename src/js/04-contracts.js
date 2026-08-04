@@ -32,6 +32,7 @@ function renderList(){
   }
   h+='</tbody></table></div>';box.innerHTML=h;
 }
+const debouncedRenderList=debounce(renderList,180);
 
 function verDet(id){window.detId=id;go('detail');}
 
