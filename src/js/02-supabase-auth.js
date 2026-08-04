@@ -143,10 +143,6 @@ function applyRolePermissions(){
   if(avatarEl) avatarEl.textContent = initials;
   if(nameEl) nameEl.textContent = username || '—';
   if(roleEl) roleEl.textContent = role ? role.replaceAll('_',' ') : 'Sin sesión';
-  // Update version badge in env strip — show only vXX part before any " · "
-  const verEl = document.getElementById('sbVerBadge');
-  const buildEl = document.getElementById('buildTag');
-  if(verEl && buildEl) verEl.textContent = (buildEl.textContent||'').split(' · ')[0].trim();
 }
 async function loginApp(){
   const u=(document.getElementById('lgUser')?.value||'').trim();
@@ -197,9 +193,6 @@ function logoutApp(){
 }
 document.addEventListener('DOMContentLoaded', function(){
   authLock(); setRoleBadge(); applyRolePermissions();
-  // Sync sbVerBadge with buildTag on load
-  const verEl=document.getElementById('sbVerBadge'), buildEl=document.getElementById('buildTag');
-  if(verEl && buildEl) verEl.textContent=(buildEl.textContent||'').split(' · ')[0].trim();
   /* ensureLoginOverlay handled by initApp IIFE */
 });
 

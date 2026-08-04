@@ -189,7 +189,7 @@ function renderDossierHtml(c){
 
   var financeSection='<div class="fin-card">'
 +'<div class="fin-head">&#x1F4B0;&nbsp; Valor del Contrato</div>'
-+'<div class="fin-note">El <strong>Target Value</strong> vigente surge de sumar al valor original del contrato las Actas de Valor Econ\u00f3mico (AVE) por <strong>ajuste polin\u00f3mico de tarifas</strong> y las AVE por <strong>otros conceptos</strong> (Owner/CC).</div>'
++'<div class="fin-note">El <strong>Valor Total Vigente</strong> surge de sumar al valor original del contrato las Actas de Valor Econ\u00f3mico (AVE) por <strong>ajuste polin\u00f3mico de tarifas</strong> y las AVE por <strong>otros conceptos</strong> (Owner/CC).</div>'
 +'<div class="fin-row">'
 +'<div class="fin-tile base"><div class="fin-label">Valor Original (Header)</div><div class="fin-value">'+_m(montoBase)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">\u2248 '+_m(Math.round(montoBase/tcc))+' USD</div></div>'
 +'<div class="fin-op">+</div>'
@@ -197,7 +197,7 @@ function renderDossierHtml(c){
 +'<div class="fin-op">+</div>'
 +'<div class="fin-tile owner"><div class="fin-label">Otras AVE<span class="fin-tag">Owner / CC</span></div><div class="fin-value">'+_m(aveOwner)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">'+aveOwnerList.length+' AVE(s) registrada(s)</div></div>'
 +'<div class="fin-op">=</div>'
-+'<div class="fin-tile total"><div class="fin-label">Target Value (Vigente)</div><div class="fin-value">'+_m(totalConAVE)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">\u2248 '+_m(Math.round(totalConAVE/tcc))+' USD \u00b7 TC '+tcc+'</div></div>'
++'<div class="fin-tile total"><div class="fin-label">Valor Total Vigente</div><div class="fin-value">'+_m(totalConAVE)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">\u2248 '+_m(Math.round(totalConAVE/tcc))+' USD \u00b7 TC '+tcc+'</div></div>'
 +'</div></div>';
 
   return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>DUET \u2014 '+_e(c.num)+' \u2014 '+_e(c.cont)+'</title>'
@@ -272,7 +272,7 @@ function renderDossierHtml(c){
 +'<div class="sumbar">'
 +'<div class="sc"><div class="slbl">Contrato N\u00b0</div><div class="sval">'+_e(c.num||'\u2014')+'</div><div class="ssub">'+_e(c.cont||'\u2014')+'</div></div>'
 +'<div class="sc"><div class="slbl">Valor Header</div><div class="sval">'+_m(montoBase)+'</div><div class="ssub">'+_e(c.mon||'ARS')+' \u00b7 TC '+tcc+'</div></div>'
-+'<div class="sc"><div class="slbl">Target Value (c/AVEs)</div><div class="sval g">'+_m(totalConAVE)+'</div><div class="ssub">'+_e(c.mon||'ARS')+'</div></div>'
++'<div class="sc"><div class="slbl">Valor Total Vigente (c/AVEs)</div><div class="sval g">'+_m(totalConAVE)+'</div><div class="ssub">'+_e(c.mon||'ARS')+'</div></div>'
 +'<div class="sc"><div class="slbl">Vigencia</div><div class="sval o" style="font-size:13px">'+_d(c.fechaIni)+' \u2192 '+_d(c.fechaFin)+'</div><div class="ssub">'+(c.plazo_meses||c.plazo?(c.plazo_meses||c.plazo)+' meses':'\u2014')+'</div></div>'
 +'</div>'
 +'<div class="sh"><span class="ico">&#x1F4CB;</span>Enmiendas<span class="ct">'+enms.length+' registradas</span></div>'
@@ -1824,6 +1824,12 @@ function recalcTermAuto(tramoId,i){
     btnEl.style.background=manualOverride?'var(--p100)':'var(--g50)';
     btnEl.title=manualOverride?'Volver a cálculo automático':'Editar % manualmente';
   }
+  const statusEl=document.getElementById('ne_status_'+tramoId+'_'+i);
+  if(statusEl){
+    if(manualOverride){statusEl.textContent='✏️ Manual';statusEl.style.color='var(--p700)';}
+    else if(locked){statusEl.textContent='🔒 Automático';statusEl.style.color='var(--g500)';}
+    else{statusEl.textContent='✏️ Manual (sin datos)';statusEl.style.color='#b45309';}
+  }
   if(hintEl){
     if(!manualOverride&&pb&&!autoOk){hintEl.style.display='block';hintEl.textContent='⚠ Sin datos automáticos para este período — completá manualmente.';}
     else hintEl.style.display='none';
@@ -1837,7 +1843,7 @@ function buildPolyFormTramo(tramoId,prefill){
   const box=document.getElementById('ne_polyTerms_'+tramoId);if(!box)return;
   const basePer=gv('ne_basePer_'+tramoId)||cc.btar||'';
   if(!poly.length){box.innerHTML='<div class="info-box amber">Sin fórmula polinómica. Editá el contrato para cargar los índices.</div>';return;}
-  let h='<div style="display:grid;grid-template-columns:22px 1.4fr 68px 80px 132px 100px;gap:6px;padding:3px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--g500);margin-bottom:3px"><span></span><span>Índice</span><span style="text-align:center">Incid.</span><span style="text-align:center">Inc×%</span><span>% Acumulado</span><span>Nueva Base</span></div>';
+  let h='<div style="display:grid;grid-template-columns:22px 1.4fr 68px 80px 132px 100px;gap:6px;padding:3px 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--g500);margin-bottom:3px"><span></span><span>Índice</span><span style="text-align:center">Incid.</span><span style="text-align:center">Inc×%</span><span>% Acumulado</span><span>Nueva Base</span></div>';
   poly.forEach((t,i)=>{
     const autoEligible=idxIsAutoCalc(t.idx);
     const pa=prefill?.polyTerms?.[i]?.pctAcum||'';
@@ -1845,24 +1851,25 @@ function buildPolyFormTramo(tramoId,prefill){
     const pb=pbPrefill!=null?pbPrefill:(autoEligible?'':(t.base||''));
     const justPrefill=prefill?.polyTerms?.[i]?.justificacion||'';
     h+=`<div class="pup-row">
-      <div style="width:20px;height:20px;border-radius:50%;background:var(--p200);color:var(--p800);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">${i+1}</div>
+      <div style="width:20px;height:20px;border-radius:50%;background:var(--p200);color:var(--p800);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${i+1}</div>
       <div>
-        <input type="text" value="${esc(t.idx)}" disabled style="font-size:11px;border-color:var(--g200);width:100%">
-        ${autoEligible?`<div id="ne_from_${tramoId}_${i}" style="font-size:8.5px;color:var(--g500);margin-top:2px">Base ant.: —</div>`:''}
+        <input type="text" value="${esc(t.idx)}" disabled style="font-size:12px;border-color:var(--g200);width:100%">
+        ${autoEligible?`<div id="ne_from_${tramoId}_${i}" style="font-size:11px;color:var(--g500);margin-top:2px">Base ant.: —</div>`:''}
       </div>
-      <input type="text" value="${t.inc}" disabled style="font-size:11px;text-align:center;border-color:var(--g200)">
-      <input type="text" id="ne_ip_${tramoId}_${i}" value="0%" disabled style="font-size:11px;text-align:center;font-weight:700;color:var(--g600);border-color:var(--g200)">
+      <input type="text" value="${t.inc}" disabled style="font-size:12px;text-align:center;border-color:var(--g200)">
+      <input type="text" id="ne_ip_${tramoId}_${i}" value="0%" disabled style="font-size:12px;text-align:center;font-weight:700;color:var(--g600);border-color:var(--g200)">
       <div>
         <div style="display:flex;align-items:center;gap:3px">
-          <input type="number" id="ne_acum_${tramoId}_${i}" step="0.01" placeholder="%" value="${esc(pa)}" oninput="calcAveSugAll()" style="flex:1;min-width:0">
+          <input type="number" id="ne_acum_${tramoId}_${i}" step="0.01" placeholder="%" value="${esc(pa)}" oninput="calcAveSugAll()" style="flex:1;min-width:0;font-size:12px">
           ${autoEligible?`<button type="button" id="ne_tgl_${tramoId}_${i}" onclick="toggleTermManual(${tramoId},${i})" title="Editar % manualmente" style="flex-shrink:0;width:22px;height:22px;border-radius:5px;border:1px solid var(--g300);background:var(--g50);cursor:pointer;font-size:11px;line-height:1;padding:0">🔒</button>`:''}
         </div>
-        <div id="ne_hint_${tramoId}_${i}" style="display:none;font-size:8.5px;color:#b45309;margin-top:2px"></div>
+        ${autoEligible?`<div id="ne_status_${tramoId}_${i}" style="font-size:10.5px;font-weight:700;margin-top:2px">🔒 Automático</div>`:''}
+        <div id="ne_hint_${tramoId}_${i}" style="display:none;font-size:11px;color:#b45309;margin-top:2px"></div>
       </div>
-      <input type="month" id="ne_nb_${tramoId}_${i}" value="${esc(pb)}" onchange="onTermNuevaBaseChange(${tramoId},${i})">
+      <input type="month" id="ne_nb_${tramoId}_${i}" value="${esc(pb)}" onchange="onTermNuevaBaseChange(${tramoId},${i})" style="font-size:12px">
     </div>
     <div id="ne_justwrap_${tramoId}_${i}" style="display:${autoEligible?'none':'block'};margin:-2px 0 6px 28px">
-      <input type="text" id="ne_just_${tramoId}_${i}" placeholder="📝 Justificación del valor manual (opcional) — ej: ajuste sobre período anterior" value="${esc(justPrefill)}" style="font-size:10.5px;padding:4px 8px;width:100%;max-width:540px;border:1px dashed var(--g300);background:var(--g50)">
+      <input type="text" id="ne_just_${tramoId}_${i}" placeholder="📝 Justificación del valor manual (opcional) — ej: ajuste sobre período anterior" value="${esc(justPrefill)}" style="font-size:11.5px;padding:5px 8px;width:100%;max-width:540px;border:1px dashed var(--g300);background:var(--g50)">
     </div>`;
   });
   const idx=_neTramoIds.indexOf(tramoId);
