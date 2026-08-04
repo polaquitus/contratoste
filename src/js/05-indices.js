@@ -98,13 +98,17 @@ function loadIdx(){
   idxMergeOfficialSeeds();
 }
 let _saveIdxBusy=false, _saveIdxPending=false;
+// Devuelve true si quedó sincronizado en Supabase (o si no hay conexión y ni
+// siquiera se intentó), false si Supabase rechazó la escritura — así el
+// llamador puede avisar en vez de mostrar "guardado" cuando en realidad
+// el cambio solo quedó en localStorage de esa pestaña.
 async function saveIdx(){
   // Mirror to localStorage immediately (always safe)
   localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
-  if(!SB_OK) return;
+  if(!SB_OK) return true;
   // Serialize Supabase writes: if a save is in flight, mark pending and return.
   // The in-flight save will do another pass with the latest IDX_STORE data.
-  if(_saveIdxBusy){ _saveIdxPending=true; return; }
+  if(_saveIdxBusy){ _saveIdxPending=true; return true; }
   _saveIdxBusy=true;
   try{
     await sbUpsertSingle('indices', IDX_STORE);
@@ -114,7 +118,8 @@ async function saveIdx(){
       localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
       await sbUpsertSingle('indices', IDX_STORE);
     }
-  } catch(e){ console.warn('saveIdx SB error', e); }
+    return true;
+  } catch(e){ console.warn('saveIdx SB error', e); return false; }
   finally{ _saveIdxBusy=false; }
 }
 async function resetIdxAll(){
@@ -891,9 +896,9 @@ async function saveEntryModal(idxId, editYm){
   const row={ym,pct:finalPct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false};
   if(existing){Object.assign(existing,row);}
   else{IDX_STORE[idxId].rows.push(row);IDX_STORE[idxId].rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
-  await saveIdx();
+  const ok=await saveIdx();
   closeIdxModal();
-  toast(formatMonth(ym)+': '+(value!=null?'$'+value.toFixed(2):pctStr(pct))+' guardado','ok');
+  toast(ok?(formatMonth(ym)+': '+(value!=null?'$'+value.toFixed(2):pctStr(pct))+' guardado'):'⚠ Guardado local — no se pudo sincronizar con Supabase',ok?'ok':'er');
   renderIdxView();
 }
 
@@ -905,11 +910,17 @@ function closeIdxModal(){
 // ── Actions ────────────────────────────────────────────────────────────
 async function toggleIdxConfirm(idxId,ym,val){
   const r=(IDX_STORE[idxId]?.rows||[]).find(r=>r.ym===ym);
-  if(r){r.confirmed=val;await saveIdx();renderIdxView();}
+  if(!r)return;
+  r.confirmed=val;
+  const ok=await saveIdx();
+  renderIdxView();
+  if(!ok)toast('⚠ Cambio guardado local — no se pudo sincronizar con Supabase','er');
 }
 async function confirmAllIdx(idxId){
   (IDX_STORE[idxId]?.rows||[]).forEach(r=>r.confirmed=true);
-  await saveIdx();toast('Todos confirmados','ok');renderIdxView();
+  const ok=await saveIdx();
+  renderIdxView();
+  toast(ok?'Todos confirmados':'⚠ Confirmado local — no se pudo sincronizar con Supabase',ok?'ok':'er');
 }
 async function deleteIdxRow(idxId,ym){
   if(!confirm('¿Eliminar el período '+formatMonth(ym)+'?'))return;
@@ -918,7 +929,9 @@ async function deleteIdxRow(idxId,ym){
   if(!IDX_STORE.__deleted)IDX_STORE.__deleted={};
   if(!IDX_STORE.__deleted[idxId])IDX_STORE.__deleted[idxId]=[];
   if(!IDX_STORE.__deleted[idxId].includes(ym))IDX_STORE.__deleted[idxId].push(ym);
-  await saveIdx();renderIdxView();toast('Período eliminado','ok');
+  const ok=await saveIdx();
+  renderIdxView();
+  toast(ok?'Período eliminado':'⚠ Eliminado local — no se pudo sincronizar con Supabase',ok?'ok':'er');
 }
 function downloadIdxFile(idxId,ym,fi){
   const row=(IDX_STORE[idxId]?.rows||[]).find(r=>r.ym===ym);

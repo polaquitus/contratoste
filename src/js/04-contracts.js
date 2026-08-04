@@ -2237,15 +2237,31 @@ async function guardarEnm(){
 
   cc.enmiendas.push(enm);
   cc.updatedAt=new Date().toISOString();
-  if(!SB_OK) localStorage.setItem('cta_v7', JSON.stringify(window.DB));
-  else await sbUpsertItem('contratos', cc);
+  if(!SB_OK){
+    localStorage.setItem('cta_v7', JSON.stringify(window.DB));
+  } else {
+    showLoader('Guardando enmienda…');
+    try{
+      await sbUpsertItem('contratos', cc);
+    }catch(e){
+      hideLoader();
+      console.error('guardarEnm save',e);
+      // No se pudo persistir en Supabase: la enmienda quedó armada en memoria pero no
+      // guardada. En vez de intentar revertir a mano cada mutación de arriba (monto,
+      // tarifarios, aves — riesgo de dejar algo a medio revertir), avisamos claro y
+      // recomendamos recargar para volver al último estado confirmado por el servidor.
+      toast('⛔ No se pudo guardar en Supabase. Recargá la página (no se perdió nada del lado del servidor) e intentá de nuevo.','er');
+      return;
+    }
+    hideLoader();
+  }
 
   closeEnmPanel();
   renderDet();
   renderList();
   updNav();
   toast('Enmienda N°'+num+' guardada correctamente', 'ok');
-  
+
   // Actualizar fuzzy search cache
   if (typeof window.initFuzzySearch === 'function') {
     window.initFuzzySearch();
@@ -2314,8 +2330,20 @@ async function saveAveOwner(){
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
   const limit=cc._aveOwnerLimit||250000;
   cc.updatedAt=new Date().toISOString();
-  if(!SB_OK)localStorage.setItem('cta_v7',JSON.stringify(window.DB));
-  else await sbUpsertItem('contratos',cc);
+  if(!SB_OK){
+    localStorage.setItem('cta_v7',JSON.stringify(window.DB));
+  } else {
+    showLoader('Guardando AVE Owner…');
+    try{
+      await sbUpsertItem('contratos',cc);
+    }catch(e){
+      hideLoader();
+      console.error('saveAveOwner save',e);
+      toast('⛔ No se pudo guardar en Supabase. Recargá la página e intentá de nuevo.','er');
+      return;
+    }
+    hideLoader();
+  }
   closeAveOwnerPanel();
   renderDet();renderList();updNav();
   if(ownerSum>limit) toast(`⛔ AVE Owner acumulado (${fN(ownerSum)}) supera límite ${fN(limit)}`,'er');
@@ -2387,7 +2415,10 @@ async function undoValidationAic(cid, validationId){
   cc.aicValidations=(cc.aicValidations||[]).filter(v=>v.id!==validationId);
   cc.updatedAt=new Date().toISOString();
   try{ localStorage.setItem('cta_v7',JSON.stringify(window.DB)); }catch(_e){}
-  if(SB_OK){ try{ await sbUpsertItem('contratos',cc); }catch(_e){} }
+  if(SB_OK){
+    try{ await sbUpsertItem('contratos',cc); }
+    catch(e){ console.error('undoValidationAic save',e); toast('⚠ Deshecho localmente — no se pudo sincronizar con Supabase','er'); renderDet(); return; }
+  }
   toast('Validación AIC deshecha','ok');
   renderDet();
 }
@@ -2399,7 +2430,10 @@ async function undoValidationCc(cid, validationId){
   cc.ccValidations=(cc.ccValidations||[]).filter(v=>v.id!==validationId);
   cc.updatedAt=new Date().toISOString();
   try{ localStorage.setItem('cta_v7',JSON.stringify(window.DB)); }catch(_e){}
-  if(SB_OK){ try{ await sbUpsertItem('contratos',cc); }catch(_e){} }
+  if(SB_OK){
+    try{ await sbUpsertItem('contratos',cc); }
+    catch(e){ console.error('undoValidationCc save',e); toast('⚠ Deshecho localmente — no se pudo sincronizar con Supabase','er'); renderDet(); return; }
+  }
   toast('Validación CC deshecha','ok');
   renderDet();
 }

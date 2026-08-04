@@ -213,34 +213,60 @@ async function initApp(__fromLogin) {
     if(!logged){ hideLoader(); return; }
   }
 
+  // Cada tabla se carga con su propio try/catch: si una falla (ej. licitaciones), no
+  // hay que descartar lecturas que ya llegaron bien de Supabase (contratos, índices) y
+  // reemplazarlas por una copia vieja de localStorage — antes un blip transitorio en UNA
+  // tabla tiraba abajo la sincronización de TODO el resto de la sesión.
+  let anyOk=false, anyFailed=false;
   try {
     showLoader('Cargando contratos...');
     window.DB = await sbLoadTable('contratos');
+    anyOk=true;
+  } catch(e) {
+    console.warn('contratos load error:', e);
+    try{window.DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!window.DB.length)window.DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){window.DB=[];}
+    anyFailed=true;
+  }
+  try {
     showLoader('Cargando ME2N...');
     const me2nObj = await sbLoadSingle('me2n');
     if (me2nObj) ME2N = me2nObj;
+    anyOk=true;
+  } catch(e) {
+    console.warn('ME2N load error:', e);
+    try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
+    anyFailed=true;
+  }
+  try {
     showLoader('Cargando índices...');
     const idxObj = await sbLoadSingle('indices');
     if (idxObj) { IDX_STORE = idxObj; }
-    idxMergeOfficialSeeds();
-    localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
+    anyOk=true;
+  } catch(e) {
+    console.warn('índices load error:', e);
+    try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
+    anyFailed=true;
+  }
+  idxMergeOfficialSeeds();
+  localStorage.setItem('idx_v2', JSON.stringify(IDX_STORE));
+  try {
     showLoader('Cargando licitaciones...');
     LICIT_DB = await sbLoadTable('licitaciones');
-    SB_OK = true;
-    setSBStatus(true);
-    // Permisos por rol: fuente de verdad en Supabase, caché en localStorage
-    if(typeof loadRoleMatrix==='function'){ try{ await loadRoleMatrix(); }catch(_e){} }
+    anyOk=true;
   } catch(e) {
-    console.warn('Supabase core error:', e);
-    try{window.DB=JSON.parse(localStorage.getItem('cta_v7'))||[];if(!window.DB.length)window.DB=JSON.parse(localStorage.getItem('cta_v5'))||[];}catch(ex){window.DB=[];}
-    try{ME2N=JSON.parse(localStorage.getItem('me2n_v1'))||{};}catch(ex){ME2N={};}
-    try{IDX_STORE=JSON.parse(localStorage.getItem('idx_v2'))||{};}catch(ex){IDX_STORE={};}
-    idxMergeOfficialSeeds();
+    console.warn('licitaciones load error:', e);
     try{LICIT_DB=JSON.parse(localStorage.getItem('licit_v1'))||[];}catch(ex){LICIT_DB=[];}
-    SB_OK = false;
-    setSBStatus(false);
-    toast('Sin conexión a Supabase — modo local activo','er');
+    anyFailed=true;
   }
+  // Si al menos una tabla respondió, Supabase está alcanzable: los guardados posteriores
+  // siguen intentando ir ahí (cada uno con su propio manejo de error) en vez de degradar
+  // toda la sesión a modo local por el fallo de una sola tabla.
+  SB_OK = anyOk;
+  setSBStatus(SB_OK);
+  if(!anyOk) toast('Sin conexión a Supabase — modo local activo','er');
+  else if(anyFailed) toast('Conexión parcial a Supabase — algún dato puede estar desactualizado','er');
+  // Permisos por rol: fuente de verdad en Supabase, caché en localStorage
+  if(SB_OK && typeof loadRoleMatrix==='function'){ try{ await loadRoleMatrix(); }catch(_e){} }
 
   try { showLoader('Cargando contratistas...'); await loadProv(); }
   catch(ex) { console.warn('loadProv error', ex); try{PROV_DB=JSON.parse(localStorage.getItem('contr_v1'))||JSON.parse(localStorage.getItem('prov_v1'))||[];}catch(e3){PROV_DB=[];} }

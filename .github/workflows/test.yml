@@ -15,21 +15,23 @@ jobs:
         uses: actions/checkout@v4
 
       # ── 1. Verificar error handlers ──────────────────────────────────────
+      # Los handlers viven en src/js/*.js (código modularizado), no como texto
+      # literal en index.html — buscar ahí directamente no matchea nada.
       - name: Verificar window.onerror presente
         run: |
-          if grep -q "window.onerror" index.html; then
+          if grep -rq "window.onerror" index.html src/js/; then
             echo "✓ window.onerror encontrado"
           else
-            echo "✗ FALTA window.onerror en index.html"
+            echo "✗ FALTA window.onerror"
             exit 1
           fi
 
       - name: Verificar unhandledrejection presente
         run: |
-          if grep -q "unhandledrejection" index.html; then
+          if grep -rq "unhandledrejection" index.html src/js/; then
             echo "✓ unhandledrejection encontrado"
           else
-            echo "✗ FALTA unhandledrejection en index.html"
+            echo "✗ FALTA unhandledrejection"
             exit 1
           fi
 
