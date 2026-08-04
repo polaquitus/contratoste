@@ -281,7 +281,7 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 .enm-sub{margin-top:12px;padding:14px;background:var(--p50);border:1.5px solid var(--p200);border-radius:8px}
 .enm-sub h4{font-size:12px;font-weight:700;color:var(--p800);margin-bottom:10px}
 /* Poly update form rows */
-.pup-row{display:grid;grid-template-columns:22px 1.4fr 68px 80px 100px 100px;gap:6px;align-items:end;padding:7px 10px;background:var(--g50);border:1px solid var(--g200);border-radius:6px;margin-bottom:4px}
+.pup-row{display:grid;grid-template-columns:22px 1.4fr 68px 80px 132px 100px;gap:6px;align-items:start;padding:7px 10px;background:var(--g50);border:1px solid var(--g200);border-radius:6px;margin-bottom:4px}
 .pup-row:hover{border-color:var(--p300);background:var(--p50)}
 /* Tariff preview */
 .tar-preview{max-height:260px;overflow-y:auto;margin-top:8px;border:1px solid var(--g200);border-radius:6px}

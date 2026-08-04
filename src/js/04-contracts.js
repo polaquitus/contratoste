@@ -1663,6 +1663,11 @@ function prefillCorrEnm(){
   const tramosData=(Array.isArray(enm.tramos)&&enm.tramos.length)?enm.tramos:[{basePeriodo:enm.basePeriodo,nuevoPeriodo:enm.nuevoPeriodo,polyTerms:enm.polyTerms}];
   _neTramoIds=tramosData.map((_,i)=>i);
   _neTramoSeq=tramosData.length;
+  // Al corregir una enmienda ya guardada se respetan sus valores tal cual quedaron
+  // (modo manual por término); el usuario puede volver a modo automático con 🔒/✏️.
+  window._neTermManual={};
+  const polyLen=(cc.poly||[]).filter(p=>p.idx).length;
+  tramosData.forEach((_,tramoIdx)=>{ for(let j=0;j<polyLen;j++) window._neTermManual[tramoIdx+'_'+j]=true; });
   renderTramosWrap();
   tramosData.forEach((t,i)=>{
     const bp=document.getElementById('ne_basePer_'+i);if(bp&&t.basePeriodo)bp.value=t.basePeriodo;
@@ -1681,6 +1686,7 @@ let _neTramoSeq=1;
 function initTramos(){
   _neTramoIds=[0];
   _neTramoSeq=1;
+  window._neTermManual={};
   renderTramosWrap();
 }
 function addTramoPeriodo(){
@@ -1747,23 +1753,139 @@ function renderTramosWrap(){
   wrap.innerHTML=_neTramoIds.map((id,idx)=>tramoBlockHtml(cc,id,idx===0)).join('');
   _neTramoIds.forEach(id=>buildPolyFormTramo(id));
 }
+// ── % Acumulado automático por índice ───────────────────────────────────
+// Todos los índices salvo "Mano de Obra" (IPC, IPIM, FADEAAC, Combustible,
+// USD) toman su % acumulado directo de la sección de Índices, en vez de
+// tipeo manual. Mano de Obra siempre queda manual. El usuario puede forzar
+// tipeo manual por término con el botón 🔒/✏️.
+window._neTermManual=window._neTermManual||{};
+function idxIsAutoCalc(label){
+  if(!label)return false;
+  const mo=(typeof IDX!=='undefined'&&IDX['Mano de Obra'])||[];
+  return mo.indexOf(String(label).trim())===-1;
+}
+function _neCorrExcludeNum(){
+  const isCorr=document.getElementById('ne_isCorr')?.checked;
+  return isCorr?(parseInt(document.getElementById('ne_corrEnm')?.value)||null):null;
+}
+// Base desde la que se acumula: la "Nueva Base" del mismo índice en el tramo
+// anterior de esta misma enmienda (si están encadenados), o si no, la última
+// "Nueva Base" guardada para ese índice en el historial de enmiendas, o si
+// nunca se actualizó, la base original definida al armar la fórmula.
+function getAutoFromBaseTerm(cc,tramoId,i,idxLabel,excludeNum){
+  const pos=_neTramoIds.indexOf(tramoId);
+  if(pos>0){
+    const prevId=_neTramoIds[pos-1];
+    const basePer=document.getElementById('ne_basePer_'+tramoId)?.value||'';
+    const prevNewPer=document.getElementById('ne_newPer_'+prevId)?.value||'';
+    if(basePer&&basePer===prevNewPer){
+      const prevNb=document.getElementById('ne_nb_'+prevId+'_'+i)?.value||'';
+      if(prevNb)return prevNb;
+    }
+  }
+  let lastBase='',lastPer='';
+  (cc.enmiendas||[]).filter(e=>e.tipo==='ACTUALIZACION_TARIFAS'&&!e.superseded&&(excludeNum==null||e.num!==excludeNum)).forEach(e=>{
+    const tramosArr=(Array.isArray(e.tramos)&&e.tramos.length)?e.tramos:[{nuevoPeriodo:e.nuevoPeriodo,polyTerms:e.polyTerms}];
+    tramosArr.forEach(tr=>{
+      const term=(tr.polyTerms||[]).find(pt=>pt.idx===idxLabel);
+      const per=String(tr.nuevoPeriodo||'');
+      if(term&&term.nuevaBase&&per&&(!lastPer||per>=lastPer)){lastBase=term.nuevaBase;lastPer=per;}
+    });
+  });
+  if(lastBase)return lastBase;
+  const polyDef=(cc.poly||[]).find(p=>p.idx===idxLabel);
+  return polyDef?.base||'';
+}
+function computeAutoPctForIdx(idxLabel,fromYm,toYm){
+  if(!idxLabel||!fromYm||!toYm)return null;
+  if(typeof computeAccumulatedVariationPct!=='function')return null;
+  if(typeof compareYm==='function'&&compareYm(toYm,fromYm)<=0)return null;
+  try{
+    const r=computeAccumulatedVariationPct(idxLabel,fromYm,toYm);
+    return (r&&isFinite(r.pct))?r.pct:null;
+  }catch(e){console.warn('computeAutoPctForIdx',e);return null;}
+}
+function toggleTermManual(tramoId,i){
+  const key=tramoId+'_'+i;
+  window._neTermManual[key]=!window._neTermManual[key];
+  recalcTermAuto(tramoId,i);
+  calcAveSugAll();
+}
+function onTermNuevaBaseChange(tramoId,i){
+  recalcTermAuto(tramoId,i);
+  calcAveSugAll();
+}
+// Recalcula (o desbloquea) el término i del tramo dado sin re-renderizar toda
+// la fila, así no se pierden los valores ya tipeados en los demás términos.
+function recalcTermAuto(tramoId,i){
+  const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
+  const poly=(cc.poly||[]).filter(p=>p.idx);
+  const t=poly[i];if(!t)return;
+  const autoEligible=idxIsAutoCalc(t.idx);
+  const key=tramoId+'_'+i;
+  const manualOverride=!!window._neTermManual[key];
+  const acumEl=document.getElementById('ne_acum_'+tramoId+'_'+i);
+  const nbEl=document.getElementById('ne_nb_'+tramoId+'_'+i);
+  const btnEl=document.getElementById('ne_tgl_'+tramoId+'_'+i);
+  const hintEl=document.getElementById('ne_hint_'+tramoId+'_'+i);
+  const fromEl=document.getElementById('ne_from_'+tramoId+'_'+i);
+  if(!acumEl||!autoEligible)return;
+  const fromBase=getAutoFromBaseTerm(cc,tramoId,i,t.idx,_neCorrExcludeNum());
+  if(fromEl)fromEl.textContent='Base ant.: '+(fromBase?(typeof formatYmLabel==='function'?formatYmLabel(fromBase):fromBase):'—');
+  const pb=nbEl?.value||'';
+  let autoOk=false,pa=null;
+  if(!manualOverride&&pb){
+    const v=computeAutoPctForIdx(t.idx,fromBase,pb);
+    if(v!=null){pa=v;autoOk=true;}
+  }
+  const locked=!manualOverride&&autoOk;
+  if(locked){
+    acumEl.value=pa.toFixed(2);
+    acumEl.readOnly=true;
+    acumEl.style.background='var(--g50)';acumEl.style.color='var(--p700)';acumEl.style.fontWeight='700';
+  } else {
+    acumEl.readOnly=false;
+    acumEl.style.background='';acumEl.style.color='';acumEl.style.fontWeight='';
+    if(!manualOverride)acumEl.value='';
+  }
+  if(btnEl){
+    btnEl.textContent=manualOverride?'✏️':'🔒';
+    btnEl.style.background=manualOverride?'var(--p100)':'var(--g50)';
+    btnEl.title=manualOverride?'Volver a cálculo automático':'Editar % manualmente';
+  }
+  if(hintEl){
+    if(!manualOverride&&pb&&!autoOk){hintEl.style.display='block';hintEl.textContent='⚠ Sin datos automáticos para este período — completá manualmente.';}
+    else hintEl.style.display='none';
+  }
+}
 function buildPolyFormTramo(tramoId,prefill){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
   const poly=(cc.poly||[]).filter(p=>p.idx);
   const box=document.getElementById('ne_polyTerms_'+tramoId);if(!box)return;
   const basePer=gv('ne_basePer_'+tramoId)||cc.btar||'';
   if(!poly.length){box.innerHTML='<div class="info-box amber">Sin fórmula polinómica. Editá el contrato para cargar los índices.</div>';return;}
-  let h='<div style="display:grid;grid-template-columns:22px 1.2fr 65px 75px 100px 100px;gap:5px;padding:3px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--g500);margin-bottom:3px"><span></span><span>Índice</span><span style="text-align:center">Incid.</span><span style="text-align:center">Inc×%</span><span>% Acumulado</span><span>Nueva Base</span></div>';
+  let h='<div style="display:grid;grid-template-columns:22px 1.4fr 68px 80px 132px 100px;gap:6px;padding:3px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--g500);margin-bottom:3px"><span></span><span>Índice</span><span style="text-align:center">Incid.</span><span style="text-align:center">Inc×%</span><span>% Acumulado</span><span>Nueva Base</span></div>';
   poly.forEach((t,i)=>{
+    const autoEligible=idxIsAutoCalc(t.idx);
     const pa=prefill?.polyTerms?.[i]?.pctAcum||'';
-    const pb=prefill?.polyTerms?.[i]?.nuevaBase||t.base||'';
+    const pbPrefill=prefill?.polyTerms?.[i]?.nuevaBase;
+    const pb=pbPrefill!=null?pbPrefill:(autoEligible?'':(t.base||''));
     h+=`<div class="pup-row">
       <div style="width:20px;height:20px;border-radius:50%;background:var(--p200);color:var(--p800);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">${i+1}</div>
-      <input type="text" value="${esc(t.idx)}" disabled style="font-size:11px;border-color:var(--g200)">
+      <div>
+        <input type="text" value="${esc(t.idx)}" disabled style="font-size:11px;border-color:var(--g200);width:100%">
+        ${autoEligible?`<div id="ne_from_${tramoId}_${i}" style="font-size:8.5px;color:var(--g500);margin-top:2px">Base ant.: —</div>`:''}
+      </div>
       <input type="text" value="${t.inc}" disabled style="font-size:11px;text-align:center;border-color:var(--g200)">
       <input type="text" id="ne_ip_${tramoId}_${i}" value="0%" disabled style="font-size:11px;text-align:center;font-weight:700;color:var(--g600);border-color:var(--g200)">
-      <input type="number" id="ne_acum_${tramoId}_${i}" step="0.01" placeholder="%" value="${pa}" oninput="calcAveSugAll()">
-      <input type="month" id="ne_nb_${tramoId}_${i}" value="${esc(pb)}">
+      <div>
+        <div style="display:flex;align-items:center;gap:3px">
+          <input type="number" id="ne_acum_${tramoId}_${i}" step="0.01" placeholder="%" value="${esc(pa)}" oninput="calcAveSugAll()" style="flex:1;min-width:0">
+          ${autoEligible?`<button type="button" id="ne_tgl_${tramoId}_${i}" onclick="toggleTermManual(${tramoId},${i})" title="Editar % manualmente" style="flex-shrink:0;width:22px;height:22px;border-radius:5px;border:1px solid var(--g300);background:var(--g50);cursor:pointer;font-size:11px;line-height:1;padding:0">🔒</button>`:''}
+        </div>
+        <div id="ne_hint_${tramoId}_${i}" style="display:none;font-size:8.5px;color:#b45309;margin-top:2px"></div>
+      </div>
+      <input type="month" id="ne_nb_${tramoId}_${i}" value="${esc(pb)}" onchange="onTermNuevaBaseChange(${tramoId},${i})">
     </div>`;
   });
   const idx=_neTramoIds.indexOf(tramoId);
@@ -1776,6 +1898,7 @@ function buildPolyFormTramo(tramoId,prefill){
     else h+=`<div class="info-box amber" style="margin-top:6px;font-size:11px">Sin tarifario para el período base seleccionado.</div>`;
   }
   box.innerHTML=h;
+  poly.forEach((t,i)=>{ if(idxIsAutoCalc(t.idx)) recalcTermAuto(tramoId,i); });
 }
 function calcPolyTramo(tramoId){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return 0;
