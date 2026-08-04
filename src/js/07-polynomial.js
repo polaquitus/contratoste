@@ -471,22 +471,29 @@ function renderUpdateSection(contract){
       condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px"><span style="font-weight:700;font-size:13.5px;color:'+color+'">'+icon+' '+d.condicion+'</span>'+(d.perIdx&&d.koTotal!=null?'<span style="font-size:12px;font-weight:700;color:var(--p700)">Ko simulado: '+(d.koTotal>=0?'+':'')+d.koTotal.toFixed(2)+'%</span>':'')+'</div>';
       condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+(d.perIdx?'10px':'0')+'">'+statusLine+'</div>';
       if(d.perIdx){
-        condHtml+='<div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr;gap:4px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--g500);padding-bottom:4px;border-bottom:1px solid var(--g200)">'+
+        condHtml+='<div style="display:grid;grid-template-columns:1.2fr .7fr 1.4fr .9fr;gap:4px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--g500);padding-bottom:4px;border-bottom:1px solid var(--g200)">'+
           '<span>Concepto</span><span>% Incidencia</span><span>% Acumulado</span><span>Resultado</span></div>';
         d.perIdx.forEach(function(pi){
-          condHtml+='<div style="display:grid;grid-template-columns:1.4fr .8fr .9fr .9fr;gap:4px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);font-size:12.5px">';
+          var ovId='polOv_'+contract.id+'_'+pi.idx.replace(/[^a-zA-Z0-9]/g,'_');
+          condHtml+='<div style="display:grid;grid-template-columns:1.2fr .7fr 1.4fr .9fr;gap:4px 10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);font-size:12.5px">';
           condHtml+='<span style="font-weight:700;color:var(--g800)">'+esc(pi.idx)+'</span>';
           condHtml+='<span style="color:var(--g600c)">'+pi.inc.toFixed(1)+'%</span>';
+          if(pi.hasData&&!pi.manual){
+            condHtml+='<span style="font-weight:700;color:'+(pi.cumple?'var(--g600)':'#92400e')+'">'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'% <span title="Fuente automática" style="font-size:9px;font-weight:800;color:var(--g600);background:var(--g100d);padding:1px 5px;border-radius:99px;vertical-align:middle">AUTO</span></span>';
+          } else {
+            var curVal=pi.hasData?pi.pct:(overrides[pi.idx]!=null?overrides[pi.idx]:'');
+            condHtml+='<span style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+
+              '<input type="number" step="0.01" id="'+ovId+'" value="'+(curVal===''?'':curVal)+'" placeholder="% acum."'+
+              ' style="width:90px;font-size:12px;padding:3px 6px;border:1px solid '+(pi.hasData?'#fbbf24':'#f59e0b')+'"'+
+              ' onchange="applyPolyOverride(\''+contract.id+'\',\''+pi.idx.replace(/'/g,"\\'")+'\',this.value)"'+
+              ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+
+              (pi.hasData?'<span title="Cargado manualmente" style="font-size:9px;font-weight:800;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:99px">MANUAL</span>':'<span style="font-size:10.5px;color:#92400e">⚠️ sin auto</span>')+
+              '</span>';
+          }
           if(pi.hasData){
-            condHtml+='<span style="font-weight:700;color:'+(pi.cumple?'var(--g600)':'#92400e')+'">'+(pi.pct>=0?'+':'')+pi.pct.toFixed(2)+'%'+(pi.manual?' <span title="Cargado manualmente" style="font-size:9px;font-weight:800;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:99px;vertical-align:middle">MANUAL</span>':' <span title="Fuente automática" style="font-size:9px;font-weight:800;color:var(--g600);background:var(--g100d);padding:1px 5px;border-radius:99px;vertical-align:middle">AUTO</span>')+'</span>';
             condHtml+='<span style="font-weight:700;color:var(--g700)">'+(pi.aporte>=0?'+':'')+pi.aporte.toFixed(2)+'% '+(pi.cumple?'✓':'○')+'</span>';
           } else {
-            var ovId='polOv_'+contract.id+'_'+pi.idx.replace(/[^a-zA-Z0-9]/g,'_');
-            condHtml+='<span style="grid-column:span 2;display:flex;align-items:center;gap:5px;flex-wrap:wrap">'+
-              '<span style="color:#92400e;font-weight:600">⚠️ sin dato hasta '+formatYmLabel(evalYm)+'</span>'+
-              '<input type="number" step="0.01" id="'+ovId+'" placeholder="% acum. manual" style="width:100px;font-size:12px;padding:3px 6px">'+
-              '<button class="btn btn-s btn-sm" style="padding:3px 8px;font-size:11px" onclick="applyPolyOverride(\''+contract.id+'\',\''+pi.idx.replace(/'/g,"\\'")+'\',document.getElementById(\''+ovId+'\').value)">Aplicar</button>'+
-              '</span>';
+            condHtml+='<span style="color:var(--g400);font-size:11px">— completá el %</span>';
           }
           condHtml+='</div>';
         });
@@ -496,17 +503,6 @@ function renderUpdateSection(contract){
   }
   condDiv.innerHTML=condHtml;
   body.appendChild(condDiv);
-  if(liveResult){
-    liveResult.details.forEach(function(d){
-      if(!d.perIdx)return;
-      d.perIdx.forEach(function(pi){
-        if(pi.hasData)return;
-        var ovId='polOv_'+contract.id+'_'+pi.idx.replace(/[^a-zA-Z0-9]/g,'_');
-        var el=document.getElementById(ovId);
-        if(el&&overrides[pi.idx]!=null) el.value=overrides[pi.idx];
-      });
-    });
-  }
 
   section.appendChild(body);
   return section;
