@@ -818,7 +818,7 @@ function openEntryModal(idxId, ym){
       </div>
       <div class="fgrp" style="margin-bottom:14px">
         <label>Nota / Link de referencia</label>
-        <input type="text" id="em_note" placeholder="Ej: https://indec.gob.ar/ipc-enero-2025 o descripción" value="${existing?.note||''}">
+        <input type="text" id="em_note" placeholder="Ej: https://indec.gob.ar/ipc-enero-2025 o descripción" value="${esc(existing?.note||'')}">
       </div>
       <div class="fgrp" style="margin-bottom:6px">
         <label>Archivos adjuntos (PDF, imagen, etc.)</label>

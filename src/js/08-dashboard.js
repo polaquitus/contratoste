@@ -382,8 +382,8 @@ function renderDashboard() {
         
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--g100);">' +
           '<div style="flex:1;">' +
-          '<div style="font-weight:600;font-size:13px;color:var(--g900);">' + c.num + ' - ' + (c.cont || 'Sin proveedor') + '</div>' +
-          '<div style="font-size:11px;color:var(--g600c);">' + (c.det || 'Sin objeto') + '</div>' +
+          '<div style="font-weight:600;font-size:13px;color:var(--g900);">' + esc(c.num) + ' - ' + esc(c.cont || 'Sin proveedor') + '</div>' +
+          '<div style="font-size:11px;color:var(--g600c);">' + esc(c.det || 'Sin objeto') + '</div>' +
           '</div>' +
           '<div style="text-align:right;">' +
           '<div style="font-weight:700;font-size:14px;color:' + color + ';">' + (dias === 0 ? '🔴 Vence HOY' : dias + ' días') + '</div>' +

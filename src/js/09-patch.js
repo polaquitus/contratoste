@@ -490,7 +490,7 @@ window.handleFuzzySearch = function(query) {
   
   resultsDiv.innerHTML = results.map(function(c){
     var estClass = c.estado === 'Activo' ? 'act' : (c.estado === 'Borrador' ? 'pend' : 'exp');
-    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="window.selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + c.numero + ' - ' + c.proveedor + '</div><div style="font-size:11px;color:var(--g600c);">' + (c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + c.estado + '</span><span style="font-size:10px;color:var(--g500);">' + (c.moneda || 'ARS') + ' ' + fN(c.monto) + '</span></div></div>';
+    return '<div class="fuzzy-result-item" style="padding:10px 14px;border-bottom:1px solid var(--g100);cursor:pointer;transition:.1s;" onclick="window.selectFuzzyResult(\'' + c.id + '\')" onmouseover="this.style.background=\'var(--p50)\'" onmouseout="this.style.background=\'var(--w)\'"><div style="font-size:13px;font-weight:700;color:var(--p900);margin-bottom:2px;">' + esc(c.numero) + ' - ' + esc(c.proveedor) + '</div><div style="font-size:11px;color:var(--g600c);">' + esc(c.objeto || 'Sin objeto') + '</div><div style="display:flex;gap:8px;margin-top:4px;"><span class="bdg bdg-' + estClass + '" style="font-size:9px;">' + esc(c.estado) + '</span><span style="font-size:10px;color:var(--g500);">' + esc(c.moneda || 'ARS') + ' ' + fN(c.monto) + '</span></div></div>';
   }).join('');
   
   resultsDiv.style.display = 'block';
@@ -1049,7 +1049,7 @@ function renderAlertaItem(alerta, nivel) {
   // Contenido
   html += '<div style="flex:1;">';
   html += '<div style="font-weight:600;font-size:13px;color:var(--g900);margin-bottom:2px;">';
-  html += alerta.num + ' - ' + alerta.cont;
+  html += esc(alerta.num) + ' - ' + esc(alerta.cont);
   html += '</div>';
   
   if (alerta.tipo === 'vencido') {
@@ -1405,8 +1405,8 @@ function renderTimeline() {
       const fin = found.fechaFin;
       const plazo = found.plazo_meses || monthDiffInclusive(ini, fin);
       
-      tooltip.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:var(--p900);">' + found.num + '</div>' +
-        '<div style="color:var(--g700);margin-bottom:6px;">' + (found.cont || 'Sin proveedor') + '</div>' +
+      tooltip.innerHTML = '<div style="font-weight:700;margin-bottom:4px;color:var(--p900);">' + esc(found.num) + '</div>' +
+        '<div style="color:var(--g700);margin-bottom:6px;">' + esc(found.cont || 'Sin proveedor') + '</div>' +
         '<div style="font-size:11px;color:var(--g600c);line-height:1.5;">' +
         '<div><strong>Monto:</strong> $' + fN(monto) + '</div>' +
         '<div><strong>Inicio:</strong> ' + ini + '</div>' +

@@ -28,7 +28,7 @@ function renderList(){
     const bc=pct===null?'green':pct>50?'green':pct>20?'yellow':'red';
     const pctDisplay=pct===null?'—':pct.toFixed(1)+'%';
     const pbarW=pct===null?'100':pct.toFixed(1);
-    h+=`<tr class="clickable"><td class="mono" style="font-size:12px;font-weight:600" onclick="verDet('${c.id}')">${c.num}</td><td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="verDet('${c.id}')">${c.cont}</td><td class="mono" style="font-size:12px" onclick="verDet('${c.id}')">${c.mon} ${fN(tot)}</td><td class="mono" style="font-size:12px;color:${hasConsumed?'var(--r500)':'var(--g500)'}" onclick="verDet('${c.id}')">${hasConsumed?c.mon+' '+fN(consumed):'—'}</td><td class="mono" style="font-size:12px;font-weight:600;color:${hasConsumed?(remanente<0?'var(--r500)':'var(--p700)'):'var(--g500)'}" onclick="verDet('${c.id}')">${hasConsumed?c.mon+' '+fN(remanente):'—'}</td><td style="min-width:100px" onclick="verDet('${c.id}')"><div style="display:flex;align-items:center;gap:8px"><div class="pbar" style="flex:1"><div class="fill ${bc}" style="width:${pbarW}%"></div></div><span style="font-size:11px;font-weight:600">${pctDisplay}</span></div></td><td onclick="verDet('${c.id}')">${fD(c.fechaIni)}</td><td onclick="verDet('${c.id}')">${fD(c.fechaFin)}</td><td onclick="verDet('${c.id}')"><span class="bdg ${isA?'act':'exp'}">● ${isA?'ACTIVO':'VENCIDO'}</span></td><td onclick="verDet('${c.id}')">${(()=>{const comp=getContComp(c);return '<span class="comp-badge '+(comp==='COMPLETO'?'full':comp==='PARCIAL'?'partial':'empty')+'">'+( comp==='COMPLETO'?'✅ Completo':comp==='PARCIAL'?'⚠️ Parcial':'❌ Pendiente')+'</span>';})()}</td><td style="text-align:center"><button class="btn btn-d btn-sm" onclick="event.stopPropagation();delCont('${c.id}')" title="Eliminar contrato">🗑️</button></td></tr>`;
+    h+=`<tr class="clickable"><td class="mono" style="font-size:12px;font-weight:600" onclick="verDet('${c.id}')">${esc(c.num)}</td><td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="verDet('${c.id}')">${esc(c.cont)}</td><td class="mono" style="font-size:12px" onclick="verDet('${c.id}')">${c.mon} ${fN(tot)}</td><td class="mono" style="font-size:12px;color:${hasConsumed?'var(--r500)':'var(--g500)'}" onclick="verDet('${c.id}')">${hasConsumed?c.mon+' '+fN(consumed):'—'}</td><td class="mono" style="font-size:12px;font-weight:600;color:${hasConsumed?(remanente<0?'var(--r500)':'var(--p700)'):'var(--g500)'}" onclick="verDet('${c.id}')">${hasConsumed?c.mon+' '+fN(remanente):'—'}</td><td style="min-width:100px" onclick="verDet('${c.id}')"><div style="display:flex;align-items:center;gap:8px"><div class="pbar" style="flex:1"><div class="fill ${bc}" style="width:${pbarW}%"></div></div><span style="font-size:11px;font-weight:600">${pctDisplay}</span></div></td><td onclick="verDet('${c.id}')">${fD(c.fechaIni)}</td><td onclick="verDet('${c.id}')">${fD(c.fechaFin)}</td><td onclick="verDet('${c.id}')"><span class="bdg ${isA?'act':'exp'}">● ${isA?'ACTIVO':'VENCIDO'}</span></td><td onclick="verDet('${c.id}')">${(()=>{const comp=getContComp(c);return '<span class="comp-badge '+(comp==='COMPLETO'?'full':comp==='PARCIAL'?'partial':'empty')+'">'+( comp==='COMPLETO'?'✅ Completo':comp==='PARCIAL'?'⚠️ Parcial':'❌ Pendiente')+'</span>';})()}</td><td style="text-align:center"><button class="btn btn-d btn-sm" onclick="event.stopPropagation();delCont('${c.id}')" title="Eliminar contrato">🗑️</button></td></tr>`;
   }
   h+='</tbody></table></div>';box.innerHTML=h;
 }
@@ -554,7 +554,7 @@ function renderDet(){
     });
     document.getElementById('detCard').innerHTML=`<div class="card">
       <div class="det-h">
-        <div><h2>${c.num} — ${c.cont}</h2><div class="ds">${c.det||''} · ${c.tipo||''} · ${c.tcontr||''}</div></div>
+        <div><h2>${esc(c.num)} — ${esc(c.cont)}</h2><div class="ds">${esc(c.det||'')} · ${esc(c.tipo||'')} · ${esc(c.tcontr||'')}</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="bdg ${isA?'act':'exp'}" style="font-size:12px;padding:5px 14px">● ${isA?'ACTIVO':'VENCIDO'}</span>
           <button class="btn btn-sm btn-a" onclick="window.copyContractAsTemplate()" title="Duplicar como template">📋 Duplicar</button>
@@ -1588,7 +1588,7 @@ function renderMe2nDet(){
   const vendor=d[0],curr=d[1],pos=d[2];const totalNOV=pos.reduce((s,p)=>s+p[3],0);const totalStill=pos.reduce((s,p)=>s+p[4],0);const totalPO=pos.length;const totalItems=pos.reduce((s,p)=>s+p[5],0);
   const byMonth={};pos.forEach(p=>{const m=p[1]||'Sin fecha';if(!byMonth[m])byMonth[m]={pos:[],total:0,still:0};byMonth[m].pos.push(p);byMonth[m].total+=p[3];byMonth[m].still+=p[4];});
   const months=Object.keys(byMonth).sort().reverse();const plants=[...new Set(pos.map(p=>p[2]).filter(Boolean))].sort();
-  let monthsHTML='';months.forEach((m,mi)=>{const md=byMonth[m];const pct=totalNOV>0?(md.total/totalNOV*100):0;const label=m==='Sin fecha'?'Sin fecha':formatMonth(m);monthsHTML+=`<div class="po-month" onclick="togglePoMonth(${mi})"><div class="pm-h"><span class="pm-t">${label}</span><span class="pm-cnt">${md.pos.length} POs</span><span class="pm-v">${curr} ${fN(md.total)}</span></div><div class="pm-bar"><div class="pbar"><div class="fill green" style="width:${pct}%"></div></div></div></div><div class="po-lines" id="poM_${mi}"><div style="padding:6px 10px;display:grid;grid-template-columns:140px 1fr 140px 130px;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);border-bottom:1px solid var(--g200)"><span>N° PO</span><span>Lugar</span><span style="text-align:right">Net Order Value</span><span style="text-align:right">Pend. Facturación</span></div>`;md.pos.sort((a,b)=>b[3]-a[3]).forEach(p=>{monthsHTML+=`<div class="po-line" style="grid-template-columns:140px 1fr 140px 130px"><span class="po-num">${p[0]}</span><span style="font-size:11px">${plantLabel(p[2])}</span><span class="mono" style="text-align:right;font-size:11px">${fN(p[3])}</span><span class="mono" style="text-align:right;font-size:11px">${p[4]>0?fN(p[4]):'—'}</span></div>`;});monthsHTML+='</div>';});
+  let monthsHTML='';months.forEach((m,mi)=>{const md=byMonth[m];const pct=totalNOV>0?(md.total/totalNOV*100):0;const label=m==='Sin fecha'?'Sin fecha':formatMonth(m);monthsHTML+=`<div class="po-month" onclick="togglePoMonth(${mi})"><div class="pm-h"><span class="pm-t">${label}</span><span class="pm-cnt">${md.pos.length} POs</span><span class="pm-v">${curr} ${fN(md.total)}</span></div><div class="pm-bar"><div class="pbar"><div class="fill green" style="width:${pct}%"></div></div></div></div><div class="po-lines" id="poM_${mi}"><div style="padding:6px 10px;display:grid;grid-template-columns:140px 1fr 140px 130px;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);border-bottom:1px solid var(--g200)"><span>N° PO</span><span>Lugar</span><span style="text-align:right">Net Order Value</span><span style="text-align:right">Pend. Facturación</span></div>`;md.pos.sort((a,b)=>b[3]-a[3]).forEach(p=>{monthsHTML+=`<div class="po-line" style="grid-template-columns:140px 1fr 140px 130px"><span class="po-num">${esc(p[0])}</span><span style="font-size:11px">${plantLabel(p[2])}</span><span class="mono" style="text-align:right;font-size:11px">${fN(p[3])}</span><span class="mono" style="text-align:right;font-size:11px">${p[4]>0?fN(p[4]):'—'}</span></div>`;});monthsHTML+='</div>';});
   card.innerHTML=`<div class="card"><div class="det-h"><div><h2>${esc(poDetOA)}</h2><div class="ds">${esc(vendor)} · ${curr}</div></div><div><span class="bdg blue" style="font-size:12px;padding:5px 14px">${plants.map(p=>plantLabel(p)).join(', ')}</span></div></div><div class="po-summ"><div class="po-sc"><div class="po-sl">Net Order Value Total</div><div class="po-sv">${curr} ${fN(totalNOV)}</div></div><div class="po-sc"><div class="po-sl">Pend. Facturación</div><div class="po-sv ${totalStill>0?'':'sm'}" style="${totalStill>0?'color:#92400e':''}">${totalStill>0?curr+' '+fN(totalStill):'—'}</div></div><div class="po-sc"><div class="po-sl">Purchase Orders</div><div class="po-sv">${totalPO}</div></div><div class="po-sc"><div class="po-sl">Líneas Totales</div><div class="po-sv">${totalItems}</div></div></div><div style="padding:16px 20px;border-bottom:1px solid var(--g200)"><span style="font-size:13px;font-weight:600;color:var(--p800)">Consumo Mensual</span><span style="font-size:11px;color:var(--g500);margin-left:8px">(clic para expandir)</span></div>${monthsHTML}</div>`;
 }
 
@@ -1968,7 +1968,7 @@ function calcPolyTramo(tramoId){
 // tramo ya guardado, en orden cronológico — así el % de una actualización se aplica
 // sobre la tarifa REAL vigente al momento, no sobre un promedio de todo el contrato.
 function getCurrentMonthlyRate(cc,excludeNum){
-  const totalMeses=Math.max(cc.plazo||1,1);
+  const totalMeses=Math.max(cc.plazo_meses||cc.plazo||monthDiffInclusive(cc.fechaIni,cc.fechaFin)||1,1);
   const avePolyPrev=(cc.aves||[]).filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
   const aveOwnerPrev=(cc.aves||[]).filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
   const montoBase=cc.montoBase||cc._montoOriginal||((cc.monto||0)-avePolyPrev-aveOwnerPrev);
@@ -1986,7 +1986,7 @@ function getCurrentMonthlyRate(cc,excludeNum){
 // resultante (encadenado con el tramo anterior si corresponde) y AVE = delta de
 // tarifa mensual × meses remanentes desde ese nuevo período hasta el fin del contrato.
 function computeTramoChain(cc,excludeNum){
-  const totalMeses=Math.max(cc.plazo||1,1);
+  const totalMeses=Math.max(cc.plazo_meses||cc.plazo||monthDiffInclusive(cc.fechaIni,cc.fechaFin)||1,1);
   const iniYm=dateToMo(cc.fechaIni);
   const tipoSel=(document.querySelector('input[name="ne_ctipo"]:checked')?.value)||cc.tipo;
   const isObra=tipoSel==='OBRA';
@@ -2137,7 +2137,11 @@ async function guardarEnm(){
     enm.fechaFinNueva = ff;
     enm.extTipo = document.getElementById('ne_ext_tipo')?.value || 'FIN';
     cc.fechaFin = ff;
-    cc.plazo = Math.max(((new Date(ff).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ff).getMonth()-new Date(cc.fechaIni).getMonth())),0);
+    // monthDiffInclusive (no la resta de meses a mano, que queda 1 mes corta): mismo cálculo
+    // que usa el resto de la app (calcPlazo al crear el contrato, plazo_meses en saveCont) para
+    // que plazo y plazo_meses no se desincronicen tras una extensión.
+    cc.plazo = monthDiffInclusive(cc.fechaIni, cc.fechaFin);
+    cc.plazo_meses = cc.plazo;
   } else if(tipo==='ACTUALIZACION_TARIFAS'){
     const isCorr = document.getElementById('ne_isCorr')?.checked;
     const corrNum = isCorr ? (parseInt(document.getElementById('ne_corrEnm')?.value)||null) : null;
@@ -2274,19 +2278,22 @@ async function saveAveOwner(){
   const sub=document.getElementById('avo_sub')?.value||'';
   if(!sub){toast('Seleccioná el concepto','er');return;}
   
-  const plazo = cc.plazo_meses || cc.plazo || 36;
-  const totalActual = cc.tot || cc.monto || 0;
-  const nuevoTotal = totalActual + aveMonto;
-  const nuevoMensual = round2(nuevoTotal / plazo);
-  
   let ffin=null;
   if(sub==='EXTENSION PLAZO'){
     ffin=document.getElementById('avo_ffin')?.value||'';
     if(!ffin){toast('Ingresá nueva fecha fin','er');return;}
     cc.fechaFin=ffin;
-    cc.plazo=Math.max(((new Date(ffin).getFullYear()-new Date(cc.fechaIni).getFullYear())*12+(new Date(ffin).getMonth()-new Date(cc.fechaIni).getMonth())),0);
+    // monthDiffInclusive (mismo cálculo que el resto de la app) y sincronizar plazo_meses,
+    // ANTES de calcular el mensual de más abajo — si no, "nuevo mensual" se calcula con el
+    // plazo viejo aunque el contrato ya se haya extendido.
+    cc.plazo=monthDiffInclusive(cc.fechaIni,cc.fechaFin);
+    cc.plazo_meses=cc.plazo;
   }
-  
+  const plazo = cc.plazo_meses || cc.plazo || 36;
+  const totalActual = cc.tot || cc.monto || 0;
+  const nuevoTotal = totalActual + aveMonto;
+  const nuevoMensual = round2(nuevoTotal / plazo);
+
   if(!cc.aves)cc.aves=[];
   const enmRefRaw=document.getElementById('avo_enm')?.value||'';
   cc.aves.push({
