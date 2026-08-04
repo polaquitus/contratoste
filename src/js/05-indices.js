@@ -448,9 +448,10 @@ async function idxAddNextMonth(id){
     else if(mode==='usd') row=await fetchUsdBnaLike(ym);
     else if(mode==='fuel') row=await idxFetchFuel(id,ym);
     if(!row) throw new Error('Sin dato');
-    await idxUpsert(id,{...row,ym});
+    const flagged=withReviewFlag(def,{...row,ym});
+    await idxUpsert(id,flagged);
     renderIdxView();
-    toast(def.name+' '+formatMonth(ym)+' cargado ✓','ok');
+    toast(flagged.needsReview?(def.name+' '+formatMonth(ym)+' cargado con aviso — revisá: '+flagged.reviewReason):(def.name+' '+formatMonth(ym)+' cargado ✓'),flagged.needsReview?'er':'ok');
   }catch(err){
     console.warn('idxAddNextMonth',id,err);
     toast('No se encontró dato automático — ingresá manualmente','er');
@@ -468,6 +469,46 @@ async function idxResolveViaAI(def, targetYm){
   const txt = parts.map(p=>p.text||'').join('\n').trim();
   return extractJsonFromGeminiText(txt);
 }
+// ── Validación previa a guardar un valor obtenido automáticamente ──────────
+// No bloquea el guardado (así no se pierde el dato ni queda el índice
+// "trabado"), pero si algo no es plausible marca la fila como needsReview
+// y esos períodos quedan afuera de los cálculos automáticos de AVE
+// (computeAutoPctForIdx / calculateUpdate) hasta que alguien la revise y
+// confirme manualmente — así un dato mal parseado no termina financiando
+// un ajuste real sin que nadie lo haya mirado.
+function validateIdxRow(def,newRow,prevRow){
+  const reasons=[];
+  const isLevel=def.cat==='usd'||def.cat==='fuel';
+  if(isLevel){
+    const v=newRow.value;
+    if(v==null||!isFinite(v)||v<=0){
+      reasons.push('Valor no numérico o ≤ 0');
+    } else if(prevRow&&prevRow.value>0){
+      const ratio=v/prevRow.value;
+      if(ratio>2.5||ratio<0.4) reasons.push('Valor cambia '+(((ratio-1)*100)).toFixed(0)+'% vs. el período anterior — fuera del rango esperado');
+      else if(v===prevRow.value) reasons.push('Valor idéntico al período anterior — posible dato repetido');
+    }
+  } else {
+    const pct=newRow.pct;
+    if(pct==null||!isFinite(pct)){
+      reasons.push('Sin % de variación válido');
+    } else {
+      if(pct<-3||pct>60) reasons.push('% mensual ('+pct.toFixed(2)+'%) fuera del rango plausible (-3% a 60%)');
+      if(prevRow&&prevRow.pct!=null&&pct===prevRow.pct) reasons.push('% idéntico al período anterior — posible dato repetido');
+    }
+  }
+  return {ok:reasons.length===0,reasons};
+}
+// Aplica validateIdxRow y devuelve el row listo para idxUpsert, con
+// needsReview/reviewReason si corresponde. No usar para carga manual del
+// usuario (ahí el humano ya está validando al tipear).
+function withReviewFlag(def,row){
+  const prev=idxLastBefore(def.id,row.ym);
+  const v=validateIdxRow(def,row,prev);
+  if(v.ok) return {...row,needsReview:false,reviewReason:''};
+  console.warn('[validateIdxRow]',def.id,row.ym,v.reasons);
+  return {...row,needsReview:true,reviewReason:v.reasons.join(' · ')};
+}
 async function runIdxUpdate(id){
   const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return;
   const target=idxTargetYm();
@@ -478,8 +519,11 @@ async function runIdxUpdate(id){
     // ── USD: fuente propia ──────────────────────────────────────────────
     if(mode==='usd'||def.cat==='usd'){
       const usd=await fetchUsdBnaLike(target);
-      await idxUpsert(id,{ym:usd.ym,value:usd.value,pct:null,confirmed:false,status:'updated',source:def.src,note:usd.source,publishedAt:usd.publishedAt});
-      renderIdxView(); toast(def.name+' actualizado','ok'); return;
+      const row=withReviewFlag(def,{ym:usd.ym,value:usd.value,pct:null,confirmed:false,status:'updated',source:def.src,note:usd.source,publishedAt:usd.publishedAt});
+      await idxUpsert(id,row);
+      renderIdxView();
+      toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado'),row.needsReview?'er':'ok');
+      return;
     }
 
     // ── INDEC API: fetch directo ────────────────────────────────────────
@@ -489,16 +533,20 @@ async function runIdxUpdate(id){
         // Upsert todos los meses devueltos por la API que no estén ya cargados (o estén stale)
         const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
         const allRows=Array.isArray(row._allRows)?row._allRows:[{ym:row.ym,value:row.value}];
-        let lastPrev=null;
+        let lastPrev=null,anyFlagged=false;
         for(const r of allRows){
           if(existing.has(r.ym)) { lastPrev=r; continue; }
           let pct=null;
           const prev=lastPrev||idxRows(id).find(x=>x.ym===idxPrevYm(r.ym));
           if(prev && prev.value) pct=Number(((r.value/prev.value-1)*100).toFixed(2));
-          await idxUpsert(id,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC API', note:''});
+          const newRow=withReviewFlag(def,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC API', note:''});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
           lastPrev=r;
         }
-        renderIdxView(); toast(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC API)','ok'); return;
+        renderIdxView();
+        toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(row.ym)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC API)'),anyFlagged?'er':'ok');
+        return;
       }catch(apiErr){
         console.warn('idxFetchIndec failed, trying seed/AI',apiErr.message);
         // Fall through to seed/AI
@@ -508,9 +556,12 @@ async function runIdxUpdate(id){
     // ── Combustible: fuel-proxy ─────────────────────────────────────────
     if(mode==='fuel'){
       try{
-        const row=await idxFetchFuel(id,target);
-        await idxUpsert(id,{...row,confirmed:false,status:'updated'});
-        renderIdxView(); toast(def.name+' actualizado (S.Energía)','ok'); return;
+        const fetched=await idxFetchFuel(id,target);
+        const row=withReviewFlag(def,{...fetched,confirmed:false,status:'updated'});
+        await idxUpsert(id,row);
+        renderIdxView();
+        toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (S.Energía)'),row.needsReview?'er':'ok');
+        return;
       }catch(fuelErr){
         console.warn('idxFetchFuel failed, trying seed/AI',fuelErr.message);
       }
@@ -519,20 +570,33 @@ async function runIdxUpdate(id){
     // ── Seed exacto para el target ──────────────────────────────────────
     const official=idxResolveOfficial(def,target);
     if(official && official.ym===target && (official.pct!=null||official.value!=null)){
-      await idxUpsert(id,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
-      renderIdxView(); toast(def.name+' actualizado (seed)','ok'); return;
+      const row=withReviewFlag(def,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      await idxUpsert(id,row);
+      renderIdxView();
+      toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (seed)'),row.needsReview?'er':'ok');
+      return;
     }
 
-    // ── Gemini AI (solo para manual/fallback) ───────────────────────────
+    // ── Gemini AI (solo para manual/fallback) — la validación acá es
+    // especialmente importante: un valor alucinado por la IA no debe
+    // colarse en un cálculo de AVE sin que alguien lo revise. ──────────
     const rs=await idxResolveViaAI(def,target);
     if(rs && (rs.pct!=null||rs.value!=null)){
-      await idxUpsert(id,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
-      renderIdxView(); toast(def.name+' actualizado (AI)','ok'); return;
+      const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
+      // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
+      // de magnitud — es una fuente de menor confianza que una API oficial directa.
+      row.needsReview=true;
+      row.reviewReason=row.reviewReason?('Fuente IA (Gemini) · '+row.reviewReason):'Fuente IA (Gemini) — revisar contra la publicación oficial';
+      await idxUpsert(id,row);
+      renderIdxView();
+      toast(def.name+' cargado vía IA — pendiente de revisión manual','er');
+      return;
     }
 
     // ── Último seed disponible como fallback real ───────────────────────
     if(official && (official.pct!=null||official.value!=null)){
-      await idxUpsert(id,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      const row=withReviewFlag(def,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      await idxUpsert(id,row);
       renderIdxView(); toast(def.name+' usando último oficial ('+official.ym+')','ok'); return;
     }
     throw new Error('Sin dato');
@@ -755,7 +819,7 @@ function renderIdxDet(id){
   const selYms=yms.length?yms:['—'];
   const selOpts=selYms.map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
   const selOptTo=selYms.map((ym,i)=>`<option value="${ym}"${i===selYms.length-1?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
-  const tblRows=[...rows].reverse().map(r=>`<tr><td>${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.note||r.status||'')}">${esc(r.note||r.status||'—')}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
+  const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||r.status||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||r.status||'—'))}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
   box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${chartRows.length?barsContent:'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
 }
 
@@ -886,7 +950,9 @@ async function saveEntryModal(idxId, editYm){
   // Merge files: keep existing + add new
   const existingFiles=existing?.files||[];
   const allFiles=[...existingFiles,..._entryFiles];
-  const row={ym,pct:finalPct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false};
+  // Carga/edición manual: el humano ya está validando al tipear, así que se saca
+  // cualquier aviso "needsReview" que hubiera quedado de un fetch automático previo.
+  const row={ym,pct:finalPct,value:isNaN(value)?null:value,note,files:allFiles,confirmed:existing?.confirmed||false,needsReview:false,reviewReason:''};
   if(existing){Object.assign(existing,row);}
   else{IDX_STORE[idxId].rows.push(row);IDX_STORE[idxId].rows.sort((a,b)=>a.ym.localeCompare(b.ym));}
   const ok=await saveIdx();
@@ -905,6 +971,8 @@ async function toggleIdxConfirm(idxId,ym,val){
   const r=(IDX_STORE[idxId]?.rows||[]).find(r=>r.ym===ym);
   if(!r)return;
   r.confirmed=val;
+  // Confirmar a mano es la revisión humana que "needsReview" estaba pidiendo.
+  if(val){r.needsReview=false;r.reviewReason='';}
   const ok=await saveIdx();
   renderIdxView();
   if(!ok)toast('⚠ Cambio guardado local — no se pudo sincronizar con Supabase','er');

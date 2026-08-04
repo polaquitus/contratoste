@@ -126,12 +126,14 @@ var PolUpdate = (function(){
     var baseYm=ymOf(baseDate), evalYm=ymOf(ymToday());
     poly.forEach(function(c){
       var rows=safeIdxRows(c.idx); if(!rows.length) return;
-      // Modo pct compuesto (IPC, IPIM, etc.)
-      var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)>0&&compareYm(r.ym,evalYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)); });
+      // Modo pct compuesto (IPC, IPIM, etc.) — needsReview: dato auto-obtenido que no pasó
+      // las validaciones de plausibilidad (05-indices.js validateIdxRow), nunca debe entrar
+      // solo a un cálculo de AVE sin revisión manual.
+      var monthRows=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)>0&&compareYm(r.ym,evalYm)<=0&&r.pct!=null&&isFinite(Number(r.pct))&&!r.needsReview; });
       if(monthRows.length){ var acc=1; monthRows.forEach(function(r){ acc*=1+(Number(r.pct)/100); }); Ko*=Math.pow(acc,Number(c.inc)||0); return; }
       // Fallback ratio de valores absolutos (USD, gasoil)
-      var bRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
-      var eRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,evalYm)<=0&&r.value!=null&&Number(r.value)>0; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+      var bRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,baseYm)<=0&&r.value!=null&&Number(r.value)>0&&!r.needsReview; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
+      var eRow=rows.filter(function(r){ return r.ym&&compareYm(r.ym,evalYm)<=0&&r.value!=null&&Number(r.value)>0&&!r.needsReview; }).sort(function(a,b){ return b.ym.localeCompare(a.ym); })[0];
       if(bRow&&eRow&&Number(bRow.value)>0){ Ko*=Math.pow(Number(eRow.value)/Number(bRow.value),Number(c.inc)||0); }
     });
     state.updatedPrices=state.currentPrices.map(function(item){

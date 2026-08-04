@@ -1757,7 +1757,9 @@ function computeAutoPctForIdx(idxLabel,fromYm,toYm){
   try{
     const rows=safeIdxRows(idxLabel);
     if(!rows.length)return null;
-    const monthRows=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)>0&&compareYm(r.ym,toYm)<=0&&r.pct!=null&&isFinite(Number(r.pct)));
+    // needsReview: dato auto-obtenido que no pasó las validaciones de plausibilidad
+    // (05-indices.js validateIdxRow) — nunca debe usarse solo para un cálculo de AVE.
+    const monthRows=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)>0&&compareYm(r.ym,toYm)<=0&&r.pct!=null&&isFinite(Number(r.pct))&&!r.needsReview);
     if(monthRows.length){
       let acc=1;
       monthRows.forEach(r=>{acc*=1+(Number(r.pct)/100);});
@@ -1768,8 +1770,8 @@ function computeAutoPctForIdx(idxLabel,fromYm,toYm){
     // nuevo que la base, bRow y eRow terminarían siendo la misma fila y el ratio daría 0%
     // (parecería "sin cambios" en vez de "sin datos" — exactamente el caso de un índice
     // desactualizado, que debe devolver null para que el formulario avise, no que calle un 0).
-    const bRow=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)<=0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
-    const eRow=rows.filter(r=>r.ym&&compareYm(r.ym,toYm)<=0&&compareYm(r.ym,fromYm)>0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
+    const bRow=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)<=0&&r.value!=null&&Number(r.value)>0&&!r.needsReview).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
+    const eRow=rows.filter(r=>r.ym&&compareYm(r.ym,toYm)<=0&&compareYm(r.ym,fromYm)>0&&r.value!=null&&Number(r.value)>0&&!r.needsReview).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
     if(bRow&&eRow&&Number(bRow.value)>0)return ((Number(eRow.value)/Number(bRow.value))-1)*100;
     return null;
   }catch(e){console.warn('computeAutoPctForIdx',e);return null;}
