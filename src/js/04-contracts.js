@@ -75,12 +75,15 @@ function renderDossierHtml(c){
   var _e=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
   var _m=function(n){if(!n&&n!==0)return '\u2014';return new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(Math.round(n));};
   var _d=function(s){if(!s)return '\u2014';var p=s.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;};
-  var chk=function(v){return v!==false?'<div class="chkb on">&#10003;</div>':'<div class="chkb">&#10003;</div>';};
+  var chk=function(v){return v===true?'<div class="chkb on">&#10003;</div>':'<div class="chkb">&#10003;</div>';};
   var avePolyList=aves.filter(function(a){return a.tipo==='POLINOMICA';});
   var aveOwnerList=aves.filter(function(a){return a.tipo==='OWNER';});
   var avePoly=avePolyList.reduce(function(s,a){return s+(a.monto||0);},0);
   var aveOwner=aveOwnerList.reduce(function(s,a){return s+(a.monto||0);},0);
-  var totalConAVE=(c.monto||0)+avePoly+aveOwner;
+  // c.monto ya incluye las AVEs acumuladas (guardarEnm lo recalcula así en cada enmienda de
+  // tarifas) — sumarlas de nuevo acá duplicaría cada AVE. Mismo patrón que usa renderDet.
+  var montoBase=c.montoBase||((c.monto||0)-avePoly-aveOwner);
+  var totalConAVE=montoBase+avePoly+aveOwner;
   var tcc=c.tc||1;
   var tipoLabel=(c.tcontr||c.tipo||'').toUpperCase().indexOf('ENMIEND')>=0?'Amendment':'New Contract';
   var nPartic=licit?(licit.oferentes||[]).length:'\u2014';
@@ -187,7 +190,7 @@ function renderDossierHtml(c){
 +'<div class="fin-head">&#x1F4B0;&nbsp; Valor del Contrato</div>'
 +'<div class="fin-note">El <strong>Target Value</strong> vigente surge de sumar al valor original del contrato las Actas de Valor Econ\u00f3mico (AVE) por <strong>ajuste polin\u00f3mico de tarifas</strong> y las AVE por <strong>otros conceptos</strong> (Owner/CC).</div>'
 +'<div class="fin-row">'
-+'<div class="fin-tile base"><div class="fin-label">Valor Original (Header)</div><div class="fin-value">'+_m(c.monto)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">\u2248 '+_m(Math.round((c.monto||0)/tcc))+' USD</div></div>'
++'<div class="fin-tile base"><div class="fin-label">Valor Original (Header)</div><div class="fin-value">'+_m(montoBase)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">\u2248 '+_m(Math.round(montoBase/tcc))+' USD</div></div>'
 +'<div class="fin-op">+</div>'
 +'<div class="fin-tile poly"><div class="fin-label">AVE Polin\u00f3mica<span class="fin-tag">Ajuste de tarifa</span></div><div class="fin-value">'+_m(avePoly)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">'+avePolyList.length+' AVE(s) registrada(s)</div></div>'
 +'<div class="fin-op">+</div>'
@@ -267,7 +270,7 @@ function renderDossierHtml(c){
 +'<div class="page">'
 +'<div class="sumbar">'
 +'<div class="sc"><div class="slbl">Contrato N\u00b0</div><div class="sval">'+_e(c.num||'\u2014')+'</div><div class="ssub">'+_e(c.cont||'\u2014')+'</div></div>'
-+'<div class="sc"><div class="slbl">Valor Header</div><div class="sval">'+_m(c.monto)+'</div><div class="ssub">'+_e(c.mon||'ARS')+' \u00b7 TC '+tcc+'</div></div>'
++'<div class="sc"><div class="slbl">Valor Header</div><div class="sval">'+_m(montoBase)+'</div><div class="ssub">'+_e(c.mon||'ARS')+' \u00b7 TC '+tcc+'</div></div>'
 +'<div class="sc"><div class="slbl">Target Value (c/AVEs)</div><div class="sval g">'+_m(totalConAVE)+'</div><div class="ssub">'+_e(c.mon||'ARS')+'</div></div>'
 +'<div class="sc"><div class="slbl">Vigencia</div><div class="sval o" style="font-size:13px">'+_d(c.fechaIni)+' \u2192 '+_d(c.fechaFin)+'</div><div class="ssub">'+(c.plazo_meses||c.plazo?(c.plazo_meses||c.plazo)+' meses':'\u2014')+'</div></div>'
 +'</div>'
@@ -297,7 +300,9 @@ async function exportDossierXls(){
   const _d=s=>{if(!s)return '';const p=s.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;};
   const avePoly=aves.filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
   const aveOwner=aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
-  const totalConAVE=(c.monto||0)+avePoly+aveOwner;
+  // c.monto ya incluye las AVEs acumuladas (ver guardarEnm) — no volver a sumarlas acá.
+  const montoBase=c.montoBase||((c.monto||0)-avePoly-aveOwner);
+  const totalConAVE=montoBase+avePoly+aveOwner;
   const tcc=c.tc||1;
   const nPartic=licit?(licit.oferentes||[]).length:0;
   const nOfrs=licit?(licit.oferentes||[]).filter(o=>o.cotizo!==false).length:0;
@@ -344,8 +349,8 @@ async function exportDossierXls(){
   setCell('D13', ofNames||'');
   setCell('C14', nOfrs, 'n');
   // Monto header
-  setCell('I11', c.monto||0, 'n');
-  setCell('K11', Math.round((c.monto||0)/tcc), 'n');
+  setCell('I11', montoBase, 'n');
+  setCell('K11', Math.round(montoBase/tcc), 'n');
   // AVE
   setCell('I13', avePoly+aveOwner, 'n');
   setCell('K13', Math.round((avePoly+aveOwner)/tcc), 'n');
@@ -1724,6 +1729,21 @@ function onTramoNewPerChange(tramoId){
       buildPolyFormTramo(nextId);
     }
   }
+  // Autocompletar "Nueva Base" de cada índice auto-calculable de este tramo con el mismo
+  // "Nuevo Período" recién cargado, para que el % automático se dispare solo sin que el
+  // usuario tenga que re-tipear el mismo mes índice por índice. Si ya lo había tocado a
+  // mano (ver onTermNuevaBaseChange), no se lo pisamos.
+  const cc=window.DB.find(x=>x.id===window.detId);
+  const poly=(cc?.poly||[]).filter(p=>p.idx);
+  poly.forEach((t,i)=>{
+    if(!idxIsAutoCalc(t.idx))return;
+    const nbEl=document.getElementById('ne_nb_'+tramoId+'_'+i);
+    if(nbEl&&(!nbEl.value||nbEl.dataset.autoFilled==='1')){
+      nbEl.value=newVal;
+      nbEl.dataset.autoFilled='1';
+      recalcTermAuto(tramoId,i);
+    }
+  });
   calcAveSugAll();
 }
 function tramoBlockHtml(cc,tramoId,isFirst){
@@ -1760,9 +1780,13 @@ function renderTramosWrap(){
 // tipeo manual por término con el botón 🔒/✏️.
 window._neTermManual=window._neTermManual||{};
 function idxIsAutoCalc(label){
-  if(!label)return false;
-  const mo=(typeof IDX!=='undefined'&&IDX['Mano de Obra'])||[];
-  return mo.indexOf(String(label).trim())===-1;
+  if(!label||typeof IDX==='undefined')return false;
+  const l=String(label).trim();
+  // Lista blanca real: solo etiquetas que existen en algún catálogo que NO sea Mano de Obra
+  // (antes cualquier texto no listado en Mano de Obra se trataba como "automático" por
+  // descarte, incluyendo índices inexistentes/typos — mostraban el candado 🔒 como si el
+  // sistema fuera a calcularlos solo, en vez de caer directo a manual).
+  return Object.keys(IDX).some(cat=>cat!=='Mano de Obra'&&(IDX[cat]||[]).indexOf(l)>=0);
 }
 function _neCorrExcludeNum(){
   const isCorr=document.getElementById('ne_isCorr')?.checked;
@@ -1812,9 +1836,13 @@ function computeAutoPctForIdx(idxLabel,fromYm,toYm){
       monthRows.forEach(r=>{acc*=1+(Number(r.pct)/100);});
       return (acc-1)*100;
     }
-    // Fallback: ratio de valores absolutos (USD, gasoil, o cualquier índice sin % mensual cargado)
+    // Fallback: ratio de valores absolutos (USD, gasoil, o cualquier índice sin % mensual cargado).
+    // eRow debe ser estrictamente posterior a fromYm: si el índice no tiene ningún dato más
+    // nuevo que la base, bRow y eRow terminarían siendo la misma fila y el ratio daría 0%
+    // (parecería "sin cambios" en vez de "sin datos" — exactamente el caso de un índice
+    // desactualizado, que debe devolver null para que el formulario avise, no que calle un 0).
     const bRow=rows.filter(r=>r.ym&&compareYm(r.ym,fromYm)<=0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
-    const eRow=rows.filter(r=>r.ym&&compareYm(r.ym,toYm)<=0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
+    const eRow=rows.filter(r=>r.ym&&compareYm(r.ym,toYm)<=0&&compareYm(r.ym,fromYm)>0&&r.value!=null&&Number(r.value)>0).sort((a,b)=>b.ym.localeCompare(a.ym))[0];
     if(bRow&&eRow&&Number(bRow.value)>0)return ((Number(eRow.value)/Number(bRow.value))-1)*100;
     return null;
   }catch(e){console.warn('computeAutoPctForIdx',e);return null;}
@@ -1826,6 +1854,8 @@ function toggleTermManual(tramoId,i){
   calcAveSugAll();
 }
 function onTermNuevaBaseChange(tramoId,i){
+  const nbEl=document.getElementById('ne_nb_'+tramoId+'_'+i);
+  if(nbEl)delete nbEl.dataset.autoFilled;
   recalcTermAuto(tramoId,i);
   calcAveSugAll();
 }
