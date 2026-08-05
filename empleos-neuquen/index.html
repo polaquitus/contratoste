@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Búsqueda de Empleo — Neuquén Capital</title>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2b; --panel2:#182238; --border:#26324a;
+    --text:#e7ecf7; --muted:#8d9bb8; --accent:#3aa0ff; --accent2:#22c58b;
+    --new:#22c58b; --danger:#ff5c72; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#0b1220 0%,#0e1626 100%); color:var(--text); min-height:100vh;
+  }
+  header{
+    padding:28px 24px 20px; background:linear-gradient(120deg,#0f7bff22,#22c58b11);
+    border-bottom:1px solid var(--border);
+  }
+  header h1{margin:0 0 4px; font-size:22px; font-weight:700}
+  header p{margin:0; color:var(--muted); font-size:14px; max-width:760px; line-height:1.5}
+  main{max-width:1180px; margin:0 auto; padding:20px 24px 60px}
+
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:18px}
+  .panel h2{margin:0 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted)}
+
+  textarea#profileInput{
+    width:100%; min-height:90px; resize:vertical; background:var(--panel2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.5; font-family:inherit;
+  }
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px}
+  button{
+    cursor:pointer; border:none; border-radius:8px; padding:10px 16px; font-size:13.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:8px; transition:filter .15s, opacity .15s;
+  }
+  button:disabled{opacity:.55; cursor:not-allowed}
+  button:hover:not(:disabled){filter:brightness(1.12)}
+  .btn-primary{background:linear-gradient(120deg,#3aa0ff,#2d7fe0); color:#04101f}
+  .btn-secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border)}
+  .btn-excel{background:linear-gradient(120deg,#22c58b,#1a9d6e); color:#03150f}
+
+  .status-line{font-size:12.5px; color:var(--muted); margin-left:auto; text-align:right}
+  .status-line b{color:var(--text)}
+
+  input#filterInput{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text); border-radius:8px;
+    padding:9px 12px; font-size:13px; width:260px; font-family:inherit;
+  }
+
+  .spinner{
+    width:15px; height:15px; border-radius:50%; border:2px solid #ffffff55; border-top-color:#fff;
+    animation:spin .7s linear infinite; display:none;
+  }
+  .spinner.show{display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .error-box{
+    background:#3a1420; border:1px solid #6b2436; color:#ffb4c0; border-radius:8px; padding:12px 14px;
+    font-size:13px; margin-top:12px; line-height:1.5; display:none;
+  }
+  .error-box.show{display:block}
+
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  thead th{
+    text-align:left; padding:10px 10px; color:var(--muted); font-weight:600; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{padding:10px 10px; border-bottom:1px solid #1d2740; vertical-align:top}
+  tbody tr:hover{background:#152036}
+  tbody tr.selected{background:#122a26}
+
+  .badge-new{
+    background:var(--new); color:#04150f; font-size:10.5px; font-weight:700; padding:2px 7px;
+    border-radius:20px; letter-spacing:.03em; display:inline-block; margin-bottom:4px;
+  }
+  .job-title{font-weight:600; font-size:13.5px}
+  .job-company{color:var(--muted); font-size:12px}
+  .platform-tag{
+    background:var(--panel2); border:1px solid var(--border); color:var(--muted); font-size:11px;
+    padding:2px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .req-cell{max-width:320px; color:#c3cde3}
+  .req-cell .short{display:block}
+  .req-cell button{
+    background:none; border:none; color:var(--accent); font-size:11.5px; padding:2px 0; margin-top:2px;
+    text-decoration:underline; font-weight:500;
+  }
+  .link-btn{
+    color:var(--accent); text-decoration:none; font-size:12.5px; font-weight:600; white-space:nowrap;
+  }
+  .link-btn:hover{text-decoration:underline}
+
+  .empty-state{
+    text-align:center; padding:50px 20px; color:var(--muted); font-size:14px; line-height:1.6;
+  }
+  .empty-state .big{font-size:34px; margin-bottom:10px}
+
+  footer{text-align:center; color:var(--muted); font-size:11.5px; padding:20px; opacity:.7}
+
+  ::-webkit-scrollbar{height:8px; width:8px}
+  ::-webkit-scrollbar-thumb{background:#2a3651; border-radius:4px}
+
+  .table-wrap{overflow-x:auto}
+
+  @media (max-width:720px){
+    input#filterInput{width:100%}
+    .status-line{margin-left:0; text-align:left}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛢️ Búsqueda de Empleo — Neuquén Capital</h1>
+  <p>Compila novedades laborales de campo / analista (SSO, Seguridad e Higiene, Hidrocarburos) cerca de Neuquén Capital y la cuenca de Vaca Muerta, usando IA con búsqueda en vivo. Los resultados se guardan para marcar qué avisos son nuevos desde tu última consulta.</p>
+</header>
+
+<main>
+
+  <div class="panel">
+    <h2>Perfil de búsqueda</h2>
+    <textarea id="profileInput" spellcheck="false"></textarea>
+    <div class="toolbar">
+      <button class="btn-primary" id="btnSearch">
+        <span class="spinner" id="searchSpinner"></span>
+        <span id="btnSearchLabel">🔄 Buscar novedades</span>
+      </button>
+      <button class="btn-secondary" id="btnResetProfile">Restaurar perfil por defecto</button>
+      <div class="status-line" id="statusLine">Todavía no hiciste ninguna búsqueda.</div>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <div class="panel" id="resultsPanel" style="display:none">
+    <h2>Resultados</h2>
+    <div class="toolbar" style="margin-top:0">
+      <input type="text" id="filterInput" placeholder="Filtrar por puesto, empresa, plataforma...">
+      <button class="btn-secondary" id="btnSelectAll">Seleccionar todos</button>
+      <button class="btn-secondary" id="btnSelectNone">Ninguno</button>
+      <button class="btn-excel" id="btnExcel">⬇️ Descargar Excel (<span id="selCount">0</span>)</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:26px"></th>
+            <th>Puesto / Empresa</th>
+            <th>Ubicación</th>
+            <th>Plataforma</th>
+            <th>Publicado</th>
+            <th>Requisitos</th>
+            <th style="width:50px">Aviso</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="emptyPanel">
+    <div class="empty-state">
+      <div class="big">🔍</div>
+      Ajustá el perfil de búsqueda si querés y tocá <b>Buscar novedades</b> para compilar los avisos actuales.
+    </div>
+  </div>
+
+</main>
+
+<footer>Herramienta personal · los resultados los genera un modelo de IA con búsqueda en vivo — siempre confirmá el aviso original antes de aplicar.</footer>
+
+<script>
+/* ======================= CONFIG ======================= */
+/* Completá esto con los datos de TU proyecto de Supabase (el nuevo, separado de contratoste).
+   Project Settings → API → Project URL / anon public key.                                    */
+const CONFIG = {
+  SUPABASE_URL: 'https://TU-PROYECTO.supabase.co',
+  SUPABASE_ANON_KEY: 'TU_ANON_KEY_AQUI',
+  FUNCTION_NAME: 'jobs-proxy'
+};
+/* ======================================================= */
+
+const DEFAULT_PROFILE = `Perfil: Técnica en Seguridad e Higiene, próxima a recibirse como Técnica Universitaria en Hidrocarburos.
+Ubicación objetivo: Neuquén Capital y alrededores (incluye cuenca de Vaca Muerta: Añelo, Plaza Huincul, Cutral Có, Rincón de los Sauces, Centenario, Plottier).
+Busco: puestos de campo, analista o auxiliar en Seguridad e Higiene / SSO / HSE, medio ambiente, o Hidrocarburos / Petróleo y Gas.
+Nivel: junior, trainee, pasantía o primer empleo también sirven.
+Empresas de interés: operadoras (YPF, TotalEnergies, Vista Energy, Tecpetrol, Pan American Energy, Pluspetrol, Shell, Capex, Wintershall Dea) y empresas de servicios petroleros.`;
+
+const LS_KEY = 'empleosNeuquen_jobs_v1';
+const LS_PROFILE_KEY = 'empleosNeuquen_profile_v1';
+
+let jobs = [];          // último set compilado
+let selected = new Set(); // urls seleccionadas
+
+const $ = (id) => document.getElementById(id);
+
+function init(){
+  $('profileInput').value = localStorage.getItem(LS_PROFILE_KEY) || DEFAULT_PROFILE;
+  $('btnResetProfile').addEventListener('click', () => {
+    $('profileInput').value = DEFAULT_PROFILE;
+    localStorage.setItem(LS_PROFILE_KEY, DEFAULT_PROFILE);
+  });
+  $('profileInput').addEventListener('change', () => {
+    localStorage.setItem(LS_PROFILE_KEY, $('profileInput').value);
+  });
+
+  $('btnSearch').addEventListener('click', runSearch);
+  $('filterInput').addEventListener('input', renderTable);
+  $('btnSelectAll').addEventListener('click', () => { getFilteredJobs().forEach(j => selected.add(j.url)); renderTable(); });
+  $('btnSelectNone').addEventListener('click', () => { selected.clear(); renderTable(); });
+  $('btnExcel').addEventListener('click', downloadExcel);
+
+  const cached = localStorage.getItem(LS_KEY);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      jobs = parsed.jobs || [];
+      setStatus(`Última búsqueda: ${formatDate(parsed.generatedAt)} · ${jobs.length} avisos guardados.`);
+      if (jobs.length) renderTable();
+    } catch (e) { /* ignore corrupt cache */ }
+  }
+}
+
+function formatDate(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function setStatus(text){ $('statusLine').innerHTML = text; }
+
+function showError(msg){
+  const box = $('errorBox');
+  box.innerHTML = msg;
+  box.classList.add('show');
+}
+function hideError(){ $('errorBox').classList.remove('show'); }
+
+async function runSearch(){
+  hideError();
+  if (CONFIG.SUPABASE_URL.includes('TU-PROYECTO') || CONFIG.SUPABASE_ANON_KEY.includes('TU_ANON_KEY')) {
+    showError('Falta configurar <b>CONFIG.SUPABASE_URL</b> y <b>CONFIG.SUPABASE_ANON_KEY</b> arriba en el &lt;script&gt; del HTML. Mirá el README de <code>empleos-neuquen/</code> para los pasos de setup en Supabase.');
+    return;
+  }
+
+  const btn = $('btnSearch');
+  btn.disabled = true;
+  $('searchSpinner').classList.add('show');
+  $('btnSearchLabel').textContent = 'Buscando... (puede tardar ~20-40s)';
+  setStatus('Consultando fuentes en vivo...');
+
+  try {
+    const resp = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${CONFIG.FUNCTION_NAME}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ profile: $('profileInput').value })
+    });
+
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status} — ${t || resp.statusText}`);
+    }
+
+    const data = await resp.json();
+    if (!data.items || !Array.isArray(data.items)) {
+      throw new Error('La función respondió sin un array "items" válido.');
+    }
+
+    jobs = data.items;
+    const generatedAt = data.generated_at || new Date().toISOString();
+    localStorage.setItem(LS_KEY, JSON.stringify({ jobs, generatedAt }));
+
+    const newCount = jobs.filter(j => j.is_new).length;
+    setStatus(`Última búsqueda: ${formatDate(generatedAt)} · <b>${jobs.length}</b> avisos · <b>${newCount}</b> nuevos.`);
+    renderTable();
+  } catch (err) {
+    console.error(err);
+    showError(`No se pudo compilar la búsqueda: ${escapeHtml(err.message)}. Revisá que la Edge Function <code>${CONFIG.FUNCTION_NAME}</code> esté desplegada y con <code>GEMINI_API_KEY</code> configurada.`);
+    setStatus(jobs.length ? `Mostrando el último resultado guardado (${jobs.length} avisos).` : 'Sin resultados todavía.');
+  } finally {
+    btn.disabled = false;
+    $('searchSpinner').classList.remove('show');
+    $('btnSearchLabel').textContent = '🔄 Buscar novedades';
+  }
+}
+
+function getFilteredJobs(){
+  const q = $('filterInput').value.trim().toLowerCase();
+  if (!q) return jobs;
+  return jobs.filter(j => [j.titulo, j.empresa, j.ubicacion, j.plataforma, j.requisitos, j.resumen]
+    .filter(Boolean).some(f => String(f).toLowerCase().includes(q)));
+}
+
+function renderTable(){
+  const list = getFilteredJobs();
+  $('resultsPanel').style.display = jobs.length ? 'block' : 'none';
+  $('emptyPanel').style.display = jobs.length ? 'none' : 'block';
+
+  const body = $('resultsBody');
+  body.innerHTML = '';
+
+  list.forEach((j, idx) => {
+    const tr = document.createElement('tr');
+    if (selected.has(j.url)) tr.classList.add('selected');
+
+    const reqShort = (j.requisitos || '').slice(0, 110);
+    const needsExpand = (j.requisitos || '').length > 110;
+
+    tr.innerHTML = `
+      <td><input type="checkbox" data-url="${escapeAttr(j.url)}" ${selected.has(j.url) ? 'checked' : ''}></td>
+      <td>
+        ${j.is_new ? '<span class="badge-new">NUEVO</span><br>' : ''}
+        <span class="job-title">${escapeHtml(j.titulo || 'Sin título')}</span><br>
+        <span class="job-company">${escapeHtml(j.empresa || '—')}</span>
+      </td>
+      <td>${escapeHtml(j.ubicacion || '—')}</td>
+      <td><span class="platform-tag">${escapeHtml(j.plataforma || '—')}</span></td>
+      <td>${escapeHtml(j.fecha_publicacion || '—')}</td>
+      <td class="req-cell">
+        <span class="short">${escapeHtml(reqShort)}${needsExpand ? '…' : ''}</span>
+        ${needsExpand ? `<span class="full" style="display:none">${escapeHtml(j.requisitos)}</span><button type="button" class="toggle-req">ver más</button>` : ''}
+      </td>
+      <td>${j.url ? `<a class="link-btn" href="${escapeAttr(j.url)}" target="_blank" rel="noopener">Ver ↗</a>` : '—'}</td>
+    `;
+
+    const cb = tr.querySelector('input[type=checkbox]');
+    cb.addEventListener('change', () => {
+      if (cb.checked) selected.add(j.url); else selected.delete(j.url);
+      tr.classList.toggle('selected', cb.checked);
+      updateSelCount();
+    });
+
+    const toggle = tr.querySelector('.toggle-req');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const shortEl = tr.querySelector('.req-cell .short');
+        const fullEl = tr.querySelector('.req-cell .full');
+        const expanded = fullEl.style.display !== 'none';
+        fullEl.style.display = expanded ? 'none' : 'block';
+        shortEl.style.display = expanded ? 'block' : 'none';
+        toggle.textContent = expanded ? 'ver más' : 'ver menos';
+      });
+    }
+
+    body.appendChild(tr);
+  });
+
+  updateSelCount();
+}
+
+function updateSelCount(){ $('selCount').textContent = selected.size; }
+
+function downloadExcel(){
+  const rows = jobs.filter(j => selected.has(j.url));
+  if (!rows.length) { alert('Tildá al menos un aviso para descargar.'); return; }
+
+  const data = rows.map(j => ({
+    'Puesto': j.titulo || '',
+    'Empresa': j.empresa || '',
+    'Ubicación': j.ubicacion || '',
+    'Plataforma': j.plataforma || '',
+    'Publicado': j.fecha_publicacion || '',
+    'Nuevo': j.is_new ? 'Sí' : 'No',
+    'Link': j.url || '',
+    'Requisitos': j.requisitos || '',
+    'Resumen': j.resumen || ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [ {wch:30}, {wch:22}, {wch:20}, {wch:16}, {wch:14}, {wch:8}, {wch:40}, {wch:50}, {wch:50} ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Empleos');
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `empleos_neuquen_${today}.xlsx`);
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
+init();
+</script>
+</body>
+</html>
