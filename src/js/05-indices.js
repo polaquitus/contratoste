@@ -481,8 +481,16 @@ function _parseFadeeacItem(title,pubDateStr){
   let pct=parseFloat(pctMatch[1].replace(',','.'));
   if(!isFinite(pct)) return null;
   if(/baj|disminuy|cay[oó]|reducc/.test(t)) pct=-Math.abs(pct);
-  let mesNum=null;
-  for(const name in _MESES_ES){ if(t.indexOf(name)>=0){ mesNum=_MESES_ES[name]; break; } }
+  // Elegir el mes que aparece PRIMERO en el texto (por posición, no por orden del
+  // diccionario) — títulos tipo "...suben X% en abril y acumulan Y% en el primer
+  // cuatrimestre (enero-abril)" mencionan más de un mes; el que corresponde al
+  // dato mensual real es el que aparece antes en la oración, no "enero" solo
+  // porque se revisa primero al iterar el diccionario.
+  let mesNum=null, bestPos=Infinity;
+  for(const name in _MESES_ES){
+    const pos=t.indexOf(name);
+    if(pos>=0 && pos<bestPos){ bestPos=pos; mesNum=_MESES_ES[name]; }
+  }
   if(!mesNum) return null;
   const pubDate=new Date(pubDateStr);
   if(isNaN(pubDate.getTime())) return null;
@@ -497,20 +505,20 @@ async function idxFetchFadeeac(id, ym){
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
     body:JSON.stringify({url:FADEEAC_FEED_URL})
   });
-  if(!r.ok) throw new Error('energia-proxy '+r.status);
   const raw=await r.text();
+  if(!r.ok) throw new Error('energia-proxy '+r.status+' — '+raw.slice(0,200));
   // energia-proxy se construyó pensando en respuestas JSON (CKAN) — si en cambio
   // nos pasa el XML del feed tal cual, raw ya es el RSS. Si lo envuelve en JSON
-  // (ej. {success,result:{...}}), intentamos desenvolverlo; si no, seguimos con raw.
-  let xmlText=raw;
-  try{
-    const asJson=JSON.parse(raw);
-    if(asJson && typeof asJson==='object'){
-      if(asJson.success===false) throw new Error('energia-proxy: '+((asJson.error&&asJson.error.message)||'error desconocido'));
-      xmlText=(asJson.result&&(asJson.result.text||asJson.result.body))||asJson.body||asJson.text||raw;
-    }
-  }catch(_e){ /* no era JSON — raw ya es el XML del feed */ }
-  if(typeof xmlText!=='string'||!/<rss|<item/i.test(xmlText)) throw new Error('Respuesta del feed FADEEAC no reconocida (¿energia-proxy no soporta este dominio?)');
+  // (ej. {success,result:{...}}), lo desenvolvemos; el parse de un envoltorio
+  // JSON con success:false SIEMPRE debe propagar el error real (antes quedaba
+  // atrapado por el catch de "esto no es JSON" y se perdía el motivo real).
+  let xmlText=raw, parsedJson=null;
+  try{ parsedJson=JSON.parse(raw); }catch(_e){ /* no era JSON — raw ya es el XML del feed */ }
+  if(parsedJson && typeof parsedJson==='object'){
+    if(parsedJson.success===false) throw new Error('energia-proxy rechazó la URL: '+((parsedJson.error&&parsedJson.error.message)||JSON.stringify(parsedJson).slice(0,200)));
+    xmlText=(parsedJson.result&&(parsedJson.result.text||parsedJson.result.body))||parsedJson.body||parsedJson.text||raw;
+  }
+  if(typeof xmlText!=='string'||!/<rss|<item/i.test(xmlText)) throw new Error('Respuesta del feed FADEEAC no reconocida (¿energia-proxy no soporta este dominio?) — inicio: '+String(xmlText).slice(0,150));
   const doc=new DOMParser().parseFromString(xmlText,'text/xml');
   if(doc.querySelector('parsererror')) throw new Error('No se pudo parsear el feed RSS de FADEEAC');
   const items=Array.from(doc.querySelectorAll('item'));
