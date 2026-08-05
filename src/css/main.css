@@ -260,9 +260,12 @@ table tr.clickable{cursor:pointer;transition:.1s}table tr.clickable:hover td{bac
 .pl-bar{flex:1;height:12px;background:var(--g100);border-radius:2px;overflow:hidden}
 .pl-fill{height:100%;border-radius:2px;background:var(--p500)}
 .pl-pct{width:32px;font-size:10px;font-weight:700;text-align:right;flex-shrink:0;color:var(--p700)}
-/* Tarifario por período */
-.tar-period-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
-.tar-period-chip{padding:6px 12px;border-radius:99px;border:1.5px solid var(--g300);background:var(--g50);font-size:11.5px;font-weight:700;color:var(--g700);cursor:pointer;transition:.12s}
+/* Tarifario por enmienda → período */
+.tar-enm-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding-bottom:10px;border-bottom:2px solid var(--g200)}
+.tar-enm-chip{padding:7px 14px;border-radius:8px;border:1.5px solid var(--g300);background:var(--g50);font-size:12.5px;font-weight:800;color:var(--g700);cursor:pointer;transition:.12s}
+.tar-enm-chip:hover{background:var(--g200)}.tar-enm-chip.act{background:var(--p800);border-color:var(--p800);color:var(--w)}
+.tar-period-nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px 4px}
+.tar-period-chip{padding:5px 11px;border-radius:99px;border:1.5px solid var(--g300);background:var(--g50);font-size:11px;font-weight:700;color:var(--g700);cursor:pointer;transition:.12s}
 .tar-period-chip:hover{background:var(--g200)}.tar-period-chip.act{background:var(--p700);border-color:var(--p700);color:var(--w)}
 .tar-period-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
 .tar-period-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;background:var(--p50);border:1px solid var(--p200);font-size:10.5px;font-weight:700;color:var(--p800)}

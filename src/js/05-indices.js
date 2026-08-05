@@ -8,7 +8,7 @@ const IDX_CATALOG = [
   // ── IPIM ─────────────────────────────────────────────────────────
   {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46', pubDay:20, pubDelay:1},
   {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual', pubDay:20, pubDelay:1},
-  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeaac.org.ar/indice', fetchMode:'manual', pubDay:5, pubDelay:2},
+  {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeeac.org.ar/feed/', fetchMode:'fadeeac', pubDay:5, pubDelay:2},
   // ── Combustible ─────────────────────────────────────────────────
 {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
@@ -464,6 +464,69 @@ async function idxFetchFuel(id, ym){
   return withPct(precio,'S.Energía (histórico)');
 }
 
+// ── FADEEAC fetch vía energia-proxy (feed RSS) ────────────────────────
+// FADEEAC no tiene API pública, pero sí un feed RSS estándar de WordPress
+// (fadeeac.org.ar/feed/) donde cada comunicado de prensa mensual aparece con
+// un título muy regular: "Los costos del transporte {aumentaron|subieron|
+// bajaron} X% en {mes}". Se parsea ese texto con regex — no hay endpoint
+// estructurado, así que esto es más frágil que INDEC/CKAN: si FADEEAC
+// cambia la redacción del título, deja de matchear y cae al flujo manual/IA
+// existente (no rompe nada, solo no logra automatizar ese mes).
+const FADEEAC_FEED_URL='https://www.fadeeac.org.ar/feed/';
+const _MESES_ES={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function _parseFadeeacItem(title,pubDateStr){
+  const t=String(title||'').toLowerCase();
+  const pctMatch=t.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  if(!pctMatch) return null;
+  let pct=parseFloat(pctMatch[1].replace(',','.'));
+  if(!isFinite(pct)) return null;
+  if(/baj|disminuy|cay[oó]|reducc/.test(t)) pct=-Math.abs(pct);
+  let mesNum=null;
+  for(const name in _MESES_ES){ if(t.indexOf(name)>=0){ mesNum=_MESES_ES[name]; break; } }
+  if(!mesNum) return null;
+  const pubDate=new Date(pubDateStr);
+  if(isNaN(pubDate.getTime())) return null;
+  let year=pubDate.getFullYear();
+  // Comunicado de enero hablando de "diciembre" -> el dato es del año anterior
+  if(mesNum===12 && pubDate.getMonth()+1<=2) year-=1;
+  return {ym:year+'-'+String(mesNum).padStart(2,'0'), pct};
+}
+async function idxFetchFadeeac(id, ym){
+  const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify({url:FADEEAC_FEED_URL})
+  });
+  if(!r.ok) throw new Error('energia-proxy '+r.status);
+  const raw=await r.text();
+  // energia-proxy se construyó pensando en respuestas JSON (CKAN) — si en cambio
+  // nos pasa el XML del feed tal cual, raw ya es el RSS. Si lo envuelve en JSON
+  // (ej. {success,result:{...}}), intentamos desenvolverlo; si no, seguimos con raw.
+  let xmlText=raw;
+  try{
+    const asJson=JSON.parse(raw);
+    if(asJson && typeof asJson==='object'){
+      if(asJson.success===false) throw new Error('energia-proxy: '+((asJson.error&&asJson.error.message)||'error desconocido'));
+      xmlText=(asJson.result&&(asJson.result.text||asJson.result.body))||asJson.body||asJson.text||raw;
+    }
+  }catch(_e){ /* no era JSON — raw ya es el XML del feed */ }
+  if(typeof xmlText!=='string'||!/<rss|<item/i.test(xmlText)) throw new Error('Respuesta del feed FADEEAC no reconocida (¿energia-proxy no soporta este dominio?)');
+  const doc=new DOMParser().parseFromString(xmlText,'text/xml');
+  if(doc.querySelector('parsererror')) throw new Error('No se pudo parsear el feed RSS de FADEEAC');
+  const items=Array.from(doc.querySelectorAll('item'));
+  if(!items.length) throw new Error('Feed FADEEAC sin items');
+  const parsed=items.map(function(it){
+    const title=(it.querySelector('title')&&it.querySelector('title').textContent)||'';
+    const pubDate=(it.querySelector('pubDate')&&it.querySelector('pubDate').textContent)||'';
+    const p=_parseFadeeacItem(title,pubDate);
+    return p?Object.assign({title:title},p):null;
+  }).filter(Boolean).sort(function(a,b){return a.ym.localeCompare(b.ym);});
+  if(!parsed.length) throw new Error('No se pudo extraer % de ningún comunicado del feed FADEEAC');
+  const candidates=parsed.filter(function(p){return p.ym<=ym;});
+  const chosen=candidates.length?candidates[candidates.length-1]:parsed[parsed.length-1];
+  return {ym:chosen.ym, pct:chosen.pct, value:null, source:'FADEEAC (RSS)', confirmed:false, note:chosen.title};
+}
+
 // ── Agregar siguiente mes (auto o manual) ─────────────────────────────
 async function idxAddNextMonth(id){
   const def=IDX_CATALOG.find(d=>d.id===id);
@@ -477,6 +540,7 @@ async function idxAddNextMonth(id){
     if(mode==='indec') row=await idxFetchIndec(id,ym);
     else if(mode==='usd') row=await fetchUsdBnaLike(ym);
     else if(mode==='fuel') row=await idxFetchFuel(id,ym);
+    else if(mode==='fadeeac') row=await idxFetchFadeeac(id,ym);
     if(!row) throw new Error('Sin dato');
     const flagged=withReviewFlag(def,{...row,ym});
     await idxUpsert(id,flagged);
@@ -594,6 +658,20 @@ async function runIdxUpdate(id){
         return;
       }catch(fuelErr){
         console.warn('idxFetchFuel failed, trying seed/AI',fuelErr.message);
+      }
+    }
+
+    // ── FADEEAC: feed RSS vía energia-proxy ──────────────────────────────
+    if(mode==='fadeeac'){
+      try{
+        const fetched=await idxFetchFadeeac(id,target);
+        const row=withReviewFlag(def,{...fetched,confirmed:false,status:'updated'});
+        await idxUpsert(id,row);
+        renderIdxView();
+        toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (feed FADEEAC)'),row.needsReview?'er':'ok');
+        return;
+      }catch(fadeErr){
+        console.warn('idxFetchFadeeac failed, trying seed/AI',fadeErr.message);
       }
     }
 

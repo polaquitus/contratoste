@@ -2425,7 +2425,7 @@ function unadjustPo(cid, poNum){
 }
 // ═══════════ RENDERLIST WITH REMANENTE ══════════════════
 // ═══════════ TARIFARIO ENHANCED ══════════════════════════
-let _tarTab=0,_tarPeriod=null,_tarSort={ci:null,dir:1};
+let _tarTab=0,_tarPeriod=null,_tarEnm=null,_tarSort={ci:null,dir:1};
 function getTarPeriodValue(cc,t){return t?.period||cc?.btar||cc?.fechaIni?.substring(0,7)||'';}
 function getLastTariffPeriod(cc){
   if(!cc||!cc.tarifarios||!cc.tarifarios.length)return null;
@@ -2434,6 +2434,7 @@ function getLastTariffPeriod(cc){
 }
 function getTarEnmLabel(cc,enmNum){if(!enmNum)return 'Base contractual';const enm=(cc.enmiendas||[]).find(e=>e.num===enmNum);if(!enm)return 'Enm.N°'+enmNum;const tipo=enm.tipo==='ACTUALIZACION_TARIFAS'?'Actualización de Tarifas':enm.tipo==='EXTENSION'?'Extensión':enm.tipo==='SCOPE'?'Scope':enm.tipo==='CLAUSULAS'?'Cláusulas':'Otro';return 'Enm.N°'+enmNum+' · '+tipo;}
 function setTarPeriod(period){_tarPeriod=period;_tarTab=0;renderTarifario();}
+function setTarEnm(key){_tarEnm=key;_tarPeriod=null;_tarTab=0;renderTarifario();}
 function renderTarifario(){
   const box=document.getElementById('tarContainer');if(!box)return;
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
@@ -2442,21 +2443,34 @@ function renderTarifario(){
   const topActions = `<div class="tar-actions" style="margin-bottom:10px;border:1px solid var(--g200);border-radius:8px;background:var(--g50)"><button class="btn btn-p btn-sm" onclick="openPriceListImportPicker()">🤖 Importar listas (Word/Excel)</button><button class="btn btn-s btn-sm" onclick="addTarTable()">➕ Nueva tabla</button><button class="btn btn-g btn-sm" onclick="saveTarifarios()">💾 Guardar ahora</button>${raw.length?'<span style="margin-left:auto;font-size:11px;color:var(--g500)">Editá precios inline, agregá/borrá filas o eliminá la tabla seleccionada.</span>':''}</div>`;
   if(!raw.length){box.innerHTML=importCtl+topActions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin listas de precios. Importá desde Word/Excel con IA o creá una tabla manual.</p></div>';return;}
   const all=raw.map((t,i)=>({...t,_idx:i,_period:getTarPeriodValue(cc,t)}));
-  let periods=[...new Set(all.map(t=>t._period).filter(Boolean))].sort();
+
+  // Agrupación principal: por ENMIENDA (clave estable '0' = Base contractual,
+  // sin enmienda asociada). Dentro de cada enmienda, sub-navegación por período
+  // solo si esa enmienda tiene tablas en más de un mes — así el orden lógico es
+  // Enmienda → Período, en vez de una lista plana de meses sin contexto.
+  const enmKeys=[...new Set(all.map(t=>String(t.enmNum||0)))].sort((a,b)=>Number(a)-Number(b));
+  if(!_tarEnm||!enmKeys.includes(_tarEnm)){
+    const byPeriod=[...all].sort((a,b)=>(a._period||'').localeCompare(b._period||''));
+    _tarEnm=byPeriod.length?String(byPeriod[byPeriod.length-1].enmNum||0):enmKeys[enmKeys.length-1];
+  }
+  const enmGroup=all.filter(t=>String(t.enmNum||0)===_tarEnm);
+  let periods=[...new Set(enmGroup.map(t=>t._period).filter(Boolean))].sort();
   if(!periods.length){const fallback=cc.btar||cc.fechaIni?.substring(0,7)||'';if(fallback)periods=[fallback];}
   if(!_tarPeriod||!periods.includes(_tarPeriod))_tarPeriod=periods[periods.length-1]||periods[0]||null;
-  const visible=all.filter(t=>t._period===_tarPeriod);
-  if(!visible.length){box.innerHTML=importCtl+topActions+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para el período seleccionado.</p></div>';return;}
-  const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;
-  const enmNums=[...new Set(visible.map(x=>x.enmNum).filter(Boolean))];
-  const enmLabel=enmNums.length===1?getTarEnmLabel(cc,enmNums[0]):enmNums.length>1?'Múltiples enmiendas':'Base contractual';
-  const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';
-  const srcLabel=t?.source==='WORD_IA'?'IA Word':t?.source==='EXCEL'?'Excel':t?.source||'Manual';
+  const visible=enmGroup.filter(t=>t._period===_tarPeriod);
   let h=importCtl+topActions;
-  h+='<div class="tar-period-nav">';
-  periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});
+  h+='<div class="tar-enm-nav">';
+  enmKeys.forEach(k=>{h+=`<button class="tar-enm-chip ${k===_tarEnm?'act':''}" onclick="setTarEnm('${k}')">${esc(k==='0'?'Base contractual':getTarEnmLabel(cc,Number(k)))}</button>`;});
   h+='</div>';
-  h+=`<div class="tar-period-meta"><span class="tar-period-tag" onclick="changeTarPeriod(${t?t._idx:0})" style="cursor:pointer" title="Click para cambiar el mes de aplicación de la tabla seleccionada">Período: ${periodLabel} ✏️</span><span class="tar-period-tag">Origen: ${enmLabel}</span><span class="tar-period-tag neutral">Fuente: ${esc(srcLabel)}</span><span class="tar-period-tag neutral">${visible.length} ${visible.length===1?'tabla':'tablas'}</span></div>`;
+  if(!visible.length){box.innerHTML=h+'<div class="empty" style="padding:28px"><div class="ei">💲</div><p>Sin tablas para esta enmienda.</p></div>';return;}
+  const di=Math.min(_tarTab||0,visible.length-1);const t=visible[di];_tarTab=di;
+  const periodLabel=_tarPeriod?formatMonth(_tarPeriod):'Sin período';
+  if(periods.length>1){
+    h+='<div class="tar-period-nav">';
+    periods.forEach(p=>{h+=`<button class="tar-period-chip ${p===_tarPeriod?'act':''}" onclick="setTarPeriod('${p}')">${formatMonth(p)}</button>`;});
+    h+='</div>';
+  }
+  h+=`<div class="tar-period-meta"><span class="tar-period-tag" onclick="changeTarPeriod(${t?t._idx:0})" style="cursor:pointer" title="Click para cambiar el mes de aplicación de la tabla seleccionada">Período: ${periodLabel} ✏️</span></div>`;
   h+='<div class="tar-tabs">';
   visible.forEach((tab,vi)=>{h+=`<div class="tar-tab ${vi===di?'act':''}" onclick="switchTarTab(${vi})"><span>${esc(tab.name)}</span><span class="tar-x" onclick="event.stopPropagation();delTarTable(${tab._idx})">✕</span></div>`;});
   h+='<button class="tar-add" onclick="addTarTable()" title="Nueva tabla">+</button></div>';
