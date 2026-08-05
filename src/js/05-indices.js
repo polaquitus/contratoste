@@ -269,6 +269,25 @@ function idxLastBizDayOfMonth(ym){
     d.setDate(d.getDate()-1);
   return d;
 }
+// ── IPC Nacional vía ArgentinaDatos — fetch directo desde el navegador, sin
+// proxy (mismo dominio ya usado y probado para USD DIVISA/BILLETE). El mirror
+// oficial de INDEC en apis.datos.gob.ar suele quedar 1-3 semanas atrás de la
+// publicación real; este proyecto community (mismo que ya alimenta el dólar
+// oficial acá) reporta el IPC Nacional actualizado más rápido. Solo cubre el
+// nivel general Nacional — GBA/Patagonia siguen por la vía INDEC existente.
+async function idxFetchIpcArgentinaDatos(ym){
+  const r=await fetch('https://api.argentinadatos.com/v1/finanzas/indices/inflacion');
+  if(!r.ok) throw new Error('ArgentinaDatos inflacion '+r.status);
+  const data=await r.json();
+  if(!Array.isArray(data)) throw new Error('ArgentinaDatos inflacion: respuesta inesperada');
+  const rows=data
+    .filter(x=>x&&x.fecha&&x.valor!=null)
+    .map(x=>({ym:String(x.fecha).substring(0,7), pct:Number(x.valor)}))
+    .filter(r=>r.ym&&isFinite(r.pct)&&r.ym<=ym)
+    .sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!rows.length) throw new Error('ArgentinaDatos inflacion: sin datos ≤ '+ym);
+  return rows;
+}
 async function fetchUsdBnaLike(targetYm){
   // Rule: rate for month X = last business day of month X.
   // If month X is not yet complete (today < last biz day of X), fall back to
@@ -545,7 +564,17 @@ async function idxAddNextMonth(id){
   toast('Buscando '+formatMonth(ym)+'…','ok');
   try{
     let row;
-    if(mode==='indec') row=await idxFetchIndec(id,ym);
+    if(mode==='indec' && id==='ipc_nac'){
+      try{
+        const rows=await idxFetchIpcArgentinaDatos(ym);
+        const last=rows[rows.length-1];
+        row={ym:last.ym, value:null, pct:last.pct, source:'ArgentinaDatos'};
+      }catch(argDatosErr){
+        console.warn('idxFetchIpcArgentinaDatos failed, trying INDEC API',argDatosErr.message);
+        row=await idxFetchIndec(id,ym);
+      }
+    }
+    else if(mode==='indec') row=await idxFetchIndec(id,ym);
     else if(mode==='usd') row=await fetchUsdBnaLike(ym);
     else if(mode==='fuel') row=await idxFetchFuel(id,ym);
     else if(mode==='fadeeac') row=await idxFetchFadeeac(id,ym);
@@ -626,6 +655,31 @@ async function runIdxUpdate(id){
       renderIdxView();
       toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado'),row.needsReview?'er':'ok');
       return;
+    }
+
+    // ── IPC Nacional: intentar ArgentinaDatos primero (suele estar más al día
+    // que el mirror de datos.gob.ar) — solo aplica a ipc_nac, no a GBA/Patagonia
+    // que no tienen ese endpoint. Si falla o no llega al mes objetivo, cae al
+    // fetch INDEC normal de abajo sin cortar el flujo.
+    if(mode==='indec' && id==='ipc_nac'){
+      try{
+        const rows=await idxFetchIpcArgentinaDatos(target);
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        let anyFlagged=false;
+        for(const r of rows){
+          if(existing.has(r.ym)) continue;
+          const newRow=withReviewFlag(def,{ym:r.ym, value:null, pct:r.pct, confirmed:false, status:'updated', source:'ArgentinaDatos', note:''});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
+        }
+        renderIdxView();
+        const lastYm=rows[rows.length-1].ym;
+        toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(lastYm)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(lastYm)+' (ArgentinaDatos)'),anyFlagged?'er':'ok');
+        return;
+      }catch(argDatosErr){
+        console.warn('idxFetchIpcArgentinaDatos failed, trying INDEC API',argDatosErr.message);
+        // Fall through al fetch INDEC normal
+      }
     }
 
     // ── INDEC API: fetch directo ────────────────────────────────────────
