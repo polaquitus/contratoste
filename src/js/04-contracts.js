@@ -644,38 +644,48 @@ function renderDet(){
       ${c.tipo==='OBRA'?(()=>{
         const poData=ME2N[c.num];
         const pos=poData&&Array.isArray(poData)&&Array.isArray(poData[2])?poData[2]:[];
+        const poMeta=c.poMeta||{};
         const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0);
         const avancePct=montoBase>0?round2((totalCerts/montoBase)*100):0;
         const remanente=Math.max(0,montoBase-totalCerts);
         return `
         <div class="sec" style="margin-top:18px">
           <div class="sh"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance ${avancePct}% · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></div>
-          <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--p50);border:1px solid var(--p200);border-radius:6px">
-            ℹ️ Vista informativa de las POs del contrato. Para incluirlas en un ajuste polinómico, usá el modal <strong>📆 Elegir meses de ajuste</strong> — ahí podés tildar POs y remanente para definir el scope.
+          <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--a100);border:1px solid var(--a500);border-radius:6px">
+            ⚠️ El <strong>Short Text de la PO</strong> debería empezar a incluir el <strong>período que se está certificando</strong> — la "Document Date" de la PO es cuando se ejecuta la PO, no cuando se certificó el trabajo, así que no sirve como período de consumo real. Mientras esa práctica no esté instalada, cargá acá manualmente el <strong>Período de Certificación</strong> de cada PO — de eso depende que el % de avance de obra automático de las actualizaciones de tarifa sea correcto.
           </div>
           <table>
             <thead>
               <tr>
-                <th>N° PO</th><th>Plant</th><th>Net Order Value</th><th>Pend. Fact.</th><th>Avance %</th><th>Ajustado</th>
+                <th>N° PO</th><th>Short Text</th><th>Plant</th><th>Net Order Value</th><th>Pend. Fact.</th><th>Período Certificación</th><th>¿Avance obra?</th><th>Ajustado</th>
               </tr>
             </thead>
             <tbody>
-              ${pos.length===0?'<tr><td colspan="6" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
+              ${pos.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
                 pos.map((p)=>{
                   const poNum=p[0]||'—';
                   const plant=p[2]||'—';
                   const nov=p[3]||0;
                   const still=p[4]||0;
-                  const avPct=montoBase>0?round2((nov/montoBase)*100):0;
+                  const shortText=p[6]||'';
+                  const docYm=p[1]||'';
+                  const meta=poMeta[poNum]||{};
+                  const certDate=meta.certPeriod||'';
+                  const countsAsProgress=meta.countsAsProgress!==false;
                   const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
                   const lastAdj=ajustado&&c.posAjustadasMeta?c.posAjustadasMeta[poNum]:null;
                   const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+(lastAdj.pct?(' · +'+Number(lastAdj.pct).toFixed(2)+'%'):'')+'">✓ '+(lastAdj.ym||'')+'</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>'):'—';
                   return `<tr>
                     <td class="mono" style="font-weight:600">${esc(poNum)}</td>
+                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(shortText)}">${esc(shortText)||'<span style="color:var(--g400)">—</span>'}</td>
                     <td>${esc(plant)}</td>
                     <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
                     <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
-                    <td>${avPct}%</td>
+                    <td>
+                      <input type="date" value="${esc(certDate)}" style="font-size:11px;padding:3px 5px;width:135px" onchange="setPoCertPeriod('${c.id}','${esc(poNum)}',this.value)">
+                      ${!certDate&&docYm?'<div style="font-size:9.5px;color:#b45309;margin-top:2px" title="Sin período de certificación cargado — se usa la Document Date de la PO como aproximación">⚠️ usando Doc.Date (${esc(docYm)})</div>':''}
+                    </td>
+                    <td style="text-align:center"><input type="checkbox" ${countsAsProgress?'checked':''} title="Tildado = esta PO cuenta como avance de obra. Destildá para compras de materiales/servicios extra que no representan avance." onchange="setPoCountsAsProgress('${c.id}','${esc(poNum)}',this.checked)"></td>
                     <td>${ajLbl}</td>
                   </tr>`;
                 }).join('')
@@ -776,8 +786,10 @@ function renderDet(){
               <div id="ne_aveBreakdown"></div>
               <div style="font-size:12px;font-weight:700;color:var(--g700);margin-top:8px">AVE total: <span class="sv" id="ne_aveMonto">—</span></div>
               <div id="ne_obraGrp" style="display:none;margin:8px 0">
-                <label style="font-size:11px;font-weight:600">% avance pendiente (OBRA):</label>
-                <input type="number" id="ne_obraAdv" step="1" min="0" max="100" placeholder="%" oninput="calcAveSugAll()" style="width:120px;margin-top:4px">
+                <label style="font-size:11px;font-weight:600">% avance pendiente (OBRA) — 🔒 auto según POs certificadas, editable:</label>
+                <input type="number" id="ne_obraAdv" step="0.01" min="0" max="100" placeholder="%" onchange="onObraAdvChange()" style="width:120px;margin-top:4px">
+                <div style="font-size:10.5px;color:var(--g600c);margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:.3px">📋 POs consideradas (avance vs. remanente)</div>
+                <div id="ne_obraPoBreakdown" style="margin-top:4px"></div>
               </div>
               <div style="margin-top:8px">
                 <label style="font-size:11px;font-weight:600;color:var(--g700)">Monto AVE manual (opcional, reemplaza el total calculado):</label>
@@ -1788,6 +1800,11 @@ function onTermNuevaBaseChange(tramoId,i){
   recalcTermAuto(tramoId,i);
   calcAveSugAll();
 }
+function onObraAdvChange(){
+  const el=document.getElementById('ne_obraAdv');
+  if(el)delete el.dataset.autoFilled;
+  calcAveSugAll();
+}
 // Recalcula (o desbloquea) el término i del tramo dado sin re-renderizar toda
 // la fila, así no se pierden los valores ya tipeados en los demás términos.
 function recalcTermAuto(tramoId,i){
@@ -2003,11 +2020,49 @@ function onAveManualChange(){
     noteEl.innerHTML=`Usarás <strong>${fN(mv)}</strong> en lugar del calculado <strong>${fN(autoMonto)}</strong> <span style="color:${diff>=0?'var(--g600)':'var(--r500)'}">(${diff>=0?'+':''}${fN(diff)})</span>`;
   }
 }
+// Tabla de detalle de POs que alimentan el % de avance de obra automático — se muestra
+// dentro del panel de Nueva Enmienda, ANTES de confirmar el AVE, así el usuario ve qué
+// POs se están considerando "ya avanzado" (excluidas del ajuste) vs. remanente (el que
+// sí recibe el nuevo % polinómico), y puede corregir período/si-cuenta-como-avance ahí
+// mismo sin perder el formulario en progreso.
+function renderObraPoBreakdownHtml(cc, calc, newYm){
+  if(!calc.detalle.length) return '<div style="font-size:11px;color:var(--g500);font-style:italic;padding:6px 0">Sin POs asociadas a este contrato en ME2N.</div>';
+  let h='<div style="font-size:10.5px;color:var(--g600c);margin-bottom:6px">Consumido (ya avanzado, excluido del ajuste) hasta antes de '+esc(formatMonth?formatMonth(newYm):newYm)+': <strong>'+(cc.mon||'ARS')+' '+fN(calc.consumido)+'</strong> ('+calc.avancePct.toFixed(2)+'%) · Remanente a actualizar: <strong>'+calc.pendientePct.toFixed(2)+'%</strong></div>';
+  h+='<div style="max-height:220px;overflow-y:auto;border:1px solid var(--g200);border-radius:6px">';
+  h+='<table style="width:100%;font-size:11px"><thead><tr style="background:var(--g50)"><th style="padding:5px 6px;text-align:left">PO</th><th style="padding:5px 6px;text-align:left">Short Text</th><th style="padding:5px 6px;text-align:right">NOV</th><th style="padding:5px 6px">Período Cert.</th><th style="padding:5px 6px">¿Avance?</th><th style="padding:5px 6px">Incluido</th></tr></thead><tbody>';
+  calc.detalle.forEach(function(d){
+    h+='<tr style="border-top:1px solid var(--g100);'+(d.incluido?'background:#f8fafc':'')+'">';
+    h+='<td class="mono" style="padding:5px 6px;font-weight:600">'+esc(d.po)+'</td>';
+    h+='<td style="padding:5px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.shortText)+'">'+(esc(d.shortText)||'<span style="color:var(--g400)">—</span>')+'</td>';
+    h+='<td class="mono" style="padding:5px 6px;text-align:right">'+fN(d.nov)+'</td>';
+    h+='<td style="padding:5px 6px"><input type="date" value="'+esc(d.certPeriodFull||'')+'" style="font-size:10.5px;padding:2px 4px;width:120px" onchange="setPoCertPeriodInForm(\''+cc.id+'\',\''+esc(d.po)+'\',this.value)">'+(d.isFallback&&d.docYm?'<div style="font-size:9px;color:#b45309">⚠️ Doc.Date '+esc(d.docYm)+'</div>':'')+'</td>';
+    h+='<td style="padding:5px 6px;text-align:center"><input type="checkbox" '+(d.countsAsProgress?'checked':'')+' onchange="setPoCountsAsProgressInForm(\''+cc.id+'\',\''+esc(d.po)+'\',this.checked)"></td>';
+    h+='<td style="padding:5px 6px;text-align:center">'+(d.incluido?'✓':'—')+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
 function calcAveSugAll(){
   const cc=window.DB.find(x=>x.id===window.detId);if(!cc)return;
   const tipoSel=(document.querySelector('input[name="ne_ctipo"]:checked')?.value)||cc.tipo;
   const isObra=tipoSel==='OBRA';
   const obraGrp=document.getElementById('ne_obraGrp');if(obraGrp)obraGrp.style.display=isObra?'':'none';
+  if(isObra){
+    const firstNewPer=_neTramoIds.length?(gv('ne_newPer_'+_neTramoIds[0])||''):'';
+    const obraAdvEl=document.getElementById('ne_obraAdv');
+    const bdEl=document.getElementById('ne_obraPoBreakdown');
+    if(firstNewPer){
+      const calc=computeObraAvanceCert(cc,firstNewPer);
+      if(obraAdvEl&&(!obraAdvEl.value||obraAdvEl.dataset.autoFilled==='1')){
+        obraAdvEl.value=calc.pendientePct.toFixed(2);
+        obraAdvEl.dataset.autoFilled='1';
+      }
+      if(bdEl) bdEl.innerHTML=renderObraPoBreakdownHtml(cc,calc,firstNewPer);
+    } else if(bdEl){
+      bdEl.innerHTML='<div style="font-size:11px;color:var(--g500);font-style:italic;padding:6px 0">Elegí el "Nuevo Período" del tramo para calcular el % de avance de obra automático.</div>';
+    }
+  }
   const isCorr=document.getElementById('ne_isCorr')?.checked;
   const corrNum=isCorr?(parseInt(document.getElementById('ne_corrEnm')?.value)||null):null;
   const results=computeTramoChain(cc,corrNum);
@@ -2152,7 +2207,14 @@ async function guardarEnm(){
         if(r.aveMonto>0){
           const tag=results.length>1?' · período '+(idx+1)+'/'+results.length:'';
           const notes=justNotesForTramo(enm.tramos[idx]);
-          cc.aves.push({id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+idx, tipo:'POLINOMICA', subtipo:'AUTO', concepto:'Polinómica auto — Enm.'+num+tag+' (+'+((r.pct)*100).toFixed(2)+'%)'+(notes?(' · '+notes):''), monto:Math.round(r.aveMonto*100)/100, enmRef:num, periodo:r.newPer, autoGenerated:true, fecha:new Date().toISOString()});
+          const aveObj={id:Date.now().toString(36)+Math.random().toString(36).substr(2,4)+'_'+idx, tipo:'POLINOMICA', subtipo:'AUTO', concepto:'Polinómica auto — Enm.'+num+tag+' (+'+((r.pct)*100).toFixed(2)+'%)'+(notes?(' · '+notes):''), monto:Math.round(r.aveMonto*100)/100, enmRef:num, periodo:r.newPer, autoGenerated:true, fecha:new Date().toISOString()};
+          // Para OBRA: dejar registrado con qué % de avance pendiente se calculó este AVE
+          // (auditoría — de dónde salió el % que multiplicó el remanente, ver computeObraAvanceCert).
+          if(r.isObra){
+            const avanceCalc=computeObraAvanceCert(cc,r.newPer);
+            aveObj.obraAvanceSnapshot={pendientePctUsado:parseFloat(document.getElementById('ne_obraAdv')?.value)||0, pendientePctAuto:avanceCalc.pendientePct, avancePctAuto:avanceCalc.avancePct, consumidoAuto:avanceCalc.consumido, montoBase:avanceCalc.montoBase};
+          }
+          cc.aves.push(aveObj);
         }
       });
     }
@@ -2405,6 +2467,75 @@ function getCertSelectionScope(cid){
   const totalSelected=selected.reduce((s,r)=>s+(r.nov||0),0);
   const totalBase=totalSelected+(includeRemanente?remanente:0);
   return {pos:selected, includeRemanente, remanente, totalSelected, totalBase, montoBase, totalCerts};
+}
+// ── Metadata por PO para OBRA: período de certificación real (independiente de la
+// Document Date de la PO) y si esa PO representa avance de obra o no (ej. una compra
+// de materiales extra no avanza obra aunque tenga NOV). Vive en cc.poMeta[poNum],
+// separado de la tupla ME2N para no tocar la estructura de importación SAP. ─────────
+function _setPoMetaField(cid, poNum, field, value){
+  const c=window.DB.find(x=>x.id===cid); if(!c) return null;
+  if(!c.poMeta) c.poMeta={};
+  if(!c.poMeta[poNum]) c.poMeta[poNum]={};
+  c.poMeta[poNum][field]=value;
+  c.updatedAt=new Date().toISOString();
+  try{ localStorage.setItem('cta_v7', JSON.stringify(window.DB)); }catch(_e){}
+  if(typeof save==='function') save();
+  return c;
+}
+// Variantes "normales" (panel Certificaciones/POs): re-renderizan todo el detalle.
+function setPoCertPeriod(cid, poNum, dateVal){
+  if(!_setPoMetaField(cid,poNum,'certPeriod',dateVal||null)){toast('Contrato no encontrado','er');return;}
+  if(typeof renderDet==='function') renderDet();
+}
+function setPoCountsAsProgress(cid, poNum, checked){
+  if(!_setPoMetaField(cid,poNum,'countsAsProgress',!!checked)){toast('Contrato no encontrado','er');return;}
+  if(typeof renderDet==='function') renderDet();
+}
+// Variantes "en formulario" (dentro del panel de Nueva Enmienda): NO se puede llamar a
+// renderDet() ahí — cerraría/perdería el formulario de enmienda en progreso. Solo se
+// recalcula el breakdown de avance de obra y el AVE sugerido (calcAveSugAll).
+function setPoCertPeriodInForm(cid, poNum, dateVal){
+  if(!_setPoMetaField(cid,poNum,'certPeriod',dateVal||null)){toast('Contrato no encontrado','er');return;}
+  calcAveSugAll();
+}
+function setPoCountsAsProgressInForm(cid, poNum, checked){
+  if(!_setPoMetaField(cid,poNum,'countsAsProgress',!!checked)){toast('Contrato no encontrado','er');return;}
+  calcAveSugAll();
+}
+// Calcula, para un contrato OBRA, qué % del monto base ya fue "consumido" (certificado)
+// ANTES del período de actualización de tarifa (newYm) — solo cuenta POs marcadas como
+// avance de obra (countsAsProgress, default true) y usa el Período de Certificación
+// cargado en poMeta; si no está cargado, cae a la Document Date de la PO (ym truncado a
+// mes) marcando ese fallback explícitamente para que se vea en la UI. El % pendiente
+// (100 - avance) es la base proporcional real sobre la que corresponde aplicar el nuevo
+// % polinómico — así una obra que ya avanzó 90% antes de marzo solo actualiza el 10%
+// remanente, en vez de todo el contrato.
+function computeObraAvanceCert(cc, newYm){
+  const poData=ME2N[cc.num];
+  const pos=(poData&&Array.isArray(poData)&&Array.isArray(poData[2]))?poData[2]:[];
+  const poMeta=cc.poMeta||{};
+  const avePolyPrev=(cc.aves||[]).filter(a=>a.tipo==='POLINOMICA').reduce((s,a)=>s+(a.monto||0),0);
+  const aveOwnerPrev=(cc.aves||[]).filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
+  const montoBase=cc.montoBase||cc._montoOriginal||((cc.monto||0)-avePolyPrev-aveOwnerPrev);
+  const detalle=[];
+  let consumido=0;
+  pos.forEach(p=>{
+    const poNum=p[0]||'';
+    const meta=poMeta[poNum]||{};
+    const countsAsProgress=meta.countsAsProgress!==false; // default: sí cuenta
+    const certYm=meta.certPeriod?String(meta.certPeriod).substring(0,7):'';
+    const docYm=p[1]||'';
+    const usedYm=certYm||docYm;
+    const isFallback=!certYm;
+    const nov=p[3]||0;
+    const shortText=p[6]||'';
+    const incluido=!!(countsAsProgress && usedYm && newYm && usedYm<newYm);
+    if(incluido) consumido+=nov;
+    detalle.push({po:poNum, shortText, nov, certYm, certPeriodFull:meta.certPeriod||'', docYm, usedYm, isFallback, countsAsProgress, incluido});
+  });
+  const avancePct=montoBase>0?Math.min(100,(consumido/montoBase)*100):0;
+  const pendientePct=Math.max(0,100-avancePct);
+  return {consumido, montoBase, avancePct, pendientePct, detalle};
 }
 // Quita la marca de "ajustada" de una PO. NO revierte el AVE/enmienda registrados (auditoría).
 function unadjustPo(cid, poNum){
