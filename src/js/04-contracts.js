@@ -650,48 +650,52 @@ function renderDet(){
         const remanente=Math.max(0,montoBase-totalCerts);
         return `
         <div class="sec" style="margin-top:18px">
-          <div class="sh"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance ${avancePct}% · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></div>
-          <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--a100);border:1px solid var(--a500);border-radius:6px">
-            ⚠️ El <strong>Short Text de la PO</strong> debería empezar a incluir el <strong>período que se está certificando</strong> — la "Document Date" de la PO es cuando se ejecuta la PO, no cuando se certificó el trabajo, así que no sirve como período de consumo real. Mientras esa práctica no esté instalada, cargá acá manualmente el <strong>Período de Certificación</strong> de cada PO — de eso depende que el % de avance de obra automático de las actualizaciones de tarifa sea correcto.
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>N° PO</th><th>Short Text</th><th>Plant</th><th>Net Order Value</th><th>Pend. Fact.</th><th>Período Certificación</th><th>¿Avance obra?</th><th>Ajustado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${pos.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
-                pos.map((p)=>{
-                  const poNum=p[0]||'—';
-                  const plant=p[2]||'—';
-                  const nov=p[3]||0;
-                  const still=p[4]||0;
-                  const shortText=p[6]||'';
-                  const docYm=p[1]||'';
-                  const meta=poMeta[poNum]||{};
-                  const certDate=meta.certPeriod||'';
-                  const countsAsProgress=meta.countsAsProgress!==false;
-                  const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
-                  const lastAdj=ajustado&&c.posAjustadasMeta?c.posAjustadasMeta[poNum]:null;
-                  const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+(lastAdj.pct?(' · +'+Number(lastAdj.pct).toFixed(2)+'%'):'')+'">✓ '+(lastAdj.ym||'')+'</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>'):'—';
-                  return `<tr>
-                    <td class="mono" style="font-weight:600">${esc(poNum)}</td>
-                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(shortText)}">${esc(shortText)||'<span style="color:var(--g400)">—</span>'}</td>
-                    <td>${esc(plant)}</td>
-                    <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
-                    <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
-                    <td>
-                      <input type="date" value="${esc(certDate)}" style="font-size:11px;padding:3px 5px;width:135px" onchange="setPoCertPeriod('${c.id}','${esc(poNum)}',this.value)">
-                      ${!certDate&&docYm?'<div style="font-size:9.5px;color:#b45309;margin-top:2px" title="Sin período de certificación cargado — se usa la Document Date de la PO como aproximación">⚠️ usando Doc.Date (${esc(docYm)})</div>':''}
-                    </td>
-                    <td style="text-align:center"><input type="checkbox" ${countsAsProgress?'checked':''} title="Tildado = esta PO cuenta como avance de obra. Destildá para compras de materiales/servicios extra que no representan avance." onchange="setPoCountsAsProgress('${c.id}','${esc(poNum)}',this.checked)"></td>
-                    <td>${ajLbl}</td>
-                  </tr>`;
-                }).join('')
-              }
-            </tbody>
-          </table>
+          <details ${pos.length<=25?'open':''}>
+            <summary class="sh" style="cursor:pointer;user-select:none"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance ${avancePct}% · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></summary>
+            <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--a100);border:1px solid var(--a500);border-radius:6px">
+              ⚠️ El <strong>Short Text de la PO</strong> debería empezar a incluir el <strong>período que se está certificando</strong> — la "Document Date" de la PO es cuando se ejecuta la PO, no cuando se certificó el trabajo. Mientras esa práctica no esté instalada, el <strong>Período de Certificación</strong> se autocompleta con la Document Date como aproximación — corregilo a mano si el certificado real es de otro mes.
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>N° PO</th><th>Document Date</th><th>Plant</th><th>Net Order Value</th><th>Pend. Fact.</th><th>Período Certificación</th><th>¿Avance obra?</th><th>Ajustado</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${pos.length===0?'<tr><td colspan="8" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin POs asociadas a este contrato</td></tr>':
+                  pos.map((p)=>{
+                    const poNum=p[0]||'—';
+                    const plant=p[2]||'—';
+                    const nov=p[3]||0;
+                    const still=p[4]||0;
+                    const docIso=resolvePoDocDate(p);
+                    const docYm=p[1]||'';
+                    const meta=poMeta[poNum]||{};
+                    const certDateStored=meta.certPeriod||'';
+                    const isAutoFallback=!certDateStored;
+                    const certDateShown=certDateStored||docIso; // autocompletado con Document Date, editable
+                    const countsAsProgress=meta.countsAsProgress!==false;
+                    const ajustado=c.posAjustadas&&c.posAjustadas.includes(poNum);
+                    const lastAdj=ajustado&&c.posAjustadasMeta?c.posAjustadasMeta[poNum]:null;
+                    const ajLbl=ajustado?(lastAdj?'<span class="bdg" style="background:#16a34a;color:#fff;font-size:9px" title="Ajustada en '+esc(lastAdj.ym||'')+' · Enm.'+esc(String(lastAdj.enm||''))+(lastAdj.pct?(' · +'+Number(lastAdj.pct).toFixed(2)+'%'):'')+'">✓ '+(lastAdj.ym||'')+'</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>':'<span class="bdg" style="background:var(--g200);color:var(--g800);font-size:10px">✓</span> <button class="btn btn-d btn-sm" style="padding:1px 5px;font-size:10px;margin-left:4px" onclick="unadjustPo(\''+c.id+'\',\''+esc(poNum)+'\')" title="Quitar marca de ajustada (no revierte el AVE registrado)">↶</button>'):'—';
+                    return `<tr>
+                      <td class="mono" style="font-weight:600">${esc(poNum)}</td>
+                      <td class="mono">${docIso?fD(docIso):(docYm?esc(docYm):'—')}</td>
+                      <td>${esc(plant)}</td>
+                      <td class="mono">${c.mon||'ARS'} ${fN(nov)}</td>
+                      <td class="mono" style="color:${still>0?'var(--o700)':'var(--g500)'}">${fN(still)}</td>
+                      <td>
+                        <input type="date" value="${esc(certDateShown)}" style="font-size:11px;padding:3px 5px;width:135px" onchange="setPoCertPeriod('${c.id}','${esc(poNum)}',this.value)">
+                        ${isAutoFallback&&certDateShown?'<div style="font-size:9.5px;color:#b45309;margin-top:2px" title="Autocompletado con la Document Date de la PO — corregilo si el certificado real es de otro período">⚠️ auto (Doc.Date)</div>':''}
+                      </td>
+                      <td style="text-align:center"><input type="checkbox" ${countsAsProgress?'checked':''} title="Tildado = esta PO cuenta como avance de obra. Destildá para compras de materiales/servicios extra que no representan avance." onchange="setPoCountsAsProgress('${c.id}','${esc(poNum)}',this.checked)"></td>
+                      <td>${ajLbl}</td>
+                    </tr>`;
+                  }).join('')
+                }
+              </tbody>
+            </table>
+          </details>
         </div>`;
       })():''}
       <div class="section-box">
@@ -2029,13 +2033,13 @@ function renderObraPoBreakdownHtml(cc, calc, newYm){
   if(!calc.detalle.length) return '<div style="font-size:11px;color:var(--g500);font-style:italic;padding:6px 0">Sin POs asociadas a este contrato en ME2N.</div>';
   let h='<div style="font-size:10.5px;color:var(--g600c);margin-bottom:6px">Consumido (ya avanzado, excluido del ajuste) hasta antes de '+esc(formatMonth?formatMonth(newYm):newYm)+': <strong>'+(cc.mon||'ARS')+' '+fN(calc.consumido)+'</strong> ('+calc.avancePct.toFixed(2)+'%) · Remanente a actualizar: <strong>'+calc.pendientePct.toFixed(2)+'%</strong></div>';
   h+='<div style="max-height:220px;overflow-y:auto;border:1px solid var(--g200);border-radius:6px">';
-  h+='<table style="width:100%;font-size:11px"><thead><tr style="background:var(--g50)"><th style="padding:5px 6px;text-align:left">PO</th><th style="padding:5px 6px;text-align:left">Short Text</th><th style="padding:5px 6px;text-align:right">NOV</th><th style="padding:5px 6px">Período Cert.</th><th style="padding:5px 6px">¿Avance?</th><th style="padding:5px 6px">Incluido</th></tr></thead><tbody>';
+  h+='<table style="width:100%;font-size:11px"><thead><tr style="background:var(--g50)"><th style="padding:5px 6px;text-align:left">PO</th><th style="padding:5px 6px">Document Date</th><th style="padding:5px 6px;text-align:right">NOV</th><th style="padding:5px 6px">Período Cert.</th><th style="padding:5px 6px">¿Avance?</th><th style="padding:5px 6px">Incluido</th></tr></thead><tbody>';
   calc.detalle.forEach(function(d){
     h+='<tr style="border-top:1px solid var(--g100);'+(d.incluido?'background:#f8fafc':'')+'">';
     h+='<td class="mono" style="padding:5px 6px;font-weight:600">'+esc(d.po)+'</td>';
-    h+='<td style="padding:5px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.shortText)+'">'+(esc(d.shortText)||'<span style="color:var(--g400)">—</span>')+'</td>';
+    h+='<td class="mono" style="padding:5px 6px">'+(d.docIso?fD(d.docIso):(d.docYm?esc(d.docYm):'—'))+'</td>';
     h+='<td class="mono" style="padding:5px 6px;text-align:right">'+fN(d.nov)+'</td>';
-    h+='<td style="padding:5px 6px"><input type="date" value="'+esc(d.certPeriodFull||'')+'" style="font-size:10.5px;padding:2px 4px;width:120px" onchange="setPoCertPeriodInForm(\''+cc.id+'\',\''+esc(d.po)+'\',this.value)">'+(d.isFallback&&d.docYm?'<div style="font-size:9px;color:#b45309">⚠️ Doc.Date '+esc(d.docYm)+'</div>':'')+'</td>';
+    h+='<td style="padding:5px 6px"><input type="date" value="'+esc(d.certPeriodFull||'')+'" style="font-size:10.5px;padding:2px 4px;width:120px" onchange="setPoCertPeriodInForm(\''+cc.id+'\',\''+esc(d.po)+'\',this.value)">'+(d.isFallback&&d.certPeriodFull?'<div style="font-size:9px;color:#b45309">⚠️ auto (Doc.Date)</div>':'')+'</td>';
     h+='<td style="padding:5px 6px;text-align:center"><input type="checkbox" '+(d.countsAsProgress?'checked':'')+' onchange="setPoCountsAsProgressInForm(\''+cc.id+'\',\''+esc(d.po)+'\',this.checked)"></td>';
     h+='<td style="padding:5px 6px;text-align:center">'+(d.incluido?'✓':'—')+'</td>';
     h+='</tr>';
@@ -2502,14 +2506,31 @@ function setPoCountsAsProgressInForm(cid, poNum, checked){
   if(!_setPoMetaField(cid,poNum,'countsAsProgress',!!checked)){toast('Contrato no encontrado','er');return;}
   calcAveSugAll();
 }
+// Resuelve la Document Date de una PO con la mejor precisión disponible. El import
+// ME2N normalmente trunca la fecha a mes (p[1]) y descarta el día — pero en algunos
+// exports la celda de "Short Text" (p[6]) termina conteniendo directamente la fecha
+// completa (con hora), no texto real. En vez de mostrar ese valor como si fuera una
+// descripción (ilegible, tipo "Tue Jan 13 2026 00:00:48 GMT-0300..."), se intenta
+// parsear como fecha; si funciona, se usa esa precisión de día para autocompletar el
+// Período de Certificación. Si no, cae al mes (p[1]) con el día 01.
+function resolvePoDocDate(p){
+  const raw=p&&p[6];
+  if(raw){
+    const d=new Date(raw);
+    if(!isNaN(d.getTime())) return d.toISOString().substring(0,10);
+  }
+  const ym=p&&p[1];
+  if(ym&&/^\d{4}-\d{2}$/.test(ym)) return ym+'-01';
+  return '';
+}
 // Calcula, para un contrato OBRA, qué % del monto base ya fue "consumido" (certificado)
 // ANTES del período de actualización de tarifa (newYm) — solo cuenta POs marcadas como
 // avance de obra (countsAsProgress, default true) y usa el Período de Certificación
-// cargado en poMeta; si no está cargado, cae a la Document Date de la PO (ym truncado a
-// mes) marcando ese fallback explícitamente para que se vea en la UI. El % pendiente
-// (100 - avance) es la base proporcional real sobre la que corresponde aplicar el nuevo
-// % polinómico — así una obra que ya avanzó 90% antes de marzo solo actualiza el 10%
-// remanente, en vez de todo el contrato.
+// cargado en poMeta; si no está cargado, cae a la Document Date de la PO (ver
+// resolvePoDocDate) marcando ese fallback explícitamente para que se vea en la UI. El %
+// pendiente (100 - avance) es la base proporcional real sobre la que corresponde aplicar
+// el nuevo % polinómico — así una obra que ya avanzó 90% antes de marzo solo actualiza el
+// 10% remanente, en vez de todo el contrato.
 function computeObraAvanceCert(cc, newYm){
   const poData=ME2N[cc.num];
   const pos=(poData&&Array.isArray(poData)&&Array.isArray(poData[2]))?poData[2]:[];
@@ -2524,14 +2545,14 @@ function computeObraAvanceCert(cc, newYm){
     const meta=poMeta[poNum]||{};
     const countsAsProgress=meta.countsAsProgress!==false; // default: sí cuenta
     const certYm=meta.certPeriod?String(meta.certPeriod).substring(0,7):'';
+    const docIso=resolvePoDocDate(p);
     const docYm=p[1]||'';
-    const usedYm=certYm||docYm;
+    const usedYm=certYm||(docIso?docIso.substring(0,7):docYm);
     const isFallback=!certYm;
     const nov=p[3]||0;
-    const shortText=p[6]||'';
     const incluido=!!(countsAsProgress && usedYm && newYm && usedYm<newYm);
     if(incluido) consumido+=nov;
-    detalle.push({po:poNum, shortText, nov, certYm, certPeriodFull:meta.certPeriod||'', docYm, usedYm, isFallback, countsAsProgress, incluido});
+    detalle.push({po:poNum, nov, certYm, certPeriodFull:meta.certPeriod||docIso||'', docIso, docYm, usedYm, isFallback, countsAsProgress, incluido});
   });
   const avancePct=montoBase>0?Math.min(100,(consumido/montoBase)*100):0;
   const pendientePct=Math.max(0,100-avancePct);
