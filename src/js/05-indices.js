@@ -6,7 +6,7 @@ const IDX_CATALOG = [
   {id:'ipc_nqn',   name:'IPC NQN (Nivel General)',        cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual', pubDay:12, pubDelay:1},
   {id:'ipc_nqnab', name:'IPC NQN (Alim. y Bebidas)',      cat:'ipc', catLabel:'IPC', src:'DPEyC NQN', srcLink:'https://www.estadisticaneuquen.gob.ar/series/', fetchMode:'manual', pubDay:12, pubDelay:1},
   // ── IPIM ─────────────────────────────────────────────────────────
-  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46', pubDay:20, pubDelay:1},
+  {id:'ipim_gral', name:'IPIM (Nivel General)',            cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'indec', seriesId:'448.1_NIVEL_GENERAL_0_0_13_46', directCsvUrl:'https://www.indec.gob.ar/ftp/cuadros/economia/indice_ipim.csv', pubDay:20, pubDelay:1},
   {id:'ipim_r29',  name:'IPIM R29 (Refinados Petróleo)',  cat:'ipim',catLabel:'IPIM', src:'INDEC', srcLink:'https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-5', fetchMode:'manual', pubDay:20, pubDelay:1},
   {id:'fadeaac',   name:'FADEAAC (Equipo Vial)',           cat:'ipim',catLabel:'IPIM', src:'FADEAAC',srcLink:'https://www.fadeeac.org.ar/feed/', fetchMode:'fadeeac', pubDay:5, pubDelay:2},
   // ── Combustible ─────────────────────────────────────────────────
@@ -224,7 +224,29 @@ async function idxUpsert(id,row){
   return merged;
 }
 function idxValueLabel(def,row){if(!row)return '—';if(def.cat==='usd')return row.value!=null?fN(row.value):'—';return pctStr(row.pct);}
-function idxStatusText(id){const target=idxTargetYm();const def=IDX_CATALOG.find(d=>d.id===id);const exact=idxRows(id).find(r=>r.ym===target);if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);if(def){const official=idxResolveOfficial(def,target);if(official&&official.ym)return 'Último oficial '+formatMonth(official.ym);}const prev=idxLastBefore(id,target);return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';}
+function idxStatusText(id){
+  const target=idxTargetYm();
+  const def=IDX_CATALOG.find(d=>d.id===id);
+  const exact=idxRows(id).find(r=>r.ym===target);
+  if(exact)return exact.status==='fallback'?'Fallback '+formatMonth(exact.ym):'Actualizado '+formatMonth(exact.ym);
+  const prev=idxLastBefore(id,target);
+  // El seed oficial (IDX_OFFICIAL_SEED) es una lista hardcodeada que se
+  // queda vieja apenas se cargan datos más nuevos por API/CSV — solo lo
+  // mostramos si es realmente más reciente que la última fila cargada,
+  // para no decir "Último oficial Mar-26" cuando ya hay datos de May-26.
+  if(def){
+    const official=idxResolveOfficial(def,target);
+    if(official&&official.ym&&(!prev||official.ym>prev.ym))return 'Último oficial '+formatMonth(official.ym);
+  }
+  return prev?('Último disponible '+formatMonth(prev.ym)):'Sin ejecutar';
+}
+// Traduce el status interno (usado para lógica de fallback) a un texto
+// legible para la columna "Nota" cuando no hay note propio — antes se
+// mostraba el código interno tal cual ("updated"), confuso para el usuario.
+function idxStatusLabel(status){
+  const map={updated:'Actualizado automáticamente', fallback:'Usando último valor publicado', waiting_release:'Pendiente de publicación oficial'};
+  return map[status]||status||'';
+}
 // Last business day (Mon-Fri) of the given YYYY-MM month
 // ── Argentine holiday calendar ────────────────────────────────────────
 function _easterDate(y){
@@ -421,6 +443,77 @@ async function idxFetchIndec(id, ym){
   return {ym:last.ym, value:last.value, pct, source:'INDEC API', confirmed:false, _allRows:rows};
 }
 
+// ── INDEC CSV directo (más fresco que el mirror datos.gob.ar) ────────
+// apis.datos.gob.ar es un ESPEJO de las series de INDEC que puede tardar
+// semanas en sincronizar una publicación nueva — el mismo problema que
+// forzó a usar ArgentinaDatos como fuente alternativa para IPC Nacional.
+// INDEC también publica sus series como CSV directo en su propio dominio,
+// actualizado junto con cada informe de prensa (SIPM/IPC), así que lo
+// probamos PRIMERO cuando el catálogo define `directCsvUrl` y caemos al
+// mirror datos.gob.ar si falla (dominio no soportado por energia-proxy,
+// CSV con formato inesperado, etc. — nunca corta el flujo).
+// El formato exacto del CSV no está documentado públicamente, así que el
+// parseo es deliberadamente flexible: detecta la columna de fecha por
+// regex (YYYY-MM[-DD] o DD/MM/YYYY) y toma como valor la última columna
+// numérica >50 de la fila (nivel del índice, base Dic2015=100 → hoy en
+// varios miles; descarta columnas de %var que son de un solo dígito).
+// Cualquier valor mal interpretado igual pasa por validateIdxRow, que lo
+// marca needsReview si el salto vs. el período anterior es implausible.
+async function idxFetchIndecCsv(csvUrl, ym){
+  const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify({url:csvUrl})
+  });
+  const raw=await r.text();
+  if(!r.ok) throw new Error('energia-proxy '+r.status+' — '+raw.slice(0,200));
+  let text=raw, parsedJson=null;
+  try{ parsedJson=JSON.parse(raw); }catch(_e){ /* raw ya es el CSV plano */ }
+  if(parsedJson && typeof parsedJson==='object'){
+    if(parsedJson.success===false) throw new Error('energia-proxy rechazó la URL: '+((parsedJson.error&&parsedJson.error.message)||JSON.stringify(parsedJson).slice(0,200)));
+    text=(parsedJson.result&&(parsedJson.result.text||parsedJson.result.body))||parsedJson.body||parsedJson.text||raw;
+  }
+  if(typeof text!=='string') throw new Error('Respuesta CSV no reconocida');
+  const trimmed=text.trim();
+  if(!trimmed) throw new Error('CSV vacío');
+  if(/^\s*<(!doctype|html)/i.test(trimmed)) throw new Error('La URL no devolvió un CSV (parece HTML — posible 404/redirect)');
+  const lines=trimmed.split(/\r?\n/).filter(l=>l.trim());
+  const firstLine=lines[0]||'';
+  const sep=(firstLine.split(';').length>firstLine.split(',').length)?';':',';
+  const dateRe=/(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?|(\d{1,2})[-/](\d{1,2})[-/](\d{4})/;
+  const parsedRows=[];
+  for(const line of lines){
+    const cols=line.split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
+    let rym=null, dateColIdx=-1;
+    for(let i=0;i<cols.length;i++){
+      const m=cols[i].match(dateRe);
+      if(m){
+        rym=m[1]?(m[1]+'-'+String(m[2]).padStart(2,'0')):(m[6]+'-'+String(m[5]).padStart(2,'0'));
+        dateColIdx=i;
+        break;
+      }
+    }
+    if(!rym) continue;
+    let val=null;
+    for(let i=cols.length-1;i>=0;i--){
+      if(i===dateColIdx) continue;
+      const n=Number(cols[i].replace(/\./g,'').replace(',','.'));
+      if(isFinite(n) && n>50){ val=n; break; }
+    }
+    if(val==null) continue;
+    parsedRows.push({ym:rym, value:val});
+  }
+  if(!parsedRows.length) throw new Error('No se pudieron extraer filas numéricas del CSV (formato inesperado)');
+  const rows=parsedRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!rows.length) throw new Error('Sin dato en el CSV ≤ '+ym);
+  const last=rows[rows.length-1];
+  let pct=null;
+  const prevYm=idxPrevYm(last.ym);
+  const prevInResp=rows.find(r=>r.ym===prevYm);
+  if(prevInResp && prevInResp.value) pct=Number(((last.value/prevInResp.value-1)*100).toFixed(2));
+  return {ym:last.ym, value:last.value, pct, source:'INDEC (CSV oficial)', confirmed:false, _allRows:rows};
+}
+
 // ── Gas Oil fetch vía energia-proxy ──────────────────────────────────
 // Hay dos datasets CKAN distintos:
 //  - HISTÓRICO (f8dda0d5…): cierres mensuales oficiales, pero el ETL que lo
@@ -574,6 +667,13 @@ async function idxAddNextMonth(id){
         row=await idxFetchIndec(id,ym);
       }
     }
+    else if(mode==='indec' && def.directCsvUrl){
+      try{ row=await idxFetchIndecCsv(def.directCsvUrl,ym); }
+      catch(csvErr){
+        console.warn('idxFetchIndecCsv failed, trying datos.gob.ar mirror',csvErr.message);
+        row=await idxFetchIndec(id,ym);
+      }
+    }
     else if(mode==='indec') row=await idxFetchIndec(id,ym);
     else if(mode==='usd') row=await fetchUsdBnaLike(ym);
     else if(mode==='fuel') row=await idxFetchFuel(id,ym);
@@ -679,6 +779,35 @@ async function runIdxUpdate(id){
       }catch(argDatosErr){
         console.warn('idxFetchIpcArgentinaDatos failed, trying INDEC API',argDatosErr.message);
         // Fall through al fetch INDEC normal
+      }
+    }
+
+    // ── INDEC CSV directo: más fresco que el mirror datos.gob.ar cuando
+    // el catálogo lo define (ver idxFetchIndecCsv) — probamos antes del
+    // mirror; si falla (dominio no soportado, formato inesperado) cae al
+    // fetch INDEC API normal de abajo sin cortar el flujo.
+    if(mode==='indec' && def.directCsvUrl){
+      try{
+        const row=await idxFetchIndecCsv(def.directCsvUrl,target);
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        const allRows=Array.isArray(row._allRows)?row._allRows:[{ym:row.ym,value:row.value}];
+        let lastPrev=null,anyFlagged=false;
+        for(const r of allRows){
+          if(existing.has(r.ym)) { lastPrev=r; continue; }
+          let pct=null;
+          const prev=lastPrev||idxRows(id).find(x=>x.ym===idxPrevYm(r.ym));
+          if(prev && prev.value) pct=Number(((r.value/prev.value-1)*100).toFixed(2));
+          const newRow=withReviewFlag(def,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC (CSV oficial)', note:''});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
+          lastPrev=r;
+        }
+        renderIdxView();
+        toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(row.ym)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC CSV oficial)'),anyFlagged?'er':'ok');
+        return;
+      }catch(csvErr){
+        console.warn('idxFetchIndecCsv failed, trying datos.gob.ar mirror',csvErr.message);
+        // Fall through al mirror datos.gob.ar de abajo
       }
     }
 
@@ -1011,7 +1140,7 @@ function renderIdxDet(id){
   const selYms=yms.length?yms:['—'];
   const selOpts=selYms.map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
   const selOptTo=selYms.map((ym,i)=>`<option value="${ym}"${i===selYms.length-1?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
-  const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||r.status||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||r.status||'—'))}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
+  const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||idxStatusLabel(r.status)||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||idxStatusLabel(r.status)||'—'))}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
   box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${chartRows.length?barsContent:'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
 }
 
