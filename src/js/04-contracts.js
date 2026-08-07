@@ -592,7 +592,8 @@ function renderDet(){
             hoy.setHours(0,0,0,0);
             const total=fin-ini, elapsed=Math.min(Math.max(hoy-ini,0),total);
             const timePct=total>0?Math.round(elapsed/total*100):0;
-            const finPct=hasC&&tot>0?Math.min(Math.round(consumed/tot*100),100):null;
+            const obraSplit=hasC?getObraConsumedSplit(c.num,c.poMeta):null;
+            const finPct=obraSplit&&tot>0?Math.min(Math.round(obraSplit.avanceObra/tot*100),100):null;
             const vencido=hoy>fin, activo=hoy>=ini&&hoy<=fin;
             const estado=vencido?'VENCIDO':activo?'EN CURSO':'NO INICIADO';
             const estadoColor=vencido?'#fca5a5':activo?'#86efac':'#fde68a';
@@ -604,7 +605,7 @@ function renderDet(){
             hw+='<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Plazo transcurrido</span><span style="font-weight:700;color:'+barColor+'">'+timePct+'%</span></div>';
             hw+='<div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+timePct+'%;background:'+barColor+';border-radius:99px;transition:width .4s"></div></div>';
             hw+='<div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>'+fD(c.fechaIni)+'</span><span>'+fD(c.fechaFin)+'</span></div></div>';
-            if(finPct!==null){hw+='<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Avance financiero</span><span style="font-weight:700;color:'+finBarColor+'">'+finPct+'%</span></div><div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+finPct+'%;background:'+finBarColor+';border-radius:99px;transition:width .4s"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>Consumido: '+(c.mon||'')+' '+fN(consumed)+'</span><span>Total: '+(c.mon||'')+' '+fN(tot)+'</span></div></div>';}
+            if(finPct!==null){hw+='<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="opacity:.7">Avance financiero (obra)</span><span style="font-weight:700;color:'+finBarColor+'">'+finPct+'%</span></div><div style="height:6px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+finPct+'%;background:'+finBarColor+';border-radius:99px;transition:width .4s"></div></div><div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>Avance obra: '+(c.mon||'')+' '+fN(obraSplit.avanceObra)+(obraSplit.adicionales>0?' · Adicionales: '+(c.mon||'')+' '+fN(obraSplit.adicionales):'')+'</span><span>Total: '+(c.mon||'')+' '+fN(tot)+'</span></div></div>';}
             hw+='</div></div>';
             return hw;
           })()}
@@ -645,13 +646,13 @@ function renderDet(){
         const poData=ME2N[c.num];
         const pos=poData&&Array.isArray(poData)&&Array.isArray(poData[2])?poData[2]:[];
         const poMeta=c.poMeta||{};
-        const totalCerts=pos.reduce((s,p)=>s+(p[3]||0),0);
-        const avancePct=montoBase>0?round2((totalCerts/montoBase)*100):0;
-        const remanente=Math.max(0,montoBase-totalCerts);
+        const obraSplit=getObraConsumedSplit(c.num,poMeta)||{avanceObra:0,adicionales:0,total:0};
+        const avancePct=montoBase>0?round2((obraSplit.avanceObra/montoBase)*100):0;
+        const remanente=Math.max(0,montoBase-obraSplit.total);
         return `
         <div class="sec" style="margin-top:18px">
           <details ${pos.length<=25?'open':''}>
-            <summary class="sh" style="cursor:pointer;user-select:none"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance ${avancePct}% · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></summary>
+            <summary class="sh" style="cursor:pointer;user-select:none"><span class="ico">📋</span>Certificaciones / POs<span class="ct">${pos.length} registradas · Avance obra ${avancePct}%${obraSplit.adicionales>0?' · Adicionales '+(c.mon||'ARS')+' '+fN(obraSplit.adicionales):''} · Remanente ${c.mon||'ARS'} ${fN(remanente)}</span></summary>
             <div style="font-size:11px;color:var(--g600c);margin:6px 0 10px;padding:8px 10px;background:var(--a100);border:1px solid var(--a500);border-radius:6px">
               ⚠️ El <strong>Short Text de la PO</strong> debería empezar a incluir el <strong>período que se está certificando</strong> — la "Document Date" de la PO es cuando se ejecuta la PO, no cuando se certificó el trabajo. Mientras esa práctica no esté instalada, el <strong>Período de Certificación</strong> se autocompleta con la Document Date como aproximación — corregilo a mano si el certificado real es de otro mes.
             </div>
@@ -1433,6 +1434,21 @@ function getConsumed(contractNum){
   const d=ME2N[contractNum];
   if(!d)return null; // null = no data (not 0)
   return d[2].reduce((s,p)=>s+p[3],0);
+}
+
+// Clasifica el consumido de un contrato OBRA en "avance de obra" vs "adicionales"
+// según poMeta[poNum].countsAsProgress (default: cuenta como avance)
+function getObraConsumedSplit(contractNum, poMeta){
+  const d=ME2N[contractNum];
+  if(!d)return null;
+  const meta=poMeta||{};
+  let avanceObra=0, adicionales=0;
+  d[2].forEach(p=>{
+    const poNum=p[0]||'';
+    const counts=(meta[poNum]||{}).countsAsProgress!==false;
+    if(counts) avanceObra+=p[3]||0; else adicionales+=p[3]||0;
+  });
+  return {avanceObra, adicionales, total:avanceObra+adicionales};
 }
 
 function importMe2n(input){
