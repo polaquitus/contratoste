@@ -779,7 +779,15 @@ async function idxResolveViaAI(def, targetYm, missingYms){
   const checklist=yms.map(ym=>'- '+formatMonth(ym)+' ('+ym+')').join('\n');
   const prompt = `Hoy es ${todayIso}. Necesito el valor oficial REALMENTE publicado (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}), para CADA UNO de estos períodos específicos — buscá cada uno por separado en la web, uno por uno, no asumas que todos tienen el mismo valor:\n${checklist}\nSi alguno de estos meses todavía no fue publicado, omitilo del resultado (no inventes ni repitas el valor de otro mes). No uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá para cada mes la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO un array JSON con UNA ENTRADA POR CADA MES QUE HAYAS PODIDO CONFIRMAR (puede ser menos de ${yms.length} si algunos no están publicados, pero buscá los ${yms.length} antes de responder), con este esquema: [{"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"note":"texto breve"}]`;
   const resp = await callGeminiForEnm([{text:prompt}], {grounding:true});
-  if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió'+(resp?(' ('+resp.status+')'):''));
+  if(!resp || !resp.ok){
+    // El body de la respuesta trae el motivo REAL que devuelve la API de
+    // Gemini (ej. "API key not valid", "billing required", etc.) — antes
+    // se perdía y solo quedaba el código de estado HTTP, sin poder saber
+    // el motivo sin ir a revisar los logs de Supabase a mano.
+    let bodyTxt='';
+    try{ bodyTxt=await resp.text(); }catch(_e){}
+    throw new Error('Gemini/proxy no respondió'+(resp?(' ('+resp.status+')'):'')+(bodyTxt?(' — '+bodyTxt.slice(0,300)):''));
+  }
   const data = await resp.json();
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const txt = parts.map(p=>p.text||'').join('\n').trim();
