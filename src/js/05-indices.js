@@ -452,22 +452,29 @@ async function idxFetchIndec(id, ym){
 // probamos PRIMERO cuando el catálogo define `directCsvUrl` y caemos al
 // mirror datos.gob.ar si falla (dominio no soportado por energia-proxy,
 // CSV con formato inesperado, etc. — nunca corta el flujo).
-// El formato exacto del CSV no está documentado públicamente. Confirmado
-// contra el XLS oficial (series_sipm_dic2015.xls) que cada fila de fecha
-// trae VARIAS sub-series en la misma línea (Nivel General, Productos
-// Nacionales, Productos Importados, etc.) — tomar "la última columna
-// numérica" agarraba Productos Importados en vez de Nivel General.
-// Ahora se detecta la columna de fecha por regex (YYYY-MM[-DD] o
-// DD/MM/YYYY), se juntan TODOS los candidatos numéricos >50 de la fila, y
-// se elige por CONTINUIDAD: la columna cuyo valor está más cerca (en %)
-// del último valor YA CONOCIDO para este índice (el mes anterior, sea de
-// una fila previa del mismo CSV o del historial ya guardado en
-// IDX_STORE) — así no depende de en qué posición de columna venga
-// "Nivel General", solo de que sea la serie que realmente varía como el
-// resto del historial. Sin ancla previa (primer dato cargado del índice)
-// se usa la primera columna numérica de la fila como mejor estimación.
-// Cualquier valor igual mal interpretado pasa por validateIdxRow, que lo
-// marca needsReview si el salto vs. el período anterior es implausible.
+// Formato real confirmado con el CSV que bajó el usuario (indec.gob.ar
+// bloquea el egress de este sandbox, así que no se pudo verificar hasta
+// tenerlo en mano): es un archivo LARGO, no ancho — una fila por cada
+// combinación (fecha, rubro/apertura), con 139 rubros distintos apilados
+// uno debajo del otro (ej. "ng_nivel_general", "i_productos_importados",
+// "0111_cereales_y_oleaginosas", …), separado por ";":
+//   periodo;nivel_general_aperturas;indice_ipim
+//   2026-04-01;ng_nivel_general;15542,5386282872
+// Cada fecha aparece una vez POR RUBRO (no una sola vez con varias
+// columnas de valor como se había asumido inicialmente al no poder ver
+// el archivo real). El intento anterior tomaba "la última columna
+// numérica de la línea" — como cada línea trae un solo valor eso
+// funcionaba, pero al procesar duplicados de una misma fecha (uno por
+// rubro) sin filtrar por etiqueta, terminaba quedándose con el ÚLTIMO
+// rubro del archivo para esa fecha, que resulta ser siempre
+// "i_productos_importados" (el bloque final del CSV) — de ahí que
+// siempre trajera Productos Importados en vez de Nivel General.
+// Fix: leer la columna de rubro/etiqueta explícitamente y quedarse SOLO
+// con las filas que dicen "nivel_general" — no hay ambigüedad porque el
+// dato ya viene identificado, no hace falta adivinar por posición ni por
+// continuidad. Si algún CSV no trajera esa columna de etiqueta (formato
+// simple fecha,valor), se mantiene como red de seguridad el mecanismo
+// anterior de continuidad (ancla en el último valor ya confirmado).
 async function idxFetchIndecCsv(id, csvUrl, ym){
   const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
     method:'POST',
@@ -489,66 +496,70 @@ async function idxFetchIndecCsv(id, csvUrl, ym){
   const lines=trimmed.split(/\r?\n/).filter(l=>l.trim());
   const firstLine=lines[0]||'';
   const sep=(firstLine.split(';').length>firstLine.split(',').length)?';':',';
-  const dateRe=/(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?|(\d{1,2})[-/](\d{1,2})[-/](\d{4})/;
-  const parsedRows=[];
+  // El formato real (confirmado): "periodo;rubro;valor" — fecha ISO
+  // completa (YYYY-MM-DD) siempre en la primera columna.
+  const dateRe=/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/;
+  const NIVEL_GENERAL_RE=/nivel[_ ]general/i;
+  const labeledRows=[];  // filas con columna de rubro explícita = "nivel_general"
+  const genericRows=[];  // fallback: CSV sin columna de rubro (fecha,valor simple)
   for(const line of lines){
     const cols=line.split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
-    let rym=null, dateColIdx=-1;
-    for(let i=0;i<cols.length;i++){
-      const m=cols[i].match(dateRe);
-      if(m){
-        rym=m[1]?(m[1]+'-'+String(m[2]).padStart(2,'0')):(m[6]+'-'+String(m[5]).padStart(2,'0'));
-        dateColIdx=i;
-        break;
+    if(!cols.length) continue;
+    const dm=cols[0].match(dateRe);
+    if(!dm) continue; // encabezado u otra fila sin fecha en la 1ra columna
+    const rym=dm[1]+'-'+String(dm[2]).padStart(2,'0');
+    if(cols.length>=3){
+      // Formato con columna de rubro/apertura: nos quedamos SOLO con la fila
+      // etiquetada "nivel general" — no hay que adivinar nada, el dato ya
+      // viene identificado. Se ignoran las filas de los demás rubros.
+      if(NIVEL_GENERAL_RE.test(cols[1]||'')){
+        const n=Number((cols[2]||'').replace(/\./g,'').replace(',','.'));
+        if(isFinite(n)) labeledRows.push({ym:rym, value:n});
       }
+      continue;
     }
-    if(!rym) continue;
     const candidates=[];
-    for(let i=0;i<cols.length;i++){
-      if(i===dateColIdx) continue;
+    for(let i=1;i<cols.length;i++){
       const n=Number(cols[i].replace(/\./g,'').replace(',','.'));
       if(isFinite(n) && n>50) candidates.push(n);
     }
-    if(!candidates.length) continue;
-    parsedRows.push({ym:rym, candidates});
+    if(candidates.length) genericRows.push({ym:rym, candidates});
   }
-  if(!parsedRows.length) throw new Error('No se pudieron extraer filas numéricas del CSV (formato inesperado)');
-  const byYm=parsedRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
-  if(!byYm.length) throw new Error('Sin dato en el CSV ≤ '+ym);
-  // El CSV oficial trae el historial COMPLETO desde la base (Dic 2015), no
-  // solo los meses recientes. Si ancláramos la continuidad en el primer
-  // mes de esa serie completa (2015-12, sin ningún valor previo real de
-  // referencia) y de ahí en más encadenáramos "el más parecido al mes
-  // anterior elegido", un error en ese primer mes (candidato equivocado
-  // por casualidad) se arrastra en cadena hasta el presente sin que nada
-  // lo corrija — pasó exactamente eso en la práctica.
-  // Por eso: cada vez que el mes YA está confirmado en IDX_STORE, se usa
-  // ese valor REAL como resultado (no se re-adivina) y se re-ancla la
-  // cadena ahí — así los meses nuevos (Abr/May/Jun-26, sin confirmar)
-  // siempre parten del último dato real conocido (Mar-26), no de una
-  // cadena de suposiciones de 10 años atrás.
-  const confirmedMap={};
-  if(id) idxRows(id).forEach(r=>{ if(r.confirmed && r.value!=null) confirmedMap[r.ym]=r.value; });
-  let anchor=null;
-  const rows=[];
-  for(const pr of byYm){
-    if(confirmedMap[pr.ym]!=null){
-      anchor=confirmedMap[pr.ym];
-      rows.push({ym:pr.ym, value:anchor});
-      continue;
+  let rows;
+  if(labeledRows.length){
+    rows=labeledRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
+  } else if(genericRows.length){
+    // Red de seguridad para un CSV sin columna de rubro explícita: mismo
+    // mecanismo de continuidad de versiones anteriores (ancla en el
+    // último valor ya confirmado en IDX_STORE, re-anclando en cada mes
+    // confirmado para no arrastrar un error de origen por 10 años).
+    const byYm=genericRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
+    const confirmedMap={};
+    if(id) idxRows(id).forEach(r=>{ if(r.confirmed && r.value!=null) confirmedMap[r.ym]=r.value; });
+    let anchor=null;
+    rows=[];
+    for(const pr of byYm){
+      if(confirmedMap[pr.ym]!=null){
+        anchor=confirmedMap[pr.ym];
+        rows.push({ym:pr.ym, value:anchor});
+        continue;
+      }
+      let chosen;
+      if(anchor!=null){
+        chosen=pr.candidates.reduce((best,n)=>{
+          const dist=Math.abs(n/anchor-1);
+          return (best===null||dist<best.dist)?{n,dist}:best;
+        }, null).n;
+      } else {
+        chosen=pr.candidates[0];
+      }
+      rows.push({ym:pr.ym, value:chosen});
+      anchor=chosen;
     }
-    let chosen;
-    if(anchor!=null){
-      chosen=pr.candidates.reduce((best,n)=>{
-        const dist=Math.abs(n/anchor-1);
-        return (best===null||dist<best.dist)?{n,dist}:best;
-      }, null).n;
-    } else {
-      chosen=pr.candidates[0];
-    }
-    rows.push({ym:pr.ym, value:chosen});
-    anchor=chosen;
+  } else {
+    throw new Error('No se pudieron extraer filas numéricas del CSV (formato inesperado)');
   }
+  if(!rows.length) throw new Error('Sin dato en el CSV ≤ '+ym);
   const last=rows[rows.length-1];
   let pct=null;
   const prevYm=idxPrevYm(last.ym);
@@ -906,6 +917,11 @@ async function runIdxUpdate(id){
     }
 
     // ── FADEEAC: feed RSS vía energia-proxy ──────────────────────────────
+    // Guardamos el motivo del fallo en `fadeFailReason` para adjuntarlo a
+    // la Nota de lo que termine guardándose (seed/AI/fallback) — mismo
+    // criterio que con el CSV directo de IPIM: visible en la tabla, sin
+    // necesidad de consola.
+    let fadeFailReason=null;
     if(mode==='fadeeac'){
       try{
         const fetched=await idxFetchFadeeac(id,target);
@@ -915,14 +931,16 @@ async function runIdxUpdate(id){
         toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (feed FADEEAC)'),row.needsReview?'er':'ok');
         return;
       }catch(fadeErr){
+        fadeFailReason=fadeErr.message;
         console.warn('idxFetchFadeeac failed, trying seed/AI',fadeErr.message);
       }
     }
+    const fadeNoteSuffix=fadeFailReason?(' · Feed FADEEAC falló: '+fadeFailReason):'';
 
     // ── Seed exacto para el target ──────────────────────────────────────
     const official=idxResolveOfficial(def,target);
     if(official && official.ym===target && (official.pct!=null||official.value!=null)){
-      const row=withReviewFlag(def,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:official.note||'',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      const row=withReviewFlag(def,{ym:target,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'updated',source:official.source||def.src,note:(official.note||'')+fadeNoteSuffix,publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
       await idxUpsert(id,row);
       renderIdxView();
       toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (seed)'),row.needsReview?'er':'ok');
@@ -939,7 +957,7 @@ async function runIdxUpdate(id){
     try{ rs=await idxResolveViaAI(def,target); }
     catch(aiErr){ console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
     if(rs && (rs.pct!=null||rs.value!=null)){
-      const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:rs.note||'',publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
+      const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:(rs.note||'')+fadeNoteSuffix,publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
       // de magnitud — es una fuente de menor confianza que una API oficial directa.
       row.needsReview=true;
@@ -952,11 +970,11 @@ async function runIdxUpdate(id){
 
     // ── Último seed disponible como fallback real ───────────────────────
     if(official && (official.pct!=null||official.value!=null)){
-      const row=withReviewFlag(def,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible',publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      const row=withReviewFlag(def,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible'+fadeNoteSuffix,publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
       await idxUpsert(id,row);
       renderIdxView(); toast(def.name+' usando último oficial ('+official.ym+')','ok'); return;
     }
-    throw new Error('Sin dato');
+    throw new Error('Sin dato'+fadeNoteSuffix);
   }catch(err){
     console.warn('runIdxUpdate',id,err);
     const prev=idxLastBefore(id,target);
