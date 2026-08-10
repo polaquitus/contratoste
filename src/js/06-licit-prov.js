@@ -982,9 +982,13 @@ function normalizeImportedEnm(obj, fileName, fallbackNum=1){
     _confirmed: true
   };
 }
-async function callGeminiForEnm(parts) {
+async function callGeminiForEnm(parts, opts) {
   // Use Supabase Edge Function as proxy — keys are stored as secrets server-side
   const SB_FUNC_URL = `${SB_URL}/functions/v1/gemini-proxy`;
+  // grounding=true activa Google Search en el proxy (opt-in, default false para
+  // no cambiar el comportamiento de los usos existentes de esta función, ej.
+  // análisis de enmiendas — ahí no hace falta ni conviene buscar en la web).
+  const grounding = !!(opts && opts.grounding);
   let lastErr = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -994,7 +998,7 @@ async function callGeminiForEnm(parts) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SB_KEY}`
         },
-        body: JSON.stringify({ parts })
+        body: JSON.stringify(grounding ? { parts, grounding: true } : { parts })
       });
       if (response.status === 503 || response.status === 502) {
         await new Promise(r => setTimeout(r, 2000));

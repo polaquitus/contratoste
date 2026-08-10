@@ -750,9 +750,15 @@ async function idxAddNextMonth(id){
 
 async function idxResolveViaAI(def, targetYm){
   if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
-  const prompt = `Necesito el último valor oficial publicado para el índice argentino "${def.name}" (fuente ${def.src}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
-  const resp = await callGeminiForEnm([{text:prompt}]);
-  if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió');
+  const todayIso=new Date().toISOString().substring(0,10);
+  // grounding:true → el proxy activa Google Search en la llamada a Gemini,
+  // así la búsqueda la hace la infraestructura de Google (no Supabase) —
+  // evita el problema de conectividad que bloquea el fetch directo a sitios
+  // como fadeeac.org.ar, y de paso deja de depender de la memoria/training
+  // data del modelo (que puede estar desactualizada) para el valor real.
+  const prompt = `Hoy es ${todayIso}. Buscá en la web el último valor oficial REALMENTE publicado (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos ni uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
+  const resp = await callGeminiForEnm([{text:prompt}], {grounding:true});
+  if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió'+(resp?(' ('+resp.status+')'):''));
   const data = await resp.json();
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const txt = parts.map(p=>p.text||'').join('\n').trim();
