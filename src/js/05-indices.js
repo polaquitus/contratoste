@@ -452,14 +452,23 @@ async function idxFetchIndec(id, ym){
 // probamos PRIMERO cuando el catálogo define `directCsvUrl` y caemos al
 // mirror datos.gob.ar si falla (dominio no soportado por energia-proxy,
 // CSV con formato inesperado, etc. — nunca corta el flujo).
-// El formato exacto del CSV no está documentado públicamente, así que el
-// parseo es deliberadamente flexible: detecta la columna de fecha por
-// regex (YYYY-MM[-DD] o DD/MM/YYYY) y toma como valor la última columna
-// numérica >50 de la fila (nivel del índice, base Dic2015=100 → hoy en
-// varios miles; descarta columnas de %var que son de un solo dígito).
-// Cualquier valor mal interpretado igual pasa por validateIdxRow, que lo
+// El formato exacto del CSV no está documentado públicamente. Confirmado
+// contra el XLS oficial (series_sipm_dic2015.xls) que cada fila de fecha
+// trae VARIAS sub-series en la misma línea (Nivel General, Productos
+// Nacionales, Productos Importados, etc.) — tomar "la última columna
+// numérica" agarraba Productos Importados en vez de Nivel General.
+// Ahora se detecta la columna de fecha por regex (YYYY-MM[-DD] o
+// DD/MM/YYYY), se juntan TODOS los candidatos numéricos >50 de la fila, y
+// se elige por CONTINUIDAD: la columna cuyo valor está más cerca (en %)
+// del último valor YA CONOCIDO para este índice (el mes anterior, sea de
+// una fila previa del mismo CSV o del historial ya guardado en
+// IDX_STORE) — así no depende de en qué posición de columna venga
+// "Nivel General", solo de que sea la serie que realmente varía como el
+// resto del historial. Sin ancla previa (primer dato cargado del índice)
+// se usa la primera columna numérica de la fila como mejor estimación.
+// Cualquier valor igual mal interpretado pasa por validateIdxRow, que lo
 // marca needsReview si el salto vs. el período anterior es implausible.
-async function idxFetchIndecCsv(csvUrl, ym){
+async function idxFetchIndecCsv(id, csvUrl, ym){
   const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
@@ -494,23 +503,48 @@ async function idxFetchIndecCsv(csvUrl, ym){
       }
     }
     if(!rym) continue;
-    let val=null;
-    for(let i=cols.length-1;i>=0;i--){
+    const candidates=[];
+    for(let i=0;i<cols.length;i++){
       if(i===dateColIdx) continue;
       const n=Number(cols[i].replace(/\./g,'').replace(',','.'));
-      if(isFinite(n) && n>50){ val=n; break; }
+      if(isFinite(n) && n>50) candidates.push(n);
     }
-    if(val==null) continue;
-    parsedRows.push({ym:rym, value:val});
+    if(!candidates.length) continue;
+    parsedRows.push({ym:rym, candidates});
   }
   if(!parsedRows.length) throw new Error('No se pudieron extraer filas numéricas del CSV (formato inesperado)');
-  const rows=parsedRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
-  if(!rows.length) throw new Error('Sin dato en el CSV ≤ '+ym);
+  const byYm=parsedRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!byYm.length) throw new Error('Sin dato en el CSV ≤ '+ym);
+  // Ancla de continuidad: el último valor de Nivel General ya confirmado
+  // para este índice, anterior al primer dato nuevo que vamos a resolver.
+  let anchor=null;
+  if(id){
+    const before=idxLastBefore(id, byYm[0].ym);
+    if(before && before.value!=null) anchor=before.value;
+  }
+  const rows=[];
+  for(const pr of byYm){
+    let chosen;
+    if(anchor!=null){
+      chosen=pr.candidates.reduce((best,n)=>{
+        const dist=Math.abs(n/anchor-1);
+        return (best===null||dist<best.dist)?{n,dist}:best;
+      }, null).n;
+    } else {
+      chosen=pr.candidates[0];
+    }
+    rows.push({ym:pr.ym, value:chosen});
+    anchor=chosen;
+  }
   const last=rows[rows.length-1];
   let pct=null;
   const prevYm=idxPrevYm(last.ym);
   const prevInResp=rows.find(r=>r.ym===prevYm);
   if(prevInResp && prevInResp.value) pct=Number(((last.value/prevInResp.value-1)*100).toFixed(2));
+  else if(id){
+    const prevRow=idxLastBefore(id, last.ym);
+    if(prevRow && prevRow.value) pct=Number(((last.value/prevRow.value-1)*100).toFixed(2));
+  }
   return {ym:last.ym, value:last.value, pct, source:'INDEC (CSV oficial)', confirmed:false, _allRows:rows};
 }
 
@@ -668,7 +702,7 @@ async function idxAddNextMonth(id){
       }
     }
     else if(mode==='indec' && def.directCsvUrl){
-      try{ row=await idxFetchIndecCsv(def.directCsvUrl,ym); }
+      try{ row=await idxFetchIndecCsv(id,def.directCsvUrl,ym); }
       catch(csvErr){
         console.warn('idxFetchIndecCsv failed, trying datos.gob.ar mirror',csvErr.message);
         row=await idxFetchIndec(id,ym);
@@ -792,7 +826,7 @@ async function runIdxUpdate(id){
     let csvFailReason=null;
     if(mode==='indec' && def.directCsvUrl){
       try{
-        const row=await idxFetchIndecCsv(def.directCsvUrl,target);
+        const row=await idxFetchIndecCsv(id,def.directCsvUrl,target);
         const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
         const allRows=Array.isArray(row._allRows)?row._allRows:[{ym:row.ym,value:row.value}];
         let lastPrev=null,anyFlagged=false;
