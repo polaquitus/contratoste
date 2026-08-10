@@ -473,7 +473,16 @@ function getTotal(c){const base=c.montoBase||c.monto||0;return base+(c.aves||[])
 function fD(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:00:00':d));return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fDf(d){if(!d)return'—';const dt=new Date((String(d).length<=10?d+'T00:00:00':d));return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function fN(n){if(n==null||n==='')return'—';return Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+// document.createElement('div').textContent/innerHTML solo escapa lo que hace
+// falta para TEXTO entre tags (&,<,>) — no comillas, porque no son especiales
+// ahí. Pero esc() se usa también para armar atributos HTML (value="...",
+// title="...") en todo el archivo, donde una comilla sin escapar corta el
+// atributo en seco (se vio con un mensaje de error de Gemini en formato
+// JSON, lleno de comillas, que se cortaba justo después de la primera ":
+// además de romper la visualización, es un vector de XSS real si el texto
+// viene de una fuente no confiable). Se agrega el escape de comillas acá,
+// una sola vez, para que sea seguro en cualquier contexto.
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function debounce(fn,ms){let t;return function(...args){clearTimeout(t);t=setTimeout(()=>fn.apply(this,args),ms||200);};}
 function fmtCompactNum(v){if(v>=1e9)return (v/1e9).toFixed(2)+'B';if(v>=1e6)return (v/1e6).toFixed(2)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'k';return Math.round(v).toString();}
 function toast(m,t){const e=document.getElementById('toast');e.textContent=(t==='ok'?'✓ ':'✕ ')+m;e.className='toast '+t;setTimeout(()=>e.classList.add('show'),10);setTimeout(()=>e.classList.remove('show'),3200);}
