@@ -515,15 +515,28 @@ async function idxFetchIndecCsv(id, csvUrl, ym){
   if(!parsedRows.length) throw new Error('No se pudieron extraer filas numéricas del CSV (formato inesperado)');
   const byYm=parsedRows.filter(r=>r.ym<=ym).sort((a,b)=>a.ym.localeCompare(b.ym));
   if(!byYm.length) throw new Error('Sin dato en el CSV ≤ '+ym);
-  // Ancla de continuidad: el último valor de Nivel General ya confirmado
-  // para este índice, anterior al primer dato nuevo que vamos a resolver.
+  // El CSV oficial trae el historial COMPLETO desde la base (Dic 2015), no
+  // solo los meses recientes. Si ancláramos la continuidad en el primer
+  // mes de esa serie completa (2015-12, sin ningún valor previo real de
+  // referencia) y de ahí en más encadenáramos "el más parecido al mes
+  // anterior elegido", un error en ese primer mes (candidato equivocado
+  // por casualidad) se arrastra en cadena hasta el presente sin que nada
+  // lo corrija — pasó exactamente eso en la práctica.
+  // Por eso: cada vez que el mes YA está confirmado en IDX_STORE, se usa
+  // ese valor REAL como resultado (no se re-adivina) y se re-ancla la
+  // cadena ahí — así los meses nuevos (Abr/May/Jun-26, sin confirmar)
+  // siempre parten del último dato real conocido (Mar-26), no de una
+  // cadena de suposiciones de 10 años atrás.
+  const confirmedMap={};
+  if(id) idxRows(id).forEach(r=>{ if(r.confirmed && r.value!=null) confirmedMap[r.ym]=r.value; });
   let anchor=null;
-  if(id){
-    const before=idxLastBefore(id, byYm[0].ym);
-    if(before && before.value!=null) anchor=before.value;
-  }
   const rows=[];
   for(const pr of byYm){
+    if(confirmedMap[pr.ym]!=null){
+      anchor=confirmedMap[pr.ym];
+      rows.push({ym:pr.ym, value:anchor});
+      continue;
+    }
     let chosen;
     if(anchor!=null){
       chosen=pr.candidates.reduce((best,n)=>{
