@@ -748,7 +748,24 @@ async function idxAddNextMonth(id){
   }
 }
 
-async function idxResolveViaAI(def, targetYm){
+// Extrae un ARRAY JSON de la respuesta de Gemini (no un objeto único como
+// extractJsonFromGeminiText, compartida con otros usos del proxy que sí
+// esperan un objeto — no se toca esa función para no afectarlos).
+function extractJsonArrayFromGeminiText(text){
+  if(!text) throw new Error('Gemini devolvió respuesta vacía');
+  let raw=String(text).trim().replace(/^```json/i,'').replace(/^```/i,'').replace(/```$/i,'').trim();
+  const match=raw.match(/\[[\s\S]*\]/);
+  if(!match) throw new Error('Gemini no devolvió un array JSON válido');
+  const clean=match[0].replace(/,\s*\]/g,']').replace(/,\s*\}/g,'}').replace(/([{,]\s*)(\w+)\s*:/g,'$1"$2":');
+  const parsed=JSON.parse(clean);
+  if(!Array.isArray(parsed)) throw new Error('Gemini no devolvió un array');
+  return parsed;
+}
+// baseYm: último período ya cargado (idxLastBefore) — si se pasa, se le pide
+// a Gemini TODO el rango faltante hasta targetYm, no solo el mes objetivo,
+// para no dejar meses intermedios sin cargar (ej. pedir jul-26 y que
+// abr/may/jun-26 queden en blanco porque nadie los pidió específicamente).
+async function idxResolveViaAI(def, targetYm, baseYm){
   if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
   const todayIso=new Date().toISOString().substring(0,10);
   // grounding:true → el proxy activa Google Search en la llamada a Gemini,
@@ -756,13 +773,16 @@ async function idxResolveViaAI(def, targetYm){
   // evita el problema de conectividad que bloquea el fetch directo a sitios
   // como fadeeac.org.ar, y de paso deja de depender de la memoria/training
   // data del modelo (que puede estar desactualizada) para el valor real.
-  const prompt = `Hoy es ${todayIso}. Buscá en la web el último valor oficial REALMENTE publicado (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}) para el período objetivo ${targetYm}. Si ${targetYm} todavía no fue publicado, devolvé el último período anterior disponible publicado. No inventes datos ni uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO JSON válido con este esquema: {"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"status":"updated"|"waiting_release","note":"texto breve"}`;
+  const rangeHint = baseYm
+    ? `Necesito TODOS los períodos mensuales oficialmente publicados desde el mes siguiente a ${baseYm} hasta ${targetYm} inclusive — no te saltees ningún mes intermedio aunque el objetivo final sea ${targetYm}.`
+    : `Necesito el último valor oficial publicado hasta el período objetivo ${targetYm}.`;
+  const prompt = `Hoy es ${todayIso}. Buscá en la web los valores oficiales REALMENTE publicados (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}). ${rangeHint} Si algún mes de ese rango todavía no fue publicado, omitilo — no inventes datos ni uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá para cada mes la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO un array JSON válido (aunque tenga un solo elemento), con este esquema: [{"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"note":"texto breve"}]`;
   const resp = await callGeminiForEnm([{text:prompt}], {grounding:true});
   if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió'+(resp?(' ('+resp.status+')'):''));
   const data = await resp.json();
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const txt = parts.map(p=>p.text||'').join('\n').trim();
-  return extractJsonFromGeminiText(txt);
+  return extractJsonArrayFromGeminiText(txt);
 }
 // ── Validación previa a guardar un valor obtenido automáticamente ──────────
 // No bloquea el guardado (así no se pierde el dato ni queda el índice
@@ -960,19 +980,34 @@ async function runIdxUpdate(id){
     // timeout) el flujo siga hacia el fallback de seed en vez de saltar
     // directo al catch general y dejar el índice "trabado" sin más intentos.
     let rs=null, aiFailReason=null;
-    try{ rs=await idxResolveViaAI(def,target); }
+    try{
+      const baseRow=idxLastBefore(id,target);
+      rs=await idxResolveViaAI(def,target,baseRow?baseRow.ym:null);
+    }
     catch(aiErr){ aiFailReason=aiErr.message; console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
-    if(rs && !(rs.pct!=null||rs.value!=null)) aiFailReason=aiFailReason||'Gemini no devolvió pct ni value';
-    if(rs && (rs.pct!=null||rs.value!=null)){
-      const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:(rs.note||'')+fadeNoteSuffix,publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
-      // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
-      // de magnitud — es una fuente de menor confianza que una API oficial directa.
-      row.needsReview=true;
-      row.reviewReason=row.reviewReason?('Fuente IA (Gemini) · '+row.reviewReason):'Fuente IA (Gemini) — revisar contra la publicación oficial';
-      await idxUpsert(id,row);
-      renderIdxView();
-      toast(def.name+' cargado vía IA — pendiente de revisión manual','er');
-      return;
+    if(rs && Array.isArray(rs)){
+      // Gemini devuelve el rango completo faltante, no solo el mes objetivo
+      // — se cargan TODOS los períodos nuevos que trajo, igual que con los
+      // "_allRows" de INDEC/CSV, para no dejar meses intermedios sin cargar.
+      const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+      const validRows=rs.filter(r=>r && /^\d{4}-\d{2}$/.test(r.ym||'') && (r.pct!=null||r.value!=null) && !existing.has(r.ym))
+        .sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+      if(!validRows.length) aiFailReason=aiFailReason||(rs.length?'Gemini no devolvió ningún período nuevo con pct/value':'Gemini devolvió un array vacío');
+      let lastYm=null;
+      for(const r of validRows){
+        const row=withReviewFlag(def,{ym:r.ym,pct:r.pct!=null?Number(r.pct):null,value:r.value!=null?Number(r.value):null,confirmed:false,status:'updated',source:def.src,note:(r.note||'')+fadeNoteSuffix,publishedAt:r.publishedAt||null,sourceUrl:r.sourceUrl||null});
+        // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
+        // de magnitud — es una fuente de menor confianza que una API oficial directa.
+        row.needsReview=true;
+        row.reviewReason=row.reviewReason?('Fuente IA (Gemini) · '+row.reviewReason):'Fuente IA (Gemini) — revisar contra la publicación oficial';
+        await idxUpsert(id,row);
+        lastYm=r.ym;
+      }
+      if(lastYm){
+        renderIdxView();
+        toast(def.name+' cargado vía IA hasta '+formatMonth(lastYm)+' — pendiente de revisión manual','er');
+        return;
+      }
     }
 
     // ── Último seed disponible como fallback real ───────────────────────
