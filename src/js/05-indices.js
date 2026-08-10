@@ -785,7 +785,11 @@ async function runIdxUpdate(id){
     // ── INDEC CSV directo: más fresco que el mirror datos.gob.ar cuando
     // el catálogo lo define (ver idxFetchIndecCsv) — probamos antes del
     // mirror; si falla (dominio no soportado, formato inesperado) cae al
-    // fetch INDEC API normal de abajo sin cortar el flujo.
+    // fetch INDEC API normal de abajo sin cortar el flujo. Guardamos el
+    // motivo del fallo en `csvFailReason` para mostrarlo en la Nota del
+    // período cargado por el mirror — así queda visible en la tabla sin
+    // necesidad de abrir la consola del navegador.
+    let csvFailReason=null;
     if(mode==='indec' && def.directCsvUrl){
       try{
         const row=await idxFetchIndecCsv(def.directCsvUrl,target);
@@ -806,6 +810,7 @@ async function runIdxUpdate(id){
         toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(row.ym)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC CSV oficial)'),anyFlagged?'er':'ok');
         return;
       }catch(csvErr){
+        csvFailReason=csvErr.message;
         console.warn('idxFetchIndecCsv failed, trying datos.gob.ar mirror',csvErr.message);
         // Fall through al mirror datos.gob.ar de abajo
       }
@@ -819,18 +824,19 @@ async function runIdxUpdate(id){
         const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
         const allRows=Array.isArray(row._allRows)?row._allRows:[{ym:row.ym,value:row.value}];
         let lastPrev=null,anyFlagged=false;
+        const csvNote=csvFailReason?('CSV directo INDEC falló: '+csvFailReason):'';
         for(const r of allRows){
           if(existing.has(r.ym)) { lastPrev=r; continue; }
           let pct=null;
           const prev=lastPrev||idxRows(id).find(x=>x.ym===idxPrevYm(r.ym));
           if(prev && prev.value) pct=Number(((r.value/prev.value-1)*100).toFixed(2));
-          const newRow=withReviewFlag(def,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC API', note:''});
+          const newRow=withReviewFlag(def,{ym:r.ym, value:r.value, pct, confirmed:false, status:'updated', source:'INDEC API', note:csvNote});
           if(newRow.needsReview)anyFlagged=true;
           await idxUpsert(id,newRow);
           lastPrev=r;
         }
         renderIdxView();
-        toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(row.ym)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC API)'),anyFlagged?'er':'ok');
+        toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(row.ym)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(row.ym)+' (INDEC API)'+(csvFailReason?' — CSV directo falló, ver Nota':'')),anyFlagged?'er':(csvFailReason?'er':'ok'));
         return;
       }catch(apiErr){
         console.warn('idxFetchIndec failed, trying seed/AI',apiErr.message);
