@@ -761,22 +761,23 @@ function extractJsonArrayFromGeminiText(text){
   if(!Array.isArray(parsed)) throw new Error('Gemini no devolvió un array');
   return parsed;
 }
-// baseYm: último período ya cargado (idxLastBefore) — si se pasa, se le pide
-// a Gemini TODO el rango faltante hasta targetYm, no solo el mes objetivo,
-// para no dejar meses intermedios sin cargar (ej. pedir jul-26 y que
-// abr/may/jun-26 queden en blanco porque nadie los pidió específicamente).
-async function idxResolveViaAI(def, targetYm, baseYm){
+// missingYms: lista explícita de períodos faltantes (ej. ['2026-04',
+// '2026-05','2026-06','2026-07']) — un pedido tipo "traeme desde X hasta Y"
+// en una sola oración NO garantiza que Gemini busque cada mes intermedio
+// (en la práctica, con grounding, tiende a buscar una vez y reportar solo
+// el resultado más reciente que encuentra). Enumerar cada mes por su
+// nombre como un checklist explícito da resultados mucho más confiables.
+async function idxResolveViaAI(def, targetYm, missingYms){
   if(typeof callGeminiForEnm!=='function') throw new Error('Gemini no disponible');
   const todayIso=new Date().toISOString().substring(0,10);
+  const yms=(missingYms&&missingYms.length)?missingYms:[targetYm];
   // grounding:true → el proxy activa Google Search en la llamada a Gemini,
   // así la búsqueda la hace la infraestructura de Google (no Supabase) —
   // evita el problema de conectividad que bloquea el fetch directo a sitios
   // como fadeeac.org.ar, y de paso deja de depender de la memoria/training
   // data del modelo (que puede estar desactualizada) para el valor real.
-  const rangeHint = baseYm
-    ? `Necesito TODOS los períodos mensuales oficialmente publicados desde el mes siguiente a ${baseYm} hasta ${targetYm} inclusive — no te saltees ningún mes intermedio aunque el objetivo final sea ${targetYm}.`
-    : `Necesito el último valor oficial publicado hasta el período objetivo ${targetYm}.`;
-  const prompt = `Hoy es ${todayIso}. Buscá en la web los valores oficiales REALMENTE publicados (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}). ${rangeHint} Si algún mes de ese rango todavía no fue publicado, omitilo — no inventes datos ni uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá para cada mes la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO un array JSON válido (aunque tenga un solo elemento), con este esquema: [{"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"note":"texto breve"}]`;
+  const checklist=yms.map(ym=>'- '+formatMonth(ym)+' ('+ym+')').join('\n');
+  const prompt = `Hoy es ${todayIso}. Necesito el valor oficial REALMENTE publicado (a la fecha de hoy) para el índice argentino "${def.name}" (fuente: ${def.src}${def.srcLink?(', sitio: '+def.srcLink):''}), para CADA UNO de estos períodos específicos — buscá cada uno por separado en la web, uno por uno, no asumas que todos tienen el mismo valor:\n${checklist}\nSi alguno de estos meses todavía no fue publicado, omitilo del resultado (no inventes ni repitas el valor de otro mes). No uses valores de tu memoria sin confirmarlos con una búsqueda actual. Citá para cada mes la URL de la fuente donde encontraste el dato en sourceUrl. Responder SOLO un array JSON con UNA ENTRADA POR CADA MES QUE HAYAS PODIDO CONFIRMAR (puede ser menos de ${yms.length} si algunos no están publicados, pero buscá los ${yms.length} antes de responder), con este esquema: [{"ym":"YYYY-MM","pct":number|null,"value":number|null,"publishedAt":"YYYY-MM-DD"|null,"sourceUrl":"url"|null,"note":"texto breve"}]`;
   const resp = await callGeminiForEnm([{text:prompt}], {grounding:true});
   if(!resp || !resp.ok) throw new Error('Gemini/proxy no respondió'+(resp?(' ('+resp.status+')'):''));
   const data = await resp.json();
@@ -981,8 +982,17 @@ async function runIdxUpdate(id){
     // directo al catch general y dejar el índice "trabado" sin más intentos.
     let rs=null, aiFailReason=null;
     try{
-      const baseRow=idxLastBefore(id,target);
-      rs=await idxResolveViaAI(def,target,baseRow?baseRow.ym:null);
+      // Ancla en el último CONFIRMADO (no en idxLastBefore, que podría devolver
+      // una fila sin confirmar de un intento anterior) para armar la lista
+      // explícita de meses faltantes hasta el objetivo.
+      const confirmedRows=(idxRows(id)||[]).filter(r=>r.confirmed).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+      const baseYm=confirmedRows.length?confirmedRows[confirmedRows.length-1].ym:null;
+      const missingYms=[];
+      if(baseYm){
+        let cur=nextYm(baseYm);
+        while(cur && cur<=target){ missingYms.push(cur); cur=nextYm(cur); }
+      }
+      rs=await idxResolveViaAI(def,target,missingYms);
     }
     catch(aiErr){ aiFailReason=aiErr.message; console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
     if(rs && Array.isArray(rs)){
