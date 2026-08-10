@@ -953,9 +953,10 @@ async function runIdxUpdate(id){
     // su propio try/catch para que si el proxy Gemini falla (red, cuota,
     // timeout) el flujo siga hacia el fallback de seed en vez de saltar
     // directo al catch general y dejar el índice "trabado" sin más intentos.
-    let rs=null;
+    let rs=null, aiFailReason=null;
     try{ rs=await idxResolveViaAI(def,target); }
-    catch(aiErr){ console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
+    catch(aiErr){ aiFailReason=aiErr.message; console.warn('idxResolveViaAI failed, trying seed fallback',id,aiErr.message); }
+    if(rs && !(rs.pct!=null||rs.value!=null)) aiFailReason=aiFailReason||'Gemini no devolvió pct ni value';
     if(rs && (rs.pct!=null||rs.value!=null)){
       const row=withReviewFlag(def,{ym:rs.ym||target,pct:rs.pct!=null?Number(rs.pct):null,value:rs.value!=null?Number(rs.value):null,confirmed:false,status:'updated',source:def.src,note:(rs.note||'')+fadeNoteSuffix,publishedAt:rs.publishedAt||null,sourceUrl:rs.sourceUrl||null});
       // La IA siempre queda marcada para revisión manual, aunque pase las validaciones
@@ -969,8 +970,11 @@ async function runIdxUpdate(id){
     }
 
     // ── Último seed disponible como fallback real ───────────────────────
+    const aiNoteSuffix=aiFailReason?(' · IA (Gemini) falló: '+aiFailReason):'';
     if(official && (official.pct!=null||official.value!=null)){
-      const row=withReviewFlag(def,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+' · último oficial disponible'+fadeNoteSuffix,publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
+      // official.note ya incluye "· último oficial disponible" cuando
+      // official.ym!==target (ver idxResolveOfficial) — no se repite acá.
+      const row=withReviewFlag(def,{ym:official.ym,pct:official.pct!=null?Number(official.pct):null,value:official.value!=null?Number(official.value):null,confirmed:false,status:'waiting_release',source:official.source||def.src,note:(official.note||'')+fadeNoteSuffix+aiNoteSuffix,publishedAt:official.publishedAt||null,sourceUrl:official.sourceUrl||null});
       await idxUpsert(id,row);
       renderIdxView(); toast(def.name+' usando último oficial ('+official.ym+')','ok'); return;
     }
