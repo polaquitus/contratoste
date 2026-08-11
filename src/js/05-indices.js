@@ -13,7 +13,10 @@ const IDX_CATALOG = [
 {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
   {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA/BNA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
-  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BNA', srcLink:'https://www.bna.com.ar/Cotizador/HistoricoPrincipales', fetchMode:'usd_billete'},
+  // usd_bill: a pedido del usuario, no se incorpora al catálogo automático
+  // por ahora (implica desplegar un cambio más en energia-proxy). La función
+  // idxFetchBnaBillete()/el bloque 'usd_billete' en runIdxUpdate quedan
+  // armados y sin usar por si se retoma más adelante.
   // ── Mano de Obra — CCT ──────────────────────────────────────────
   {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', srcLink:''},
   {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo', catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', srcLink:''},
