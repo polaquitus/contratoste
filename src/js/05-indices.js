@@ -1510,7 +1510,7 @@ function renderIdxDet(id){
   const selOpts=selYms.map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
   const selOptTo=selYms.map((ym,i)=>`<option value="${ym}"${i===selYms.length-1?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
   const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||idxStatusLabel(r.status)||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||idxStatusLabel(r.status)||'—'))}${r.sourceUrl?` <a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener" title="Ver fuente de este dato" onclick="event.stopPropagation()">🔗</a>`:''}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
-  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${chartRows.length?barsContent:'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
+  box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-s btn-sm" title="Recalcula el % de cada período a partir del Valor ya guardado (no toca el Valor ni el estado de confirmado) — útil si el % quedó mal de una carga anterior" onclick="recalcPctFromValues('${id}')">🔧 Recalcular %</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${chartRows.length?barsContent:'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function calcIdxAcum(id){
@@ -1675,6 +1675,34 @@ async function confirmAllIdx(idxId){
   const ok=await saveIdx();
   renderIdxView();
   toast(ok?'Todos confirmados':'⚠ Confirmado local — no se pudo sincronizar con Supabase',ok?'ok':'er');
+}
+// Recalcula el % mensual a partir de la secuencia de "Valor" YA GUARDADA
+// (value), sin tocar el value ni el estado de "confirmado" — corrige filas
+// cuyo % quedó mal calculado por una carga anterior a los fixes de parseo
+// de esta sesión (ej. IPIM tomando la columna de rubro equivocada en su
+// momento), pero cuyo Valor absoluto sí es correcto. Re-valida cada fila
+// (needsReview/reviewReason) con el % ya corregido.
+async function recalcPctFromValues(idxId){
+  const def=IDX_CATALOG.find(d=>d.id===idxId);
+  if(!def){ toast('Índice no encontrado','er'); return; }
+  const rows=(IDX_STORE[idxId]?.rows||[]).slice().sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+  if(!rows.length){ toast('Sin datos para recalcular','er'); return; }
+  let prevVal=null, changed=0;
+  for(const r of rows){
+    if(r.value!=null && isFinite(r.value)){
+      if(prevVal!=null && prevVal>0){
+        const newPct=Number(((r.value/prevVal-1)*100).toFixed(2));
+        if(newPct!==r.pct){ r.pct=newPct; changed++; }
+      }
+      prevVal=r.value;
+    }
+    const flagged=withReviewFlag(def,r);
+    r.needsReview=flagged.needsReview;
+    r.reviewReason=flagged.reviewReason;
+  }
+  const ok=await saveIdx();
+  renderIdxView();
+  toast(ok?('% recalculado en '+changed+' período(s)'):'⚠ Recalculado local — no se pudo sincronizar con Supabase', ok?'ok':'er');
 }
 async function deleteIdxRow(idxId,ym){
   if(!confirm('¿Eliminar el período '+formatMonth(ym)+'?'))return;
