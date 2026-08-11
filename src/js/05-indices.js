@@ -693,16 +693,26 @@ async function idxFetchFadeeac(id, ym){
   if(doc.querySelector('parsererror')) throw new Error('No se pudo parsear el feed RSS de FADEEAC');
   const items=Array.from(doc.querySelectorAll('item'));
   if(!items.length) throw new Error('Feed FADEEAC sin items');
-  const parsed=items.map(function(it){
+  const parsedRaw=items.map(function(it){
     const title=(it.querySelector('title')&&it.querySelector('title').textContent)||'';
     const pubDate=(it.querySelector('pubDate')&&it.querySelector('pubDate').textContent)||'';
+    const link=(it.querySelector('link')&&it.querySelector('link').textContent)||'';
     const p=_parseFadeeacItem(title,pubDate);
-    return p?Object.assign({title:title},p):null;
+    return p?Object.assign({title:title,link:link},p):null;
   }).filter(Boolean).sort(function(a,b){return a.ym.localeCompare(b.ym);});
-  if(!parsed.length) throw new Error('No se pudo extraer % de ningún comunicado del feed FADEEAC');
-  const candidates=parsed.filter(function(p){return p.ym<=ym;});
-  const chosen=candidates.length?candidates[candidates.length-1]:parsed[parsed.length-1];
-  return {ym:chosen.ym, pct:chosen.pct, value:null, source:'FADEEAC (RSS)', confirmed:false, note:chosen.title};
+  if(!parsedRaw.length) throw new Error('No se pudo extraer % de ningún comunicado del feed FADEEAC');
+  // El feed trae varios meses de comunicados en un solo pedido — antes se
+  // descartaban todos menos el más cercano al target, desperdiciando datos
+  // reales que ya estaban ahí. Ahora se devuelven TODOS (dedupeados por
+  // mes, quedándose con el último comunicado de cada uno) para que
+  // runIdxUpdate pueda rellenar huecos con datos reales del feed, sin
+  // necesidad de recurrir a IA para meses que el feed ya tenía.
+  const byYm={};
+  parsedRaw.forEach(function(p){ byYm[p.ym]=p; });
+  const allRows=Object.values(byYm).filter(function(p){return p.ym<=ym;}).sort(function(a,b){return a.ym.localeCompare(b.ym);});
+  if(!allRows.length) throw new Error('El feed no tiene ningún comunicado ≤ '+ym);
+  const chosen=allRows[allRows.length-1];
+  return {ym:chosen.ym, pct:chosen.pct, value:null, source:'FADEEAC (RSS)', confirmed:false, note:chosen.title, sourceUrl:chosen.link||FADEEAC_FEED_URL, _allRows:allRows.map(function(p){return {ym:p.ym,pct:p.pct,value:null,note:p.title,sourceUrl:p.link||FADEEAC_FEED_URL};})};
 }
 
 // ── Agregar siguiente mes (auto o manual) ─────────────────────────────
@@ -833,6 +843,45 @@ function withReviewFlag(def,row){
   console.warn('[validateIdxRow]',def.id,row.ym,v.reasons);
   return {...row,needsReview:true,reviewReason:v.reasons.join(' · ')};
 }
+// Después de que un fetch primario (combustible, FADEEAC) tenga éxito para
+// el mes objetivo, puede quedar un hueco ENTRE el último mes confirmado y
+// ese mes nuevo — pasaba con Gas Oil (idxFetchFuel solo trae el precio
+// "vigente" de hoy, sin histórico) y podía pasar con FADEEAC si el feed no
+// alcanza a cubrir todo el rango. Esta función completa esos huecos vía
+// Gemini AI, pero SOLO si realmente hay huecos — así no gasta la cuota
+// gratis (20/día) en índices que ya están al día. Devuelve true si agregó
+// algo nuevo.
+async function fillGapsViaAI(def, id, uptoYmExclusive){
+  const confirmedRows=(idxRows(id)||[]).filter(r=>r.confirmed).sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+  const baseYm=confirmedRows.length?confirmedRows[confirmedRows.length-1].ym:null;
+  if(!baseYm) return false;
+  const existingYms=new Set((idxRows(id)||[]).map(r=>r.ym));
+  const missingYms=[];
+  let cur=nextYm(baseYm);
+  while(cur && cur<uptoYmExclusive){
+    if(!existingYms.has(cur)) missingYms.push(cur);
+    cur=nextYm(cur);
+  }
+  if(!missingYms.length) return false;
+  try{
+    const rs=await idxResolveViaAI(def,uptoYmExclusive,missingYms);
+    if(!Array.isArray(rs)) return false;
+    const validRows=rs.filter(r=>r && /^\d{4}-\d{2}$/.test(r.ym||'') && (r.pct!=null||r.value!=null) && !existingYms.has(r.ym))
+      .sort((a,b)=>String(a.ym).localeCompare(String(b.ym)));
+    let any=false;
+    for(const r of validRows){
+      const row=withReviewFlag(def,{ym:r.ym,pct:r.pct!=null?Number(r.pct):null,value:r.value!=null?Number(r.value):null,confirmed:false,status:'updated',source:def.src,note:r.note||'',publishedAt:r.publishedAt||null,sourceUrl:r.sourceUrl||null});
+      row.needsReview=true;
+      row.reviewReason=row.reviewReason?('Fuente IA (Gemini) · '+row.reviewReason):'Fuente IA (Gemini) — revisar contra la publicación oficial';
+      await idxUpsert(id,row);
+      any=true;
+    }
+    return any;
+  }catch(err){
+    console.warn('fillGapsViaAI failed for',id,err.message);
+    return false;
+  }
+}
 async function runIdxUpdate(id){
   const def=IDX_CATALOG.find(d=>d.id===id); if(!def) return;
   const target=idxTargetYm();
@@ -943,8 +992,12 @@ async function runIdxUpdate(id){
         const fetched=await idxFetchFuel(id,target);
         const row=withReviewFlag(def,{...fetched,confirmed:false,status:'updated'});
         await idxUpsert(id,row);
+        // idxFetchFuel solo trae el precio "vigente" de HOY, sin histórico
+        // — si quedaron meses sin cargar entre el último confirmado y este
+        // nuevo dato, se completan vía IA (no hace nada si no hay huecos).
+        const filledGaps=await fillGapsViaAI(def,id,target);
         renderIdxView();
-        toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (S.Energía)'),row.needsReview?'er':'ok');
+        toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (S.Energía)'+(filledGaps?' — meses faltantes completados vía IA, revisar':'')),(row.needsReview||filledGaps)?'er':'ok');
         return;
       }catch(fuelErr){
         console.warn('idxFetchFuel failed, trying seed/AI',fuelErr.message);
@@ -960,11 +1013,32 @@ async function runIdxUpdate(id){
     if(mode==='fadeeac'){
       try{
         const fetched=await idxFetchFadeeac(id,target);
-        const row=withReviewFlag(def,{...fetched,confirmed:false,status:'updated'});
-        await idxUpsert(id,row);
-        renderIdxView();
-        toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado (feed FADEEAC)'),row.needsReview?'er':'ok');
-        return;
+        // El feed trae varios comunicados/meses por pedido — se cargan
+        // TODOS los que sean nuevos (mismo patrón que IPIM/INDEC con
+        // _allRows), no solo el más cercano al objetivo, para no dejar
+        // huecos que el feed en realidad ya tenía resueltos.
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        const allRows=Array.isArray(fetched._allRows)?fetched._allRows:[fetched];
+        let anyFlagged=false,lastYm=null;
+        for(const r of allRows){
+          if(existing.has(r.ym)) continue;
+          const newRow=withReviewFlag(def,{ym:r.ym,pct:r.pct,value:r.value??null,confirmed:false,status:'updated',source:'FADEEAC (RSS)',note:r.note||'',sourceUrl:r.sourceUrl||null});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
+          lastYm=r.ym;
+        }
+        if(lastYm){
+          // El feed puede no alcanzar a cubrir todo el rango (solo trae
+          // comunicados recientes) — si queda algún mes anterior sin
+          // cargar, se completa vía IA antes de cortar.
+          const filledGaps=await fillGapsViaAI(def,id,target);
+          renderIdxView();
+          toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(lastYm)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(lastYm)+' (feed FADEEAC)'+(filledGaps?' — meses faltantes completados vía IA, revisar':'')),(anyFlagged||filledGaps)?'er':'ok');
+          return;
+        }
+        // El feed respondió bien pero no trajo ningún mes nuevo (todos ya
+        // estaban confirmados) — igual seguimos al chequeo de huecos por
+        // si falta algo que el feed no tiene, en vez de cortar acá.
       }catch(fadeErr){
         fadeFailReason=fadeErr.message;
         console.warn('idxFetchFadeeac failed, trying seed/AI',fadeErr.message);
@@ -1274,7 +1348,7 @@ function renderIdxDet(id){
   const selYms=yms.length?yms:['—'];
   const selOpts=selYms.map((ym,i)=>`<option value="${ym}"${i===0?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
   const selOptTo=selYms.map((ym,i)=>`<option value="${ym}"${i===selYms.length-1?'selected':''}>${ym==='—'?'—':formatMonth(ym)}</option>`).join('');
-  const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||idxStatusLabel(r.status)||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||idxStatusLabel(r.status)||'—'))}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
+  const tblRows=[...rows].reverse().map(r=>`<tr${r.needsReview?' style="background:#fef2f2"':''}><td>${r.needsReview?`<span title="${esc(r.reviewReason||'Necesita revisión')}" style="margin-right:4px">⚠️</span>`:''}${formatMonth(r.ym)}</td><td class="mono ${r.value!=null?'pos':((r.pct||0)>=0?'pos':'neg')}">${r.value!=null?fN(r.value):pctStr(r.pct)}</td><td style="text-align:center">${r.confirmed?'<span style="cursor:pointer" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',false)" title="Click para desconfirmar">✅</span>':'<span style="cursor:pointer;color:var(--g400)" onclick="toggleIdxConfirm(\'${id}\',\'${r.ym}\',true)" title="Click para confirmar">○</span>'}</td><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.reviewReason||r.note||idxStatusLabel(r.status)||'')}">${r.needsReview?'<strong style="color:#b91c1c">⚠ Revisar: </strong>':''}${esc(r.needsReview?(r.reviewReason||'necesita revisión'):(r.note||idxStatusLabel(r.status)||'—'))}${r.sourceUrl?` <a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener" title="Ver fuente de este dato" onclick="event.stopPropagation()">🔗</a>`:''}</td><td>${(r.files||[]).length?`<button class="btn btn-s btn-sm" onclick="downloadIdxFile(\'${id}\',\'${r.ym}\',0)" style="font-size:10px;padding:2px 7px">📎 ${(r.files||[]).length}</button>`:'—'}</td><td style="white-space:nowrap"><button class="btn btn-s btn-sm" style="font-size:10px;padding:2px 6px;margin-right:3px" onclick="openEntryModal(\'${id}\',\'${r.ym}\')" title="Editar">✏️</button><button class="btn btn-d btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteIdxRow(\'${id}\',\'${r.ym}\')" title="Eliminar">🗑</button></td></tr>`).join('');
   box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><h3 style="margin:0">${esc(def.name)}</h3><div style="font-size:12px;color:var(--g500)">Fuente: ${esc(def.src)} · Estado: ${idxStatusText(id)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${def.cat!=='mo'?`<button class="btn btn-s btn-sm" onclick="runIdxUpdate('${id}')">🔄 Actualizar</button>`:''}<button class="btn btn-s btn-sm" onclick="_idxSel=null;renderIdxView()">← Volver</button><button class="btn btn-p btn-sm" onclick="openEntryModal('${id}',null)">➕ Cargar</button><button class="btn btn-s btn-sm" onclick="confirmAllIdx('${id}')">✅ Confirmar todos</button><button class="btn btn-d btn-sm" style="font-size:11px" onclick="if(confirm('¿Borrar todos los datos de este índice?')){IDX_STORE['${id}']={rows:[]};saveIdx().then(()=>{renderIdxView();toast('Índice limpiado','ok');});}">🗑 Limpiar</button></div></div><div class="card"><div class="chart-bars">${chartRows.length?barsContent:'<div class="small">Sin datos</div>'}</div></div><div class="card" style="margin-top:12px"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><label>Acumulado desde</label><select id="idxFrom">${selOpts}</select><label>hasta</label><select id="idxTo">${selOptTo}</select><button class="btn btn-s btn-sm" onclick="calcIdxAcum('${id}')">Calcular</button><span id="idxAcumRes" class="mono"></span></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>Período</th><th>Valor</th><th>Confirmado</th><th>Nota</th><th>Adjuntos</th><th>Acciones</th></tr></thead><tbody>${tblRows||'<tr><td colspan="6" style="text-align:center;color:var(--g400);font-style:italic;padding:16px">Sin datos cargados. Usá ➕ Cargar para agregar el primer período.</td></tr>'}</tbody></table></div></div>`;
 }
 
