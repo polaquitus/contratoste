@@ -59,6 +59,29 @@ const IDX_OFFICIAL_SEED = {
   fadeaac:[
     {ym:'2026-02',pct:2.28,value:null,publishedAt:'2026-03-04',source:'FADEEAC',sourceUrl:'https://www.fadeeac.org.ar/',note:'Índice de costos FADEEAC oficial'},
     {ym:'2026-03',pct:10.15,value:null,publishedAt:'2026-04-01',source:'FADEEAC',sourceUrl:'https://www.fadeeac.org.ar/',note:'Índice de costos FADEEAC oficial'}
+  ],
+  // Camioneros (FCTA) — sin fuente pública automatizable (CCT N°40/89), cargado a
+  // mano por el usuario a partir de la planilla oficial de valores base. pct
+  // calculado a partir del "Valor Base" período a período (más preciso que el %
+  // redondeado que muestra la planilla en pantalla).
+  mo_cam:[
+    {ym:'2024-03',pct:0.0,value:524435.34,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-04',pct:16.0,value:608344.99,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-05',pct:0.0,value:608344.99,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-06',pct:5.0,value:638762.24,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-07',pct:6.67,value:681346.39,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-08',pct:4.46,value:711763.64,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-09',pct:4.0,value:740234.18,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-10',pct:3.85,value:768704.74,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-11',pct:2.78,value:790057.64,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2024-12',pct:2.2,value:807438.91,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-01',pct:1.8,value:821972.81,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-02',pct:1.5,value:834302.4,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-03',pct:1.2,value:844314.02,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-04',pct:2.88,value:868630.27,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-05',pct:1.0,value:877316.58,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-06',pct:1.0,value:886089.74,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'},
+    {ym:'2025-07',pct:6.36,value:942463.85,publishedAt:null,source:'RRLL',sourceUrl:null,note:'Camioneros (FCTA) CCT N°40/89 — carga manual'}
   ]
 };
 function ymCompare(a,b){return String(a||'').localeCompare(String(b||''));}
