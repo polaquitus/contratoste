@@ -13,6 +13,7 @@ const IDX_CATALOG = [
 {id:'go_g3',     name:'Gas Oil Grado 3 YPF NQN',        cat:'fuel',catLabel:'Combustible', src:'YPF', srcLink:'https://www.ypf.com', fetchMode:'fuel', pubDay:15, pubDelay:1},
   // ── USD / Tipo de Cambio ─────────────────────────────────────────
   {id:'usd_div',   name:'USD DIVISA (TC Vendedor)',        cat:'usd', catLabel:'USD', src:'BCRA/BNA', srcLink:'https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipos_de_cambio_v2.asp', fetchMode:'usd'},
+  {id:'usd_bill',  name:'USD BILLETE (TC Vendedor)',       cat:'usd', catLabel:'USD', src:'BNA', srcLink:'https://www.bna.com.ar/Cotizador/HistoricoPrincipales', fetchMode:'usd_billete'},
   // ── Mano de Obra — CCT ──────────────────────────────────────────
   {id:'mo_pp',     name:'Petroleros Privados (SINPEP)',    cat:'mo',  catLabel:'Mano de Obra', cct:'CCT N°396/04', src:'RRLL', srcLink:''},
   {id:'mo_pj',     name:'Petroleros Jerárquicos (ASIMRA)', cat:'mo', catLabel:'Mano de Obra', cct:'CCT N°644/12', src:'RRLL', srcLink:''},
@@ -397,6 +398,65 @@ async function fetchUsdBnaLikeAll(uptoYm){
   });
   const rows=Object.entries(byMonth).map(([ym,v])=>({ym,value:v.value,publishedAt:v.fecha})).sort((a,b)=>a.ym.localeCompare(b.ym));
   if(!rows.length) throw new Error('Sin datos USD DIVISA ≤ '+uptoYm);
+  return rows;
+}
+// ── USD BILLETE (BNA, efectivo) ───────────────────────────────────────
+// No hay API pública para esto (a diferencia de USD DIVISA, que sí tiene
+// ArgentinaDatos) — Billete es específicamente la cotización de EFECTIVO
+// de BNA, distinta de Divisa (transferencia), y solo la publica el propio
+// BNA en su cotizador. Usa el endpoint de "Descarga por rango de fechas"
+// del cotizador histórico (bna.com.ar/Cotizador/DescargarPorFecha),
+// formato confirmado con un archivo real descargado por el usuario:
+// CSV separado por ";", encabezado "Moneda;Fecha cotizacion;Compra;Venta;",
+// fecha D/M/YYYY sin ceros, decimales con coma. idMonedaDescarga=22 es el
+// código de Dólar U.S.A. en el sitio de BNA.
+// El formulario de descarga incluye un __RequestVerificationToken (anti-CSRF
+// de ASP.NET) que acá NO se manda — si el endpoint lo exige para este pedido
+// GET de solo lectura, va a fallar y quedará visible el motivo real en la
+// Nota (mismo patrón que el resto de los fetches de esta sesión) para poder
+// ajustarlo con el error real en vez de adivinar.
+async function idxFetchBnaBillete(ym){
+  const [ty,tm]=String(ym).split('-').map(Number);
+  const desde=new Date(ty||2023, (tm||1)-1-48, 1);
+  const hoy=new Date();
+  const fmtDmy=d=>d.getDate()+'/'+(d.getMonth()+1)+'/'+d.getFullYear();
+  const url='https://www.bna.com.ar/Cotizador/DescargarPorFecha?idMonedaDescarga=22&fechaDesde='+encodeURIComponent(fmtDmy(desde))+'&fechaHasta='+encodeURIComponent(fmtDmy(hoy))+'&id=billetes';
+  const r=await fetch(`${SB_URL}/functions/v1/energia-proxy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify({url})
+  });
+  const raw=await r.text();
+  if(!r.ok) throw new Error('energia-proxy '+r.status+' — '+raw.slice(0,200));
+  let text=raw, parsedJson=null;
+  try{ parsedJson=JSON.parse(raw); }catch(_e){ /* raw ya es el CSV plano */ }
+  if(parsedJson && typeof parsedJson==='object'){
+    if(parsedJson.success===false) throw new Error('energia-proxy rechazó la URL: '+((parsedJson.error&&parsedJson.error.message)||JSON.stringify(parsedJson).slice(0,200)));
+    text=(parsedJson.result&&(parsedJson.result.text||parsedJson.result.body))||parsedJson.body||parsedJson.text||raw;
+  }
+  if(typeof text!=='string') throw new Error('Respuesta CSV no reconocida');
+  const trimmed=text.trim();
+  if(!trimmed) throw new Error('BNA devolvió una respuesta vacía (¿requiere token de sesión que no se está enviando?)');
+  if(/^\s*<(!doctype|html)/i.test(trimmed)) throw new Error('BNA no devolvió el CSV (parece HTML — posible error de sesión/token o página de error)');
+  const lines=trimmed.split(/\r?\n/).filter(l=>l.trim());
+  const dataLines=lines.slice(1); // header: Moneda;Fecha cotizacion;Compra;Venta;
+  const dateRe=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+  const byMonth={};
+  for(const line of dataLines){
+    const cols=line.split(';').map(c=>c.trim());
+    if(cols.length<4) continue;
+    const m=cols[1].match(dateRe);
+    if(!m) continue;
+    const [,d,mo,y]=m;
+    const rowYm=y+'-'+mo.padStart(2,'0');
+    if(rowYm>ym) continue;
+    const venta=Number(cols[3].replace(',','.'));
+    if(!isFinite(venta)) continue;
+    const fechaIso=y+'-'+mo.padStart(2,'0')+'-'+d.padStart(2,'0');
+    if(!byMonth[rowYm]||fechaIso>byMonth[rowYm].fechaIso) byMonth[rowYm]={fechaIso,venta};
+  }
+  const rows=Object.entries(byMonth).map(([rym,v])=>({ym:rym,value:v.venta,publishedAt:v.fechaIso})).sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!rows.length) throw new Error('No se pudieron extraer filas del CSV de BNA (formato inesperado)');
   return rows;
 }
 // ── Next-month helpers ────────────────────────────────────────────────
@@ -935,8 +995,8 @@ async function runIdxUpdate(id){
   try{
     if(def.cat==='mo'){ toast('Índice guiado/manual','er'); return; }
 
-    // ── USD: fuente propia ──────────────────────────────────────────────
-    if(mode==='usd'||def.cat==='usd'){
+    // ── USD DIVISA: fuente propia ─────────────────────────────────────────
+    if(mode==='usd'){
       try{
         // Backfill: trae y carga TODOS los meses faltantes (no solo el
         // objetivo) — mismo patrón _allRows que IPIM/IPC.
@@ -965,6 +1025,36 @@ async function runIdxUpdate(id){
       renderIdxView();
       toast(row.needsReview?(def.name+' cargado con aviso — revisá: '+row.reviewReason):(def.name+' actualizado'),row.needsReview?'er':'ok');
       return;
+    }
+
+    // ── USD BILLETE: BNA cotizador histórico (CSV) ──────────────────────
+    // Motivo del fallo (si pasa) guardado en `billFailReason` para
+    // adjuntarlo a la Nota de lo que termine guardándose (seed/AI/fallback)
+    // — mismo criterio que con FADEEAC/IPIM.
+    let billFailReason=null;
+    if(mode==='usd_billete'){
+      try{
+        const allRows=await idxFetchBnaBillete(target);
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        let anyFlagged=false,lastYm=null;
+        for(const r of allRows){
+          if(existing.has(r.ym)) continue;
+          const newRow=withReviewFlag(def,{ym:r.ym,value:r.value,pct:null,confirmed:false,status:'updated',source:def.src,note:'BNA (billete)',publishedAt:r.publishedAt});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
+          lastYm=r.ym;
+        }
+        if(lastYm){
+          renderIdxView();
+          toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(lastYm)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(lastYm)),anyFlagged?'er':'ok');
+          return;
+        }
+        toast(def.name+' — sin períodos nuevos','ok');
+        return;
+      }catch(billErr){
+        billFailReason=billErr.message;
+        console.warn('idxFetchBnaBillete failed, trying seed/AI',billErr.message);
+      }
     }
 
     // ── IPC Nacional: intentar ArgentinaDatos primero (suele estar más al día
@@ -1112,7 +1202,7 @@ async function runIdxUpdate(id){
         console.warn('idxFetchFadeeac failed, trying seed/AI',fadeErr.message);
       }
     }
-    const fadeNoteSuffix=fadeFailReason?(' · Feed FADEEAC falló: '+fadeFailReason):'';
+    const fadeNoteSuffix=(fadeFailReason?(' · Feed FADEEAC falló: '+fadeFailReason):'')+(billFailReason?(' · BNA Billete falló: '+billFailReason):'');
 
     // ── Seed exacto para el target ──────────────────────────────────────
     const official=idxResolveOfficial(def,target);
