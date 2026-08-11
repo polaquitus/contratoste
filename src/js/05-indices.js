@@ -379,6 +379,26 @@ async function fetchUsdBnaLike(targetYm){
   } catch(e){ console.warn('fetchUsdBnaLike fallback',e); }
   throw new Error('No se pudo obtener USD DIVISA — intentá manualmente');
 }
+// Histórico COMPLETO de USD DIVISA (BNA oficial vendedor) — misma fuente y
+// regla que fetchUsdBnaLike (última cotización disponible por mes), pero
+// procesa TODO el dataset que devuelve la API en vez de filtrar a un solo
+// mes, para poder rellenar huecos históricos grandes (ej. backfill desde
+// 2023) en un solo pedido, igual que ya hacen IPIM/IPC con _allRows.
+async function fetchUsdBnaLikeAll(uptoYm){
+  const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
+  if(!r.ok) throw new Error('ArgentinaDatos dolares/oficial '+r.status);
+  const data=await r.json();
+  if(!Array.isArray(data)||!data.length) throw new Error('ArgentinaDatos dolares/oficial: respuesta vacía');
+  const byMonth={};
+  data.filter(x=>x&&x.fecha&&(x.venta!=null||x.sell!=null)).forEach(x=>{
+    const ym=String(x.fecha).substring(0,7);
+    if(ym>uptoYm) return;
+    if(!byMonth[ym]||x.fecha>byMonth[ym].fecha) byMonth[ym]={fecha:x.fecha, value:Number(x.venta??x.sell)};
+  });
+  const rows=Object.entries(byMonth).map(([ym,v])=>({ym,value:v.value,publishedAt:v.fecha})).sort((a,b)=>a.ym.localeCompare(b.ym));
+  if(!rows.length) throw new Error('Sin datos USD DIVISA ≤ '+uptoYm);
+  return rows;
+}
 // ── Next-month helpers ────────────────────────────────────────────────
 function idxNextYm(id){
   const rows=idxRows(id);
@@ -431,15 +451,18 @@ function idxPubBadge(def){
 async function idxFetchIndec(id, ym){
   const def=IDX_CATALOG.find(d=>d.id===id);
   if(!def||!def.seriesId) throw new Error('Sin seriesId para '+id);
-  // Pedimos varios meses para cubrir el caso en que el target todavía no esté publicado.
-  // start_date = 6 meses antes del target → siempre se obtienen al menos algunas filas
+  // Ventana amplia (48 meses atrás) en vez de 6 — además de cubrir el caso en
+  // que el target todavía no esté publicado, permite que un solo click en
+  // "Actualizar" rellene huecos históricos grandes (ej. backfill desde 2023)
+  // en una sola pasada, ya que runIdxUpdate/idxAddNextMonth ya iteran sobre
+  // TODAS las filas devueltas y solo insertan las que faltan.
   const startDt = (function(){
     const [y,m]=String(ym).split('-').map(Number);
     if(!y||!m) return ym;
-    const d=new Date(y, m-1-6, 1);
+    const d=new Date(y, m-1-48, 1);
     return d.toISOString().substring(0,7);
   })();
-  const url=`https://apis.datos.gob.ar/series/api/series?ids=${def.seriesId}&format=json&start_date=${startDt}&limit=20`;
+  const url=`https://apis.datos.gob.ar/series/api/series?ids=${def.seriesId}&format=json&start_date=${startDt}&limit=60`;
   const r=await fetch(url);
   if(!r.ok) throw new Error('INDEC API '+r.status);
   const j=await r.json();
@@ -914,6 +937,28 @@ async function runIdxUpdate(id){
 
     // ── USD: fuente propia ──────────────────────────────────────────────
     if(mode==='usd'||def.cat==='usd'){
+      try{
+        // Backfill: trae y carga TODOS los meses faltantes (no solo el
+        // objetivo) — mismo patrón _allRows que IPIM/IPC.
+        const allRows=await fetchUsdBnaLikeAll(target);
+        const existing=new Set((idxRows(id)||[]).filter(r=>r.confirmed).map(r=>r.ym));
+        let lastPrev=null,anyFlagged=false,lastYm=null;
+        for(const r of allRows){
+          if(existing.has(r.ym)) { lastPrev=r; continue; }
+          const newRow=withReviewFlag(def,{ym:r.ym,value:r.value,pct:null,confirmed:false,status:'updated',source:def.src,note:'BNA Oficial (divisa)',publishedAt:r.publishedAt});
+          if(newRow.needsReview)anyFlagged=true;
+          await idxUpsert(id,newRow);
+          lastPrev=r; lastYm=r.ym;
+        }
+        if(lastYm){
+          renderIdxView();
+          toast(anyFlagged?(def.name+' actualizado hasta '+formatMonth(lastYm)+' — algún período quedó marcado para revisar'):(def.name+' actualizado hasta '+formatMonth(lastYm)),anyFlagged?'er':'ok');
+          return;
+        }
+        throw new Error('Sin períodos nuevos');
+      }catch(bfErr){
+        console.warn('fetchUsdBnaLikeAll failed, trying single-month fetch',bfErr.message);
+      }
       const usd=await fetchUsdBnaLike(target);
       const row=withReviewFlag(def,{ym:usd.ym,value:usd.value,pct:null,confirmed:false,status:'updated',source:def.src,note:usd.source,publishedAt:usd.publishedAt});
       await idxUpsert(id,row);
