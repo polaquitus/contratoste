@@ -1433,7 +1433,10 @@ async function toggleIdxConfirm(idxId,ym,val){
   if(!ok)toast('⚠ Cambio guardado local — no se pudo sincronizar con Supabase','er');
 }
 async function confirmAllIdx(idxId){
-  (IDX_STORE[idxId]?.rows||[]).forEach(r=>r.confirmed=true);
+  // Mismo criterio que toggleIdxConfirm: confirmar a mano es la revisión
+  // humana que needsReview estaba pidiendo — "Confirmar todos" se olvidaba
+  // de limpiarlo, dejaba la fila en rojo con el aviso pese a estar ✅.
+  (IDX_STORE[idxId]?.rows||[]).forEach(r=>{r.confirmed=true;r.needsReview=false;r.reviewReason='';});
   const ok=await saveIdx();
   renderIdxView();
   toast(ok?'Todos confirmados':'⚠ Confirmado local — no se pudo sincronizar con Supabase',ok?'ok':'er');
