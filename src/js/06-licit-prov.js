@@ -1307,9 +1307,9 @@ async function delEnm(num) {
   const enmDeleted = (cc.enmiendas || []).find(e => e.num === num);
   cc.enmiendas = (cc.enmiendas || []).filter(e => e.num !== num);
   cc.enmiendas.forEach((e, i) => e.num = i + 1);
-  // Si era una EXTENSION, restaurar fechaFin a la última EXTENSION restante o al original
-  if (enmDeleted && enmDeleted.tipo === 'EXTENSION') {
-    const remaining = cc.enmiendas.filter(e => e.tipo === 'EXTENSION' && e.fechaFinNueva);
+  // Si tenía EXTENSION entre sus conceptos, restaurar fechaFin a la última EXTENSION restante o al original
+  if (enmDeleted && enmHasTipo(enmDeleted, 'EXTENSION')) {
+    const remaining = cc.enmiendas.filter(e => enmHasTipo(e, 'EXTENSION') && e.fechaFinNueva);
     if (remaining.length > 0) {
       cc.fechaFin = remaining[remaining.length - 1].fechaFinNueva;
     } else if (cc._fechaFinOriginal) {
@@ -1330,10 +1330,10 @@ async function delEnm(num) {
   // Las AVEs de la enmienda eliminada se eliminan (no se dejan huérfanas, para no inflar cc.monto)
   cc.aves = (cc.aves || []).filter(a => a.enmRef !== num);
   cc.aves.forEach(a => { if (a.enmRef > num) a.enmRef = a.enmRef - 1; });
-  // Si era ACTUALIZACION_TARIFAS, restaurar btar y monto a partir de las enmiendas tarifarias restantes
-  if (enmDeleted && enmDeleted.tipo === 'ACTUALIZACION_TARIFAS') {
+  // Si tenía ACTUALIZACION_TARIFAS entre sus conceptos, restaurar btar y monto a partir de las enmiendas tarifarias restantes
+  if (enmDeleted && enmHasTipo(enmDeleted, 'ACTUALIZACION_TARIFAS')) {
     const tarRemaining = cc.enmiendas
-      .filter(e => e.tipo === 'ACTUALIZACION_TARIFAS' && !e.superseded)
+      .filter(e => enmHasTipo(e, 'ACTUALIZACION_TARIFAS') && !e.superseded)
       .sort((a, b) => String(a.nuevoPeriodo||'').localeCompare(String(b.nuevoPeriodo||'')));
     if (tarRemaining.length > 0) {
       const last = tarRemaining[tarRemaining.length - 1];

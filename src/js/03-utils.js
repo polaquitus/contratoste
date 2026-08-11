@@ -304,6 +304,15 @@ function rmFile(i){files.splice(i,1);renderFL();}
 function renderFL(){document.getElementById('fList').innerHTML=files.map((f,i)=>`<div class="fli"><span>📄</span><span class="fn">${esc(f.name)}</span><span class="fs">${(f.size/1024).toFixed(0)}KB</span><button class="fd" onclick="rmFile(${i})">✕</button></div>`).join('');}
 function gv(id){return(document.getElementById(id).value||'').trim();}
 
+// Una enmienda puede combinar varios conceptos a la vez (enm.tipos, array —
+// ej. ['EXTENSION','ACTUALIZACION_TARIFAS']). enm.tipo (string, singular) se
+// mantiene siempre poblado con el primer concepto para no romper lecturas
+// viejas de enmiendas guardadas antes de este cambio, o código que todavía
+// no se migró a leer el array. Usar estos helpers en vez de comparar
+// enm.tipo directamente contra un string.
+function enmTipos(e){return (e&&e.tipos&&e.tipos.length)?e.tipos:(e&&e.tipo?[e.tipo]:[]);}
+function enmHasTipo(e,t){return enmTipos(e).includes(t);}
+
 // SAVE
 async function guardar(){
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
