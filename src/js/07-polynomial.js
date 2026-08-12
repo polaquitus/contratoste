@@ -514,9 +514,15 @@ function renderUpdateSection(contract){
     liveResult.details.forEach(function(d){
       var icon=d.cumplido?'✓':'○';
       var color=d.cumplido?'var(--g600)':'#92400e';
+      // Para la condición de Variación acumulada (Ko, d.perIdx) NO se proyecta "se
+      // cumpliría a partir de X": el Ko combinado depende de cómo evolucione cada
+      // índice mes a mes, no es una progresión lineal/segura como "meses transcurridos"
+      // — mostrar una fecha ahí sugiere una certeza que no existe.
       var statusLine=d.cumplido
         ?(d.firstMet?'Se cumple desde '+formatYmLabel(d.firstMet):'Se cumple en '+formatYmLabel(evalYm)+(d.anyMissing?' (con % manual cargado)':''))
-        :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'No se cumple en '+formatYmLabel(evalYm)+' con los datos disponibles'));
+        :(d.perIdx
+          ?(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'No se cumple en '+formatYmLabel(evalYm)+' con los datos disponibles')
+          :(d.firstMet?'Se cumpliría a partir de '+formatYmLabel(d.firstMet):(d.anyMissing?'No se puede proyectar el mes exacto — falta cargar el % de algún concepto sin fuente automática':'No se cumple en '+formatYmLabel(evalYm)+' con los datos disponibles')));
       condHtml+='<div style="margin:10px 0;padding:12px;background:var(--w);border-radius:8px;border:1px solid var(--g200)">';
       condHtml+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px"><span style="font-weight:700;font-size:13.5px;color:'+color+'">'+icon+' '+d.condicion+'</span>'+(d.perIdx&&d.koTotal!=null?'<span style="font-size:12px;font-weight:700;color:var(--p700)">Ko simulado: '+(d.koTotal>=0?'+':'')+d.koTotal.toFixed(2)+'%</span>':'')+'</div>';
       condHtml+='<div style="font-size:11.5px;color:'+color+';font-weight:600;margin-bottom:'+((d.perIdx||d.moDetail)?'10px':'0')+'">'+statusLine+'</div>';

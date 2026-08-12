@@ -770,14 +770,6 @@ function renderDet(){
             <h4>💰 Actualización de Tarifas</h4>
             <div class="fg2" style="margin-bottom:12px">
               <div class="fgrp">
-                <label>Subtipo</label>
-                <select id="ne_tar_subtipo">
-                  <option value="POLINOMICA">Fórmula Polinómica</option>
-                  <option value="EXTRAORDINARIO">Ajuste Extraordinario</option>
-                  <option value="DESCALCE">Descalce</option>
-                </select>
-              </div>
-              <div class="fgrp">
                 <label>¿Corrige enmienda anterior?</label>
                 <div class="tw"><label class="tg"><input type="checkbox" id="ne_isCorr" onchange="onCorrToggle()"><span class="sl"></span></label><span class="tl" id="ne_isCorr_l">No</span></div>
               </div>
