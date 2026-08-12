@@ -367,6 +367,7 @@ async function guardar(){
     plazo:parseInt(document.getElementById('f_plazo').value)||0,
     poly:getPoly(),
     tcontr:gv('f_tcontr'),cc:gv('f_cc')||null,cof:gv('f_cof')||null,oferentes:gv('f_of')||null,
+    participantes:gv('f_partic')||null,
     ariba:gv('f_ariba')||null,fev:gv('f_fev')||null,
     dd:gv('f_dd')||null,pr:gv('f_pr')||null,
     sq:gv('f_sq')||null,dg:document.getElementById('f_dg').checked,
@@ -450,7 +451,7 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_partic','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
