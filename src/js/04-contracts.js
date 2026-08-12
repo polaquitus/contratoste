@@ -1009,103 +1009,61 @@ function renderDet(){
       </div>
       
       ${(()=>{
-        // Gráfico de evolución del contrato: TV acumulado en el tiempo (montoBase + AVEs)
+        // Evolución del contrato como línea de tiempo: un ítem por AVE (fecha, tipo, período
+        // de incorporación y monto), en vez de un gráfico de línea donde varios AVEs
+        // cercanos en fecha terminaban superpuestos e ilegibles. Reemplaza también a la
+        // vieja tabla "Historial de Redeterminaciones", que duplicaba la tabla de AVEs de
+        // más arriba en esta misma vista.
         try{
-          const allEvents=[];
-          if(c.fechaIni) allEvents.push({fecha:c.fechaIni, label:'Inicio contrato', delta:montoBase, type:'base'});
+          const events=[];
+          if(c.fechaIni) events.push({fecha:c.fechaIni, tipo:'base', label:'Inicio de contrato', periodo:'', monto:montoBase});
           (c.aves||[]).slice().sort((a,b)=>String(a.fecha||'').localeCompare(String(b.fecha||''))).forEach(a=>{
             if(!a.fecha) return;
-            allEvents.push({fecha:a.fecha.substring(0,10), label:(a.tipo==='POLINOMICA'?'AVE Polinómica':'AVE Owner')+(a.concepto?' · '+a.concepto:''), delta:a.monto||0, type:a.tipo==='POLINOMICA'?'poly':'owner'});
+            events.push({fecha:a.fecha.substring(0,10), tipo:a.tipo==='POLINOMICA'?'poly':'owner',
+              label:(a.tipo==='POLINOMICA'?'AVE Polinómica':'AVE Owner')+(a.subtipo&&a.tipo!=='POLINOMICA'?' · '+a.subtipo:'')+(a.concepto?' · '+a.concepto:''),
+              periodo:a.periodo||'', monto:a.monto||0});
           });
-          if(allEvents.length<2) return '';
+          if(events.length<2) return '';
           let cum=0;
-          const pts=allEvents.map(e=>{cum+=e.delta; return {fecha:e.fecha, label:e.label, val:cum, delta:e.delta, type:e.type};});
-          // Punto final = hoy o fechaFin si vencido
+          const items=events.map(e=>{cum+=e.monto; return {...e, cum};});
           const hoy2=new Date(); hoy2.setHours(0,0,0,0);
           const finD=c.fechaFin?new Date(c.fechaFin+'T00:00:00'):null;
-          const lastPt=pts[pts.length-1];
-          const endDateStr=(finD && finD<hoy2)?c.fechaFin:hoy2.toISOString().substring(0,10);
-          if(endDateStr>lastPt.fecha) pts.push({fecha:endDateStr, label:(finD&&finD<hoy2)?'Fin de contrato':'Hoy', val:lastPt.val, delta:0, type:'now'});
-          const W=720, H=240, padL=68, padR=16, padT=18, padB=44;
-          const xs=pts.map(p=>new Date(p.fecha+'T00:00:00').getTime());
-          const ys=pts.map(p=>p.val);
-          const xMin=Math.min(...xs), xMax=Math.max(...xs);
-          const yMin=0, yMax=Math.max(...ys)*1.08||1;
-          const xToPx=t=>padL+(W-padL-padR)*((t-xMin)/Math.max(1,xMax-xMin));
-          const yToPx=v=>padT+(H-padT-padB)*(1-(v-yMin)/Math.max(1,yMax-yMin));
-          let path=''; pts.forEach((p,i)=>{const x=xToPx(new Date(p.fecha+'T00:00:00').getTime()),y=yToPx(p.val);path+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' ';});
-          const areaPath=path+'L'+xToPx(xMax).toFixed(1)+','+yToPx(0).toFixed(1)+' L'+xToPx(xMin).toFixed(1)+','+yToPx(0).toFixed(1)+' Z';
-          // Y ticks
-          const ticks=[]; for(let i=0;i<=4;i++){ const v=yMin+(yMax-yMin)*i/4; ticks.push({v, y:yToPx(v)}); }
-          const fmtNum=fmtCompactNum;
-          const yGrid=ticks.map(t=>'<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+t.y.toFixed(1)+'" y2="'+t.y.toFixed(1)+'" stroke="rgba(255,255,255,.08)"/><text x="'+(padL-8)+'" y="'+(t.y+3).toFixed(1)+'" fill="rgba(255,255,255,.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono,monospace">'+fmtNum(t.v)+'</text>').join('');
-          // X ticks: 5 evenly spaced
-          const xTicks=[]; for(let i=0;i<=4;i++){ const t=xMin+(xMax-xMin)*i/4; xTicks.push(t); }
-          const xGrid=xTicks.map(t=>{const x=xToPx(t); const d=new Date(t); const lbl=String(d.getFullYear()).slice(2)+'·'+String(d.getMonth()+1).padStart(2,'0'); return '<line x1="'+x.toFixed(1)+'" x2="'+x.toFixed(1)+'" y1="'+padT+'" y2="'+(H-padB)+'" stroke="rgba(255,255,255,.04)"/><text x="'+x.toFixed(1)+'" y="'+(H-padB+16)+'" fill="rgba(255,255,255,.55)" font-size="10" text-anchor="middle" font-family="JetBrains Mono,monospace">'+lbl+'</text>';}).join('');
-          const dots=pts.map(p=>{const x=xToPx(new Date(p.fecha+'T00:00:00').getTime()),y=yToPx(p.val); const col=p.type==='base'?'#86efac':p.type==='poly'?'#fde68a':p.type==='owner'?'#a5b4fc':'#fff'; const tip=p.label+' · '+(c.mon||'ARS')+' '+fN(p.val)+(p.delta?' (+'+fN(p.delta)+')':''); return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="4" fill="'+col+'" stroke="rgba(0,0,0,.4)" stroke-width="1"><title>'+esc(tip)+'</title></circle>';}).join('');
-          const svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:280px;display:block">'
-            +'<defs><linearGradient id="evolGrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#86efac" stop-opacity=".35"/><stop offset="100%" stop-color="#86efac" stop-opacity="0"/></linearGradient></defs>'
-            +xGrid+yGrid
-            +'<path d="'+areaPath+'" fill="url(#evolGrad)"/>'
-            +'<path d="'+path+'" fill="none" stroke="#86efac" stroke-width="2"/>'
-            +dots
-            +'</svg>';
-          const legend='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap;color:rgba(255,255,255,.65);margin-top:8px">'
-            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#86efac;margin-right:5px;vertical-align:middle"></span>Base / Hoy</span>'
+          const lastItem=items[items.length-1];
+          const endDateStr=(finD&&finD<hoy2)?c.fechaFin:hoy2.toISOString().substring(0,10);
+          if(endDateStr>lastItem.fecha) items.push({fecha:endDateStr, tipo:'now', label:(finD&&finD<hoy2)?'Fin de contrato':'Hoy', periodo:'', monto:0, cum:lastItem.cum});
+          const colDot={base:'#86efac',poly:'#fde68a',owner:'#a5b4fc',now:'#fff'};
+          const colTxt={base:'#86efac',poly:'#fde68a',owner:'#a5b4fc',now:'rgba(255,255,255,.6)'};
+          const rows=items.map(it=>{
+            const dot=colDot[it.tipo], txt=colTxt[it.tipo];
+            const perLbl=it.periodo?('<span style="font-size:11px;color:rgba(255,255,255,.55)">período '+esc(formatMonth(it.periodo)||it.periodo)+'</span>'):'';
+            const montoLbl=it.monto?('<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:'+txt+'">'+(it.monto>0?'+':'')+fN(it.monto)+' '+(c.mon||'ARS')+'</span>'):'';
+            return '<div style="display:flex;gap:12px;position:relative;padding-bottom:16px">'
+              +'<div style="display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0">'
+              +'<div style="width:11px;height:11px;border-radius:50%;background:'+dot+';border:2px solid rgba(0,0,0,.3);flex-shrink:0;margin-top:2px"></div>'
+              +'<div style="width:2px;flex:1;background:rgba(255,255,255,.1);margin-top:2px"></div>'
+              +'</div>'
+              +'<div style="flex:1;min-width:0;padding-bottom:2px">'
+              +'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+              +'<span style="font-size:12px;font-weight:700;color:#fff">'+esc(it.label)+'</span>'
+              +'<span style="font-size:10.5px;color:rgba(255,255,255,.45)">'+fD(it.fecha)+'</span>'
+              +'</div>'
+              +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px">'
+              +perLbl+montoLbl
+              +'<span style="margin-left:auto;font-size:10.5px;color:rgba(255,255,255,.4);font-family:JetBrains Mono,monospace">TV: '+(c.mon||'ARS')+' '+fN(it.cum)+'</span>'
+              +'</div>'
+              +'</div>'
+              +'</div>';
+          }).join('');
+          const legend='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap;color:rgba(255,255,255,.65);margin-top:2px;margin-bottom:14px">'
+            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#86efac;margin-right:5px;vertical-align:middle"></span>Base</span>'
             +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fde68a;margin-right:5px;vertical-align:middle"></span>AVE Polinómica</span>'
             +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#a5b4fc;margin-right:5px;vertical-align:middle"></span>AVE Owner</span>'
-            +'<span style="margin-left:auto;font-family:JetBrains Mono,monospace">TV final: '+(c.mon||'ARS')+' '+fN(lastPt.val)+'</span>'
+            +'<span style="margin-left:auto;font-family:JetBrains Mono,monospace">TV final: '+(c.mon||'ARS')+' '+fN(lastItem.cum)+'</span>'
             +'</div>';
           return '<div class="section-box" style="background:rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:16px 18px;margin-top:16px">'
-            +'<h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px">📈 Evolución del contrato <span style="font-weight:400;opacity:.6;font-size:11px;text-transform:none">TV acumulado · '+pts.length+' puntos</span></h3>'
-            +svg+legend+'</div>';
-        }catch(e){console.warn('chart evolución', e); return '';}
-      })()}
-
-      ${(()=>{
-        // Historial de redeterminaciones: AVEs polinómicos + enmiendas tarifarias
-        const polyAves=(c.aves||[]).filter(a=>a.tipo==='POLINOMICA').map(a=>({
-          fecha:a.fecha||'',
-          periodo:a.periodo||'',
-          basePeriodo:a.basePeriodo||'',
-          nuevoPeriodo:a.nuevoPeriodo||a.periodo||'',
-          pct:a.pctPoli!=null?a.pctPoli*100:null,
-          monto:a.monto||0,
-          origen:'AVE',
-          ref:a.enmRef?'Enm.'+a.enmRef:'AUTO',
-          concepto:a.concepto||''
-        }));
-        const tarEnms=(c.enmiendas||[]).filter(e=>enmHasTipo(e,'ACTUALIZACION_TARIFAS')&&e.pctPoli!=null&&!e.superseded).map(e=>({
-          fecha:e.fecha||'',
-          periodo:e.nuevoPeriodo||'',
-          basePeriodo:e.basePeriodo||'',
-          nuevoPeriodo:e.nuevoPeriodo||'',
-          pct:e.pctPoli!=null?e.pctPoli*100:null,
-          monto:e.monto||0,
-          origen:'ENM',
-          ref:'N°'+e.num,
-          concepto:e.motivo||e.descripcion||''
-        }));
-        const all=[...polyAves,...tarEnms].sort((a,b)=>a.fecha.localeCompare(b.fecha));
-        if(!all.length) return '';
-        let cumMonto=c.montoBase||c.monto||0;
-        const rows=all.map(r=>{
-          cumMonto+=r.monto;
-          const pctStr=r.pct!=null?(r.pct>0?'+':'')+r.pct.toFixed(2)+'%':'—';
-          const pil=r.origen==='AVE'?'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,.25);color:#a5b4fc">AUTO</span>':'<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(234,179,8,.2);color:#fde68a">ENM</span>';
-          return '<tr>'+
-            '<td style="color:rgba(255,255,255,.5);font-size:11px">'+fD((r.fecha||'').substring(0,10))+'</td>'+
-            '<td>'+pil+' <span style="font-size:11px;font-weight:600">'+esc(r.ref)+'</span></td>'+
-            '<td style="font-size:11px">'+(r.basePeriodo?formatMonth(r.basePeriodo)+'→'+formatMonth(r.nuevoPeriodo):formatMonth(r.periodo)||'—')+'</td>'+
-            '<td style="font-weight:700;color:'+(r.pct!=null&&r.pct>0?'#86efac':'#fca5a5')+'">'+pctStr+'</td>'+
-            '<td class="mono" style="font-size:11px;text-align:right">'+c.mon+' '+fN(r.monto)+'</td>'+
-            '<td class="mono" style="font-size:11px;text-align:right;opacity:.7">'+c.mon+' '+fN(cumMonto)+'</td>'+
-          '</tr>';
-        }).join('');
-        return '<div class="section-box" style="background:rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:16px 18px;margin-top:16px">'+
-          '<h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px">📈 Historial de Redeterminaciones <span style="font-weight:400;opacity:.6;font-size:11px;text-transform:none">'+all.length+' ajustes registrados</span></h3>'+
-          '<table class="redet-tbl"><thead><tr><th>Fecha</th><th>Origen</th><th>Período</th><th>% Ko</th><th style="text-align:right">Ajuste</th><th style="text-align:right">TV Acum.</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-        '</div>';
+            +'<h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px">📈 Evolución del contrato <span style="font-weight:400;opacity:.6;font-size:11px;text-transform:none">'+items.length+' eventos</span></h3>'
+            +legend+rows+'</div>';
+        }catch(e){console.warn('timeline evolución', e); return '';}
       })()}
 
     </div>`;
