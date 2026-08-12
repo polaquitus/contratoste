@@ -562,6 +562,13 @@ function renderDet(){
     const isUsdContract=(String(c.mon||'').toUpperCase().indexOf('USD')>=0);
     const toUsd=function(v){ if(!isFinite(v)) return 0; return isUsdContract?v:(TC_USD>0?(v/TC_USD):0); };
     const fmtUsd=function(v){ return 'USD '+ (Math.round(v*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    // Compliance: status explícito si existe; si no, se infiere de la fecha legacy (Done si
+    // ya tenía fecha cargada) — mismo criterio que usa el Dossier.
+    const cplStatus=function(status,legacyDate){
+      const s=status||((legacyDate&&legacyDate!==true&&legacyDate!==false)?'DONE':'PENDING');
+      const map={DONE:['Done','#86efac'],IN_PROCESS:['In Process','#fde68a'],PENDING:['Pending','#fca5a5']};
+      return map[s]||map.PENDING;
+    };
     if(!sAves.length)aveRows='<tr><td colspan="9" style="text-align:center;color:var(--g500);font-style:italic;padding:12px">Sin AVEs registrados</td></tr>';
     sAves.forEach(a=>{
       const prev=cumTV,newTV=cumTV+(a.monto||0);cumTV=newTV;
@@ -629,10 +636,11 @@ function renderDet(){
             <div class="dr"><span>Plazo</span><span class="dv">${monthDiffInclusive(c.fechaIni,c.fechaFin)?monthDiffInclusive(c.fechaIni,c.fechaFin)+' meses':'—'}</span></div>
             <div class="dr"><span>Responsable</span><span class="dv">${esc(c.resp||'—')}</span></div>
             <div class="dr"><span>Owner</span><span class="dv">${esc(c.own||'—')}</span></div>
-            ${(c.dd||c.pr||c.sq)?`<div class="dr sep" style="margin-top:6px"><span style="font-weight:700;opacity:.7;font-size:10px;letter-spacing:.1em;text-transform:uppercase">Compliance</span><span></span></div>`:''}
-            ${c.dd&&c.dd!==true?`<div class="dr"><span>Due Diligence</span><span class="dv" style="color:${new Date(c.dd+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.dd)}${new Date(c.dd+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
-            ${c.pr&&c.pr!==true?`<div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${new Date(c.pr+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.pr)}${new Date(c.pr+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
-            ${c.sq&&c.sq!==true?`<div class="dr"><span>Sequana</span><span class="dv" style="color:${new Date(c.sq+'T00:00:00')<new Date()?'#fca5a5':'#86efac'}">${fD(c.sq)}${new Date(c.sq+'T00:00:00')<new Date()?' ⚠️':' ✓'}</span></div>`:''}
+            <div class="dr sep" style="margin-top:6px"><span style="font-weight:700;opacity:.7;font-size:10px;letter-spacing:.1em;text-transform:uppercase">Compliance</span><span></span></div>
+            <div class="dr"><span>Due Diligence</span><span class="dv" style="color:${cplStatus(c.ddStatus,c.dd)[1]}">${cplStatus(c.ddStatus,c.dd)[0]}</span></div>
+            <div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${cplStatus(c.prStatus,c.pr)[1]}">${cplStatus(c.prStatus,c.pr)[0]}</span></div>
+            <div class="dr"><span>Sequana</span><span class="dv" style="color:${cplStatus(c.sqStatus,c.sq)[1]}">${cplStatus(c.sqStatus,c.sq)[0]}</span></div>
+            <div class="dr"><span>Sustainability</span><span class="dv" style="color:${cplStatus(c.sustStatus,null)[1]}">${cplStatus(c.sustStatus,null)[0]}</span></div>
             ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí</span></div>`:''}
           </div>
           ${(()=>{
