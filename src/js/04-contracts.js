@@ -1008,12 +1008,16 @@ function renderDet(){
         </div>
       </div>
       
+      <div class="section-box">
       ${(()=>{
         // Evolución del contrato como línea de tiempo: un ítem por AVE (fecha, tipo, período
         // de incorporación y monto), en vez de un gráfico de línea donde varios AVEs
         // cercanos en fecha terminaban superpuestos e ilegibles. Reemplaza también a la
         // vieja tabla "Historial de Redeterminaciones", que duplicaba la tabla de AVEs de
-        // más arriba en esta misma vista.
+        // más arriba en esta misma vista. Barra de progreso por ítem = vista tipo gráfico
+        // del TV acumulado, sin depender de un eje temporal que se aprieta con eventos
+        // cercanos en fecha. Misma paleta de colores que ya usa la tabla de AVEs de arriba
+        // (esta sección vive en fondo claro, no en el header azul oscuro del contrato).
         try{
           const events=[];
           if(c.fechaIni) events.push({fecha:c.fechaIni, tipo:'base', label:'Inicio de contrato', periodo:'', monto:montoBase});
@@ -1023,7 +1027,7 @@ function renderDet(){
               label:(a.tipo==='POLINOMICA'?'AVE Polinómica':'AVE Owner')+(a.subtipo&&a.tipo!=='POLINOMICA'?' · '+a.subtipo:'')+(a.concepto?' · '+a.concepto:''),
               periodo:a.periodo||'', monto:a.monto||0});
           });
-          if(events.length<2) return '';
+          if(events.length<2) return '<h3>📈 Evolución del contrato</h3><div class="empty-cell" style="padding:14px 0">Todavía no hay AVEs registrados para graficar la evolución.</div>';
           let cum=0;
           const items=events.map(e=>{cum+=e.monto; return {...e, cum};});
           const hoy2=new Date(); hoy2.setHours(0,0,0,0);
@@ -1031,40 +1035,44 @@ function renderDet(){
           const lastItem=items[items.length-1];
           const endDateStr=(finD&&finD<hoy2)?c.fechaFin:hoy2.toISOString().substring(0,10);
           if(endDateStr>lastItem.fecha) items.push({fecha:endDateStr, tipo:'now', label:(finD&&finD<hoy2)?'Fin de contrato':'Hoy', periodo:'', monto:0, cum:lastItem.cum});
-          const colDot={base:'#86efac',poly:'#fde68a',owner:'#a5b4fc',now:'#fff'};
-          const colTxt={base:'#86efac',poly:'#fde68a',owner:'#a5b4fc',now:'rgba(255,255,255,.6)'};
-          const rows=items.map(it=>{
-            const dot=colDot[it.tipo], txt=colTxt[it.tipo];
-            const perLbl=it.periodo?('<span style="font-size:11px;color:rgba(255,255,255,.55)">período '+esc(formatMonth(it.periodo)||it.periodo)+'</span>'):'';
-            const montoLbl=it.monto?('<span style="font-family:JetBrains Mono,monospace;font-weight:700;color:'+txt+'">'+(it.monto>0?'+':'')+fN(it.monto)+' '+(c.mon||'ARS')+'</span>'):'';
-            return '<div style="display:flex;gap:12px;position:relative;padding-bottom:16px">'
-              +'<div style="display:flex;flex-direction:column;align-items:center;width:12px;flex-shrink:0">'
-              +'<div style="width:11px;height:11px;border-radius:50%;background:'+dot+';border:2px solid rgba(0,0,0,.3);flex-shrink:0;margin-top:2px"></div>'
-              +'<div style="width:2px;flex:1;background:rgba(255,255,255,.1);margin-top:2px"></div>'
+          const maxCum=Math.max.apply(null,items.map(it=>it.cum))||1;
+          const colDot={base:'#16a34a',poly:'#b45309',owner:'#3399ff',now:'var(--g500)'};
+          const colBar={base:'#22c55e',poly:'#f59e0b',owner:'#3399ff',now:'var(--g300)'};
+          const colBg={base:'#f0fdf4',poly:'#fffbeb',owner:'#eff6ff',now:'var(--g50)'};
+          const rows=items.map((it,i)=>{
+            const dot=colDot[it.tipo], bar=colBar[it.tipo], bg=colBg[it.tipo];
+            const pct=Math.max(4,Math.round(it.cum/maxCum*100));
+            const perLbl=it.periodo?('<span class="tcnt" style="padding:1px 8px;font-size:10.5px">período '+esc(formatMonth(it.periodo)||it.periodo)+'</span>'):'';
+            const montoLbl=it.monto?('<span style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:12px;color:'+dot+'">'+(it.monto>0?'+':'')+fN(it.monto)+' '+(c.mon||'ARS')+'</span>'):'';
+            return '<div style="display:flex;gap:12px;position:relative">'
+              +'<div style="display:flex;flex-direction:column;align-items:center;width:14px;flex-shrink:0">'
+              +'<div style="width:12px;height:12px;border-radius:50%;background:'+dot+';border:2px solid #fff;box-shadow:0 0 0 1px '+dot+';flex-shrink:0;margin-top:3px"></div>'
+              +(i<items.length-1?'<div style="width:2px;flex:1;background:var(--g200);margin:2px 0"></div>':'')
               +'</div>'
-              +'<div style="flex:1;min-width:0;padding-bottom:2px">'
-              +'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
-              +'<span style="font-size:12px;font-weight:700;color:#fff">'+esc(it.label)+'</span>'
-              +'<span style="font-size:10.5px;color:rgba(255,255,255,.45)">'+fD(it.fecha)+'</span>'
+              +'<div style="flex:1;min-width:0;padding-bottom:16px;background:'+bg+';border:1px solid var(--g100);border-radius:8px;padding:10px 14px;margin-bottom:2px">'
+              +'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;justify-content:space-between">'
+              +'<span style="font-size:12.5px;font-weight:700;color:var(--g900)">'+esc(it.label)+'</span>'
+              +'<span style="font-size:10.5px;color:var(--g500)">'+fD(it.fecha)+'</span>'
               +'</div>'
-              +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px">'
+              +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:5px">'
               +perLbl+montoLbl
-              +'<span style="margin-left:auto;font-size:10.5px;color:rgba(255,255,255,.4);font-family:JetBrains Mono,monospace">TV: '+(c.mon||'ARS')+' '+fN(it.cum)+'</span>'
+              +'<span style="margin-left:auto;font-size:10.5px;color:var(--g600c);font-family:JetBrains Mono,monospace">TV: '+(c.mon||'ARS')+' '+fN(it.cum)+'</span>'
               +'</div>'
+              +'<div style="height:6px;background:var(--g100);border-radius:99px;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+bar+';border-radius:99px"></div></div>'
               +'</div>'
               +'</div>';
           }).join('');
-          const legend='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap;color:rgba(255,255,255,.65);margin-top:2px;margin-bottom:14px">'
-            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#86efac;margin-right:5px;vertical-align:middle"></span>Base</span>'
-            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fde68a;margin-right:5px;vertical-align:middle"></span>AVE Polinómica</span>'
-            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#a5b4fc;margin-right:5px;vertical-align:middle"></span>AVE Owner</span>'
-            +'<span style="margin-left:auto;font-family:JetBrains Mono,monospace">TV final: '+(c.mon||'ARS')+' '+fN(lastItem.cum)+'</span>'
+          const legend='<div style="display:flex;gap:16px;font-size:11.5px;flex-wrap:wrap;color:var(--g600c);margin:2px 0 14px">'
+            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;margin-right:5px;vertical-align:middle"></span>Base</span>'
+            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#b45309;margin-right:5px;vertical-align:middle"></span>AVE Polinómica</span>'
+            +'<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#3399ff;margin-right:5px;vertical-align:middle"></span>AVE Owner</span>'
+            +'<span style="margin-left:auto;font-weight:700;color:var(--p700);font-family:JetBrains Mono,monospace">TV final: '+(c.mon||'ARS')+' '+fN(lastItem.cum)+'</span>'
             +'</div>';
-          return '<div class="section-box" style="background:rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:16px 18px;margin-top:16px">'
-            +'<h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.4px">📈 Evolución del contrato <span style="font-weight:400;opacity:.6;font-size:11px;text-transform:none">'+items.length+' eventos</span></h3>'
-            +legend+rows+'</div>';
-        }catch(e){console.warn('timeline evolución', e); return '';}
+          return '<h3>📈 Evolución del contrato <span class="tcnt">'+items.length+' eventos</span></h3>'
+            +legend+rows;
+        }catch(e){console.warn('timeline evolución', e); return '<h3>📈 Evolución del contrato</h3>';}
       })()}
+      </div>
 
     </div>`;
   } catch(err) {
