@@ -307,6 +307,30 @@ function onFueComiteToggle(){
 function handleFiles(fl){for(const f of fl){if(files.length>=10)return;const r=new FileReader();r.onload=e=>{files.push({name:f.name,size:f.size,data:e.target.result});renderFL()};r.readAsDataURL(f);}}
 function rmFile(i){files.splice(i,1);renderFL();}
 function renderFL(){document.getElementById('fList').innerHTML=files.map((f,i)=>`<div class="fli"><span>📄</span><span class="fn">${esc(f.name)}</span><span class="fs">${(f.size/1024).toFixed(0)}KB</span><button class="fd" onclick="rmFile(${i})">✕</button></div>`).join('');}
+// Invitados/Ofertas del RFQ: se van agregando de a uno, y de esos invitados se tilda
+// cuál efectivamente cotizó — "Invitados" y "Ofertas" salen de contar la misma lista,
+// no de dos campos de texto libre desincronizados entre sí.
+function addRfqOferente(){
+  const inp=document.getElementById('rfq_nuevoNombre');
+  const name=(inp.value||'').trim();
+  if(!name)return;
+  rfqOfrs.push({nombre:name,cotizo:false});
+  inp.value='';
+  renderRfqOferentes();
+  inp.focus();
+}
+function rmRfqOferente(i){rfqOfrs.splice(i,1);renderRfqOferentes();}
+function toggleRfqCotizo(i){if(rfqOfrs[i])rfqOfrs[i].cotizo=!rfqOfrs[i].cotizo;renderRfqOferentes();}
+function renderRfqOferentes(){
+  const box=document.getElementById('rfq_list');if(!box)return;
+  box.innerHTML=rfqOfrs.length?rfqOfrs.map((o,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--g100);font-size:13px">
+    <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:${o.cotizo?'var(--g600)':'var(--g400)'};cursor:pointer;flex-shrink:0"><input type="checkbox" ${o.cotizo?'checked':''} onchange="toggleRfqCotizo(${i})"> Cotizó</label>
+    <span style="flex:1">${esc(o.nombre)}</span>
+    <button type="button" class="btn btn-d btn-sm" onclick="rmRfqOferente(${i})">✕</button>
+  </div>`).join(''):'<div style="font-size:11.5px;color:var(--g500);font-style:italic;padding:6px 0">Sin invitados cargados todavía.</div>';
+  const nInv=document.getElementById('rfq_nInv');if(nInv)nInv.textContent=rfqOfrs.length;
+  const nOfr=document.getElementById('rfq_nOfr');if(nOfr)nOfr.textContent=rfqOfrs.filter(o=>o.cotizo).length;
+}
 function gv(id){return(document.getElementById(id).value||'').trim();}
 
 // Una enmienda puede combinar varios conceptos a la vez (enm.tipos, array —
@@ -366,8 +390,14 @@ async function guardar(){
     resp:gv('f_resp'),btar:gv('f_btar'),det:gv('f_det'),
     plazo:parseInt(document.getElementById('f_plazo').value)||0,
     poly:getPoly(),
-    tcontr:gv('f_tcontr'),cc:gv('f_cc')||null,cof:gv('f_cof')||null,oferentes:gv('f_of')||null,
-    participantes:gv('f_partic')||null,
+    tcontr:gv('f_tcontr'),cc:gv('f_cc')||null,
+    // Invitados/Ofertas RFQ: se guarda la lista completa (rfqOferentes, fuente de verdad) y
+    // además cof/oferentes en el formato viejo (cantidad y nombres separados por " - ") por
+    // compatibilidad con lecturas legacy que todavía puedan depender de esos dos campos.
+    rfqOferentes:rfqOfrs.map(o=>({nombre:o.nombre,cotizo:!!o.cotizo})),
+    cof:rfqOfrs.filter(o=>o.cotizo).length||null,
+    oferentes:rfqOfrs.filter(o=>o.cotizo).map(o=>o.nombre).join(' - ')||null,
+    participantes:rfqOfrs.map(o=>o.nombre).join(' - ')||null,
     ariba:gv('f_ariba')||null,fev:gv('f_fev')||null,
     dd:gv('f_dd')||null,pr:gv('f_pr')||null,
     sq:gv('f_sq')||null,dg:document.getElementById('f_dg').checked,
@@ -451,7 +481,8 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_partic','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));

@@ -33,7 +33,7 @@
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v140</span>
+    <span class="ver" id="sbVerBadge">v141</span>
   </div>
   <!-- Nav -->
   <nav class="sb-nav">
@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v140-participantes-rfq</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v141-rfq-lista-invitados</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -494,7 +494,18 @@
     </div>
     <div class="fgrp" id="fg_comiteJustif" style="display:none;margin-top:12px"><label>¿Por qué no fue a Comité? <span class="req">*</span></label><input type="text" id="f_comiteJustif" placeholder="Justificación en una oración..."></div>
   </div>
-  <div class="cond" id="secRfq"><div class="cond-tag">Datos RFQ</div><div class="fg"><div class="fgrp"><label>Participantes</label><input type="text" id="f_partic" placeholder="Invitados a cotizar, separados por -"></div><div class="fgrp"><label>Cant. Ofertas</label><input type="number" id="f_cof" min="0"></div><div class="fgrp"><label>Oferentes</label><input type="text" id="f_of" placeholder="Los que efectivamente cotizaron, separados por -"></div></div></div>
+  <div class="cond" id="secRfq"><div class="cond-tag">Datos RFQ</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+      <div class="fgrp" style="flex:1;min-width:220px"><label>Agregar invitado</label><input type="text" id="rfq_nuevoNombre" placeholder="Nombre del invitado..." onkeydown="if(event.key==='Enter'){event.preventDefault();addRfqOferente();}"></div>
+      <button type="button" class="btn btn-s" onclick="addRfqOferente()">➕ Agregar</button>
+      <div style="display:flex;gap:16px;padding:6px 14px;background:var(--g50);border-radius:8px">
+        <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:var(--g500);text-transform:uppercase">Invitados</div><div style="font-size:18px;font-weight:800;color:var(--p700)" id="rfq_nInv">0</div></div>
+        <div style="text-align:center"><div style="font-size:10px;font-weight:700;color:var(--g500);text-transform:uppercase">Ofertas</div><div style="font-size:18px;font-weight:800;color:var(--g600)" id="rfq_nOfr">0</div></div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--g500);margin-bottom:6px">Tildá "Cotizó" en los invitados que efectivamente presentaron oferta.</div>
+    <div id="rfq_list"></div>
+  </div>
   <div class="cond" id="secAr"><div class="cond-tag">Datos Ariba</div><div class="fg"><div class="fgrp"><label>ID Ariba <span class="req">*</span></label><input type="text" id="f_ariba"></div><div class="fgrp"><label>Fecha Evento</label><input type="date" id="f_fev"></div></div></div>
   <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Estado de verificación</span></h2></div>
     <div class="fg4">
@@ -618,10 +629,10 @@
 <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
 
-<script src="src/js/01-config.js?v=108"></script>
+<script src="src/js/01-config.js?v=109"></script>
 <script src="src/js/02-supabase-auth.js?v=108"></script>
-<script src="src/js/03-utils.js?v=112"></script>
-<script src="src/js/04-contracts.js?v=118"></script>
+<script src="src/js/03-utils.js?v=113"></script>
+<script src="src/js/04-contracts.js?v=119"></script>
 <script src="src/js/05-indices.js?v=130"></script>
 <script src="src/js/06-licit-prov.js?v=110"></script>
 <script src="src/js/07-polynomial.js?v=115"></script>
