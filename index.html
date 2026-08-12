@@ -33,7 +33,7 @@
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v138</span>
+    <span class="ver" id="sbVerBadge">v139</span>
   </div>
   <!-- Nav -->
   <nav class="sb-nav">
@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v138-fix-simulador-subtipo</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v139-dossier-form-fixes</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -460,7 +460,7 @@
       <div class="fgrp"><label>Tipo Actualización</label><input type="text" value="CONTRATO INICIAL" disabled></div>
       <div class="fgrp"><label>Tipo Contrato <span class="req">*</span></label><select id="f_tipo" onchange="onTipoContratoChange()"><option value="">—</option><option>SERVICIO</option><option>OBRA</option></select></div>
       <div class="fgrp"><label>Moneda <span class="req">*</span></label><select id="f_mon"><option value="">—</option><option>ARS</option><option>USD</option><option>EUR</option></select></div>
-      <div class="fgrp"><label>Monto Inicial <span class="req">*</span></label><input type="number" id="f_monto" step="0.01" min="0" placeholder="0" oninput="calcAnticipo()"></div>
+      <div class="fgrp"><label id="f_monto_lbl">Monto Inicial <span class="req">*</span></label><input type="number" id="f_monto" step="0.01" min="0" placeholder="0" oninput="calcAnticipo()"></div>
       
       <!-- Campos OBRA: Anticipo -->
       <div class="fgrp" id="fg_anticipo" style="display:none"><label>Anticipo Financiero (%)</label><input type="number" id="f_anticipoPct" step="0.01" min="0" max="100" placeholder="0" oninput="calcAnticipo()"></div>
@@ -490,15 +490,18 @@
     <div class="fg">
       <div class="fgrp"><label>Tipo <span class="req">*</span></label><select id="f_tcontr" onchange="onContrCh()"><option value="">—</option><option>DIRECTA</option><option>RFQ MAIL</option><option>RFQ ARIBA</option></select></div>
       <div class="fgrp"><label>CC Date</label><input type="date" id="f_cc"></div>
+      <div class="fgrp"><label>¿Fue a Comité?</label><div class="tw"><label class="tg"><input type="checkbox" id="f_fueComite" onchange="onFueComiteToggle()"><span class="sl"></span></label><span class="tl" id="l_fueComite">No</span></div></div>
     </div>
+    <div class="fgrp" id="fg_comiteJustif" style="display:none;margin-top:12px"><label>¿Por qué no fue a Comité? <span class="req">*</span></label><input type="text" id="f_comiteJustif" placeholder="Justificación en una oración..."></div>
   </div>
   <div class="cond" id="secRfq"><div class="cond-tag">Datos RFQ</div><div class="fg"><div class="fgrp"><label>Cant. Ofertas</label><input type="number" id="f_cof" min="0"></div><div class="fgrp"><label>Oferentes</label><input type="text" id="f_of"></div></div></div>
   <div class="cond" id="secAr"><div class="cond-tag">Datos Ariba</div><div class="fg"><div class="fgrp"><label>ID Ariba <span class="req">*</span></label><input type="text" id="f_ariba"></div><div class="fgrp"><label>Fecha Evento</label><input type="date" id="f_fev"></div></div></div>
-  <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Fechas de verificación</span></h2></div>
+  <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Estado de verificación</span></h2></div>
     <div class="fg4">
-      <div class="fgrp"><label>Due Diligence</label><input type="date" id="f_dd"></div>
-      <div class="fgrp"><label>Pre-Risk</label><input type="date" id="f_pr"></div>
-      <div class="fgrp"><label>Sequana</label><input type="date" id="f_sq"></div>
+      <div class="fgrp"><label>Due Diligence</label><select id="f_ddStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_dd" title="Fecha (opcional)" style="margin-top:5px"></div>
+      <div class="fgrp"><label>Pre-Risk</label><select id="f_prStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_pr" title="Fecha (opcional)" style="margin-top:5px"></div>
+      <div class="fgrp"><label>Sequana</label><select id="f_sqStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_sq" title="Fecha (opcional)" style="margin-top:5px"></div>
+      <div class="fgrp"><label>Sustainability</label><select id="f_sustStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select></div>
       <div class="fgrp"><label>Derogación</label><div class="tw"><label class="tg"><input type="checkbox" id="f_dg"><span class="sl"></span></label><span class="tl" id="l_dg">No</span></div></div>
     </div>
   </div>
@@ -510,7 +513,7 @@
       <div class="fgrp"><label>Asset</label><select id="f_asset"><option value="">—</option><option>NQN</option><option>TDF</option><option>NQN + TDF</option></select></div>
       <div class="fgrp"><label>Contacto Proveedor <span class="req">*</span></label><input type="text" id="f_cprov" placeholder="Nombre contacto"></div>
       <div class="fgrp"><label>N° Vendor</label><input type="text" id="f_vend"></div>
-      <div class="fgrp"><label>FAX</label><input type="text" id="f_fax"></div>
+      <div class="fgrp"><label>PR # (si aplica)</label><input type="text" id="f_fax" placeholder="Ej: SR_TO_CP_91_2025_MZ"></div>
     </div>
   </div>
   <div class="fsec"><div class="fsh"><div class="fi t">📎</div><h2>Adjuntos & Comentarios</h2></div>
@@ -617,8 +620,8 @@
 
 <script src="src/js/01-config.js?v=108"></script>
 <script src="src/js/02-supabase-auth.js?v=108"></script>
-<script src="src/js/03-utils.js?v=110"></script>
-<script src="src/js/04-contracts.js?v=116"></script>
+<script src="src/js/03-utils.js?v=111"></script>
+<script src="src/js/04-contracts.js?v=117"></script>
 <script src="src/js/05-indices.js?v=130"></script>
 <script src="src/js/06-licit-prov.js?v=110"></script>
 <script src="src/js/07-polynomial.js?v=115"></script>

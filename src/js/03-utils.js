@@ -299,6 +299,11 @@ function getPoly(){let a=[];for(let i=1;i<=5;i++)a.push({idx:document.getElement
 function setPoly(a){if(!a)return;a.forEach((p,i)=>{if(i<5){document.getElementById('p_i'+(i+1)).value=p.idx||'';document.getElementById('p_n'+(i+1)).value=p.inc||'';document.getElementById('p_b'+(i+1)).value=p.base||'';}});calcP();}
 
 function onContrCh(){const v=gv('f_tcontr');document.getElementById('secRfq').classList.toggle('vis',v==='RFQ MAIL'||v==='RFQ ARIBA');document.getElementById('secAr').classList.toggle('vis',v==='RFQ ARIBA');}
+function onFueComiteToggle(){
+  const on=document.getElementById('f_fueComite').checked;
+  document.getElementById('l_fueComite').textContent=on?'Sí':'No';
+  document.getElementById('fg_comiteJustif').style.display=on?'none':'';
+}
 function handleFiles(fl){for(const f of fl){if(files.length>=10)return;const r=new FileReader();r.onload=e=>{files.push({name:f.name,size:f.size,data:e.target.result});renderFL()};r.readAsDataURL(f);}}
 function rmFile(i){files.splice(i,1);renderFL();}
 function renderFL(){document.getElementById('fList').innerHTML=files.map((f,i)=>`<div class="fli"><span>📄</span><span class="fn">${esc(f.name)}</span><span class="fs">${(f.size/1024).toFixed(0)}KB</span><button class="fd" onclick="rmFile(${i})">✕</button></div>`).join('');}
@@ -332,6 +337,10 @@ async function guardar(){
     if(!e.value||!e.value.toString().trim()){e.classList.add('err');er.push(l);}
   }
   if(gv('f_tcontr')==='RFQ ARIBA'&&!gv('f_ariba')){document.getElementById('f_ariba').classList.add('err');er.push('ID Ariba');}
+  // No bloqueante: para contratos ya cargados sin este dato, exigirlo trabaría cualquier
+  // edición existente hasta completarlo. Se marca en rojo como recordatorio, no bloquea guardar.
+  const comiteJustifEl=document.getElementById('f_comiteJustif');
+  if(comiteJustifEl)comiteJustifEl.classList.toggle('err',!document.getElementById('f_fueComite').checked&&!gv('f_comiteJustif'));
   if(gv('f_ini')&&gv('f_fin')&&new Date(gv('f_fin'))<new Date(gv('f_ini'))){document.getElementById('f_fin').classList.add('err');er.push('Fecha Fin anterior a Inicio');}
   if(!editId&&gv('f_num')&&window.DB.find(c=>c.num===gv('f_num'))){document.getElementById('f_num').classList.add('err');er.push('N° de contrato ya existe');}
   if(er.length){
@@ -361,6 +370,10 @@ async function guardar(){
     ariba:gv('f_ariba')||null,fev:gv('f_fev')||null,
     dd:gv('f_dd')||null,pr:gv('f_pr')||null,
     sq:gv('f_sq')||null,dg:document.getElementById('f_dg').checked,
+    ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
+    sqStatus:gv('f_sqStatus')||'PENDING',sustStatus:gv('f_sustStatus')||'PENDING',
+    fueComite:document.getElementById('f_fueComite').checked,
+    comiteJustif:document.getElementById('f_fueComite').checked?null:(gv('f_comiteJustif')||null),
     rtec:gv('f_rtec'),tc:parseFloat(gv('f_tc'))||1,own:gv('f_own')||null,asset:gv('f_asset')||null,
     cprov:gv('f_cprov'),vend:gv('f_vend')||null,fax:gv('f_fax')||null,
     adj:files.map(f=>({name:f.name,size:f.size,data:f.data})),
@@ -437,11 +450,15 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_cof','f_of','f_ariba','f_fev','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
   document.getElementById('f_dg').checked=false;document.getElementById('l_dg').textContent='No';
+  ['f_ddStatus','f_prStatus','f_sqStatus','f_sustStatus'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='PENDING';});
+  document.getElementById('f_fueComite').checked=false;
+  if(typeof onFueComiteToggle==='function')onFueComiteToggle();
+  const montoLbl=document.getElementById('f_monto_lbl');if(montoLbl)montoLbl.innerHTML='Monto Inicial <span class="req">*</span>';
   // Redet
   document.getElementById('f_hasPoly').checked=false;document.getElementById('l_hasPoly').textContent='No';document.getElementById('polyWrap').style.display='none';
   document.getElementById('f_trigA').checked=false;document.getElementById('l_trigA').textContent='No';
