@@ -866,8 +866,8 @@ function renderDet(){
           var LIMIT_AIC=250000;
           var LIMIT_CC=250000;
           var WARN_THRESHOLD=0.8;
-          var aveLimit=c._aveOwnerLimit||250000;
-          var warnOwner=ownerPendingArs>aveLimit;
+          var aveLimit=c._aveOwnerLimit||250000; // USD — comparado contra ownerPendingUsd (equivalente a TC vigente)
+          var warnOwner=ownerPendingUsd>aveLimit;
           var requireAIC=polyPendingUsd>=LIMIT_AIC;
           var nearAIC=polyPendingUsd>=LIMIT_AIC*WARN_THRESHOLD && polyPendingUsd<LIMIT_AIC;
           var ownerNearCC=ownerPendingUsd>=LIMIT_CC*WARN_THRESHOLD && ownerPendingUsd<LIMIT_CC;
@@ -877,7 +877,7 @@ function renderDet(){
           var lastCc=(c.ccValidations||[]).slice(-1)[0]||null;
           var html='<div class="ave-limit-row"><label>⚠️ Límite advertencia AVE Owner:</label>'
             +'<input type="number" value="'+aveLimit+'" step="10000" min="0" placeholder="250000" onchange="setAveLimit(\''+c.id+'\',this.value)" style="width:140px">'
-            +'<span style="font-size:11px;color:var(--g600c)">'+(c.mon||'ARS')+'</span>'
+            +'<span style="font-size:11px;color:var(--g600c)">USD</span>'
             +'<span style="margin-left:auto;font-size:11px;color:var(--g600c)">TC USD: '+fN(TC_USD)+(isUsdContract?' (contrato en USD)':'')+'</span></div>';
           // Banner AIC: requiere validación
           if(requireAIC){
@@ -889,7 +889,7 @@ function renderDet(){
             html+='<div class="ave-warn-banner" style="background:rgba(234,179,8,.10);border-color:#eab308;color:#92400e">🟡 <strong>Polinómica vigente '+fmtUsd(polyPendingUsd)+'</strong> se aproxima al límite USD '+fN(LIMIT_AIC)+' ('+(polyPendingUsd/LIMIT_AIC*100).toFixed(0)+'%) — <strong>preparar validación de AIC</strong>.</div>';
           }
           // Banner Owner / CC
-          if(warnOwner) html+='<div class="ave-warn-banner">⛔ AVE Owner vigente ('+(c.mon||'ARS')+' '+fN(ownerPendingArs)+') supera el límite de '+(c.mon||'ARS')+' '+fN(aveLimit)+'.</div>';
+          if(warnOwner) html+='<div class="ave-warn-banner">⛔ AVE Owner vigente ('+fmtUsd(ownerPendingUsd)+') supera el límite de USD '+fN(aveLimit)+'.</div>';
           if(ownerExceedCC){
             html+='<div class="ave-warn-banner" style="background:rgba(220,38,38,.08);border-color:#dc2626;color:#dc2626;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
               +'<div style="flex:1;min-width:280px">🔴 <strong>Owner vigente '+fmtUsd(ownerPendingUsd)+'</strong> supera USD '+fN(LIMIT_CC)+' — <strong>requiere validación de CC</strong>. ('+ownerPending.length+' AVE'+(ownerPending.length!==1?'s':'')+' pendiente'+(ownerPending.length!==1?'s':'')+')</div>'
@@ -1753,19 +1753,21 @@ function renderTramosWrap(){
   _neTramoIds.forEach(id=>buildPolyFormTramo(id));
 }
 // ── % Acumulado automático por índice ───────────────────────────────────
-// Todos los índices salvo "Mano de Obra" (IPC, IPIM, FADEAAC, Combustible,
-// USD) toman su % acumulado directo de la sección de Índices, en vez de
-// tipeo manual. Mano de Obra siempre queda manual. El usuario puede forzar
-// tipeo manual por término con el botón 🔒/✏️.
+// Todos los índices, incluida "Mano de Obra" (CCT), toman su % acumulado
+// directo del Master de Índices cuando hay datos cargados para el período.
+// Si el CCT en cuestión no tiene datos cargados (frecuente: se cargan a mano
+// tras cada paritaria), recalcTermAuto cae solo a edición manual ("sin
+// datos"). El usuario puede forzar tipeo manual en cualquier término con el
+// botón 🔒/✏️.
 window._neTermManual=window._neTermManual||{};
 function idxIsAutoCalc(label){
   if(!label||typeof IDX==='undefined')return false;
   const l=String(label).trim();
-  // Lista blanca real: solo etiquetas que existen en algún catálogo que NO sea Mano de Obra
-  // (antes cualquier texto no listado en Mano de Obra se trataba como "automático" por
-  // descarte, incluyendo índices inexistentes/typos — mostraban el candado 🔒 como si el
-  // sistema fuera a calcularlos solo, en vez de caer directo a manual).
-  return Object.keys(IDX).some(cat=>cat!=='Mano de Obra'&&(IDX[cat]||[]).indexOf(l)>=0);
+  // Lista blanca real: solo etiquetas que existen en algún catálogo de Índices (antes
+  // cualquier texto no listado se trataba como "automático" por descarte, incluyendo
+  // índices inexistentes/typos — mostraban el candado 🔒 como si el sistema fuera a
+  // calcularlos solo, en vez de caer directo a manual).
+  return Object.keys(IDX).some(cat=>(IDX[cat]||[]).indexOf(l)>=0);
 }
 function _neCorrExcludeNum(){
   const isCorr=document.getElementById('ne_isCorr')?.checked;
@@ -2426,7 +2428,8 @@ async function saveAveOwner(){
   cc.montoMensualEst = nuevoMensual;
   
   const ownerSum=cc.aves.filter(a=>a.tipo==='OWNER').reduce((s,a)=>s+(a.monto||0),0);
-  const limit=cc._aveOwnerLimit||250000;
+  const limit=cc._aveOwnerLimit||250000; // USD
+  const ownerSumUsd=_ave_toUsd(cc,ownerSum);
   cc.updatedAt=new Date().toISOString();
   if(!SB_OK){
     localStorage.setItem('cta_v7',JSON.stringify(window.DB));
@@ -2444,7 +2447,7 @@ async function saveAveOwner(){
   }
   closeAveOwnerPanel();
   renderDet();renderList();updNav();
-  if(ownerSum>limit) toast(`⛔ AVE Owner acumulado (${fN(ownerSum)}) supera límite ${fN(limit)}`,'er');
+  if(ownerSumUsd>limit) toast(`⛔ AVE Owner acumulado (${_ave_fmtUsd(ownerSumUsd)}) supera límite USD ${fN(limit)}`,'er');
   else toast('AVE Owner registrado — '+cc.mon+' '+fN(aveMonto),'ok');
 }
 async function setAveLimit(id,val){
