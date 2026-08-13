@@ -77,9 +77,9 @@ function renderDossierHtml(c){
   var _m=function(n){if(!n&&n!==0)return '\u2014';return new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0}).format(Math.round(n));};
   var _d=function(s){if(!s)return '\u2014';var p=s.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;};
   var chk=function(v){return v===true?'<div class="chkb on">&#10003;</div>':'<div class="chkb">&#10003;</div>';};
-  // Estado de evaluación (DD/Pre-Risk/Sequana/Sustainability): status explícito si existe
-  // (contratos nuevos/editados); si no, se infiere de la fecha legacy para no mostrar
-  // "Pending" en contratos viejos que ya tienen la fecha cargada.
+  // Estado de evaluación (DD/Pre-Risk/Sequana): status explícito si existe (contratos
+  // nuevos/editados); si no, se infiere de la fecha legacy para no mostrar "Pending" en
+  // contratos viejos que ya tienen la fecha cargada.
   var evalStatus=function(status,legacyDate){
     var s=status||((legacyDate&&legacyDate!==true&&legacyDate!==false)?'DONE':'PENDING');
     var map={DONE:['#dcfce7','#166534','Done'],IN_PROCESS:['#fef3c7','#92400e','In Process'],PENDING:['#f1f5f9','#475569','Pending']};
@@ -130,6 +130,7 @@ function renderDossierHtml(c){
   // tienen CC Date cargada (c.cc), se infiere que s\u00ed pasaron por comit\u00e9 en vez de mostrar
   // "NO" por default, que ser\u00eda incorrecto para la mayor\u00eda de esos contratos viejos.
   var fueComiteVal = c.fueComite!=null ? c.fueComite : !!c.cc;
+  var comiteResultadoLbl={APROBADO:'✅ Aprobado',APROBADO_OBS:'🟡 Aprobado con observaciones',NO_APROBADO:'🔴 No aprobado'};
 
   var CSS=':root{--navy:#003875;--orange:#FF6900;--poly:#b45309;--poly-bg:#fef3c7;--owner:#0f766e;--owner-bg:#ccfbf1;--total:#059669;--total-bg:#d1fae5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#eef1f5}'
 +'*{box-sizing:border-box;margin:0;padding:0}'
@@ -257,6 +258,7 @@ function renderDossierHtml(c){
 +kv('Nueva fecha fin',newEndDate)
 +kv('Enmiendas',enms.length?enms.length+' registrada(s)':'\u2014')
 +kv('Derogations',c.dg?'YES':'NO')
++(c.dg&&c.dgDoc?kv('Doc. Derogación',_e(c.dgDoc)):'')
 +'</div></div></div>'
 +'<div class="card"><div class="card-title">Proceso de Compra</div><div class="card-body"><div class="kv">'
 +kv('E-sourcing #',_e(docAriba))
@@ -265,7 +267,10 @@ function renderDossierHtml(c){
 +kv('Apertura simult\u00e1nea','YES')
 +kv('Mejor precio','YES')
 +kv('\u00bfFue a Comit\u00e9?',fueComiteVal?'S\u00cd':'NO',true)
-+'</div>'+(!fueComiteVal?'<div style="padding:4px 4px 10px"><div class="kvl">Justificaci\u00f3n</div><div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-top:3px">'+_e(c.comiteJustif||'Sin justificaci\u00f3n cargada')+'</div></div>':'')
++(fueComiteVal?(c.comiteFecha?kv('Fecha de Comit\u00e9',_d(c.comiteFecha)):'')+(c.comiteResultado?kv('Resultado',_e(comiteResultadoLbl[c.comiteResultado]||c.comiteResultado)):''):'')
++'</div>'
++(fueComiteVal&&c.comiteObs?'<div style="padding:4px 4px 10px"><div class="kvl">Observaciones del Comit\u00e9</div><div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-top:3px">'+_e(c.comiteObs)+'</div></div>':'')
++(!fueComiteVal?'<div style="padding:4px 4px 10px"><div class="kvl">Justificaci\u00f3n</div><div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-top:3px">'+_e(c.comiteJustif||'Sin justificaci\u00f3n cargada')+'</div></div>':'')
 +(c.com?'<div style="padding:4px 4px 10px"><div class="kvl">Comentarios</div><div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-top:3px">'+_e(c.com)+'</div></div>':'')+'</div></div>'
 +'</div>'
 +'<div>'
@@ -273,7 +278,6 @@ function renderDossierHtml(c){
 +'<div class="chk-row"><span>Due Diligence</span>'+evalStatus(c.ddStatus,c.dd)+'</div>'
 +'<div class="chk-row"><span>Pre-Risk</span>'+evalStatus(c.prStatus,c.pr)+'</div>'
 +'<div class="chk-row"><span>Sequana</span>'+evalStatus(c.sqStatus,c.sq)+'</div>'
-+'<div class="chk-row"><span>Sustainability</span>'+evalStatus(c.sustStatus,null)+'</div>'
 +'</div>'
 +'<div class="card"><div class="card-title">Fecha Clave</div><div class="dd-row"><div><div class="kvl">Due Date</div><div class="dd-v">'+_d(c.fev)+'</div></div><div style="text-align:right"><div class="kvl">D\u00edas restantes</div><div class="dd-d">'+daysToDD+'</div></div></div></div>'
 +'<div class="card"><div class="card-title">DUET</div>'
@@ -640,8 +644,7 @@ function renderDet(){
             <div class="dr"><span>Due Diligence</span><span class="dv" style="color:${cplStatus(c.ddStatus,c.dd)[1]}">${cplStatus(c.ddStatus,c.dd)[0]}</span></div>
             <div class="dr"><span>Pre-Risk</span><span class="dv" style="color:${cplStatus(c.prStatus,c.pr)[1]}">${cplStatus(c.prStatus,c.pr)[0]}</span></div>
             <div class="dr"><span>Sequana</span><span class="dv" style="color:${cplStatus(c.sqStatus,c.sq)[1]}">${cplStatus(c.sqStatus,c.sq)[0]}</span></div>
-            <div class="dr"><span>Sustainability</span><span class="dv" style="color:${cplStatus(c.sustStatus,null)[1]}">${cplStatus(c.sustStatus,null)[0]}</span></div>
-            ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí</span></div>`:''}
+            ${c.dg?`<div class="dr"><span>Derogación</span><span class="dv">Sí${c.dgDoc?' · '+esc(c.dgDoc):''}</span></div>`:''}
           </div>
           ${(()=>{
             if(c.tipo!=='OBRA'||!c.fechaIni||!c.fechaFin) return '';
@@ -1422,18 +1425,22 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
       :ofrNames.map(n=>({nombre:n,cotizo:true}));
   }
   renderRfqOferentes();
-  document.getElementById('f_fev').value=c.fev||'';
+  document.getElementById('f_fev').value=c.fev||'';document.getElementById('f_fevFin').value=c.fevFin||'';
   document.getElementById('f_dd').value = (c.dd && c.dd !== true && c.dd !== false) ? c.dd : '';
   document.getElementById('f_pr').value = (c.pr && c.pr !== true && c.pr !== false) ? c.pr : '';
   document.getElementById('f_sq').value = (c.sq && c.sq !== true && c.sq !== false) ? c.sq : '';
   document.getElementById('f_ddStatus').value=c.ddStatus||'PENDING';
   document.getElementById('f_prStatus').value=c.prStatus||'PENDING';
   document.getElementById('f_sqStatus').value=c.sqStatus||'PENDING';
-  document.getElementById('f_sustStatus').value=c.sustStatus||'PENDING';
   document.getElementById('f_fueComite').checked=!!c.fueComite;
   document.getElementById('f_comiteJustif').value=c.comiteJustif||'';
+  document.getElementById('f_comiteFecha').value=c.comiteFecha||'';
+  document.getElementById('f_comiteResultado').value=c.comiteResultado||'APROBADO';
+  document.getElementById('f_comiteObs').value=c.comiteObs||'';
   onFueComiteToggle();
-  document.getElementById('f_dg').checked=!!c.dg;document.getElementById('l_dg').textContent=c.dg?'Sí':'No';
+  document.getElementById('f_dg').checked=!!c.dg;
+  document.getElementById('f_dgDoc').value=c.dgDoc||'';
+  onDgToggle();
   document.getElementById('f_rtec').value=c.rtec||'';document.getElementById('f_tc').value=c.tc||'';
   document.getElementById('f_own').value=c.own||'';document.getElementById('f_asset').value=c.asset||'';document.getElementById('f_cprov').value=c.cprov||'';
   document.getElementById('f_vend').value=c.vend||'';document.getElementById('f_fax').value=c.fax||'';

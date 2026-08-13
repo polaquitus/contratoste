@@ -33,7 +33,7 @@
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v145</span>
+    <span class="ver" id="sbVerBadge">v146</span>
   </div>
   <!-- Nav -->
   <nav class="sb-nav">
@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v145-grafico-lineas-evolucion</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v146-comite-derogacion-ariba</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -492,6 +492,13 @@
       <div class="fgrp"><label>CC Date</label><input type="date" id="f_cc"></div>
       <div class="fgrp"><label>¿Fue a Comité?</label><div class="tw"><label class="tg"><input type="checkbox" id="f_fueComite" onchange="onFueComiteToggle()"><span class="sl"></span></label><span class="tl" id="l_fueComite">No</span></div></div>
     </div>
+    <div class="fgrp" id="fg_comiteSi" style="display:none;margin-top:12px">
+      <div class="fg" style="margin-bottom:12px">
+        <div class="fgrp"><label>Fecha de Comité</label><input type="date" id="f_comiteFecha"></div>
+        <div class="fgrp"><label>Resultado</label><select id="f_comiteResultado"><option value="APROBADO">Aprobado</option><option value="APROBADO_OBS">Aprobado con observaciones</option><option value="NO_APROBADO">No aprobado</option></select></div>
+      </div>
+      <div class="fgrp"><label>Observaciones</label><textarea id="f_comiteObs" placeholder="Observaciones del comité..." style="min-height:70px"></textarea></div>
+    </div>
     <div class="fgrp" id="fg_comiteJustif" style="display:none;margin-top:12px"><label>¿Por qué no fue a Comité? <span class="req">*</span></label><input type="text" id="f_comiteJustif" placeholder="Justificación en una oración..."></div>
   </div>
   <div class="cond" id="secRfq"><div class="cond-tag">Datos RFQ</div>
@@ -506,14 +513,14 @@
     <div style="font-size:11px;color:var(--g500);margin-bottom:6px">Tildá "Cotizó" en los invitados que efectivamente presentaron oferta.</div>
     <div id="rfq_list"></div>
   </div>
-  <div class="cond" id="secAr"><div class="cond-tag">Datos Ariba</div><div class="fg"><div class="fgrp"><label>ID Ariba <span class="req">*</span></label><input type="text" id="f_ariba"></div><div class="fgrp"><label>Fecha Evento</label><input type="date" id="f_fev"></div></div></div>
+  <div class="cond" id="secAr"><div class="cond-tag">Datos Ariba</div><div class="fg"><div class="fgrp"><label>ID Ariba <span class="req">*</span></label><input type="text" id="f_ariba"></div><div class="fgrp"><label>Fecha Inicio de Evento</label><input type="date" id="f_fev"></div><div class="fgrp"><label>Fecha Fin de Evento</label><input type="date" id="f_fevFin"></div></div></div>
   <div class="fsec"><div class="fsh"><div class="fi g">✅</div><h2>Compliance<span>Estado de verificación</span></h2></div>
     <div class="fg4">
       <div class="fgrp"><label>Due Diligence</label><select id="f_ddStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_dd" title="Fecha (opcional)" style="margin-top:5px"></div>
       <div class="fgrp"><label>Pre-Risk</label><select id="f_prStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_pr" title="Fecha (opcional)" style="margin-top:5px"></div>
       <div class="fgrp"><label>Sequana</label><select id="f_sqStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select><input type="date" id="f_sq" title="Fecha (opcional)" style="margin-top:5px"></div>
-      <div class="fgrp"><label>Sustainability</label><select id="f_sustStatus"><option value="PENDING">Pending</option><option value="IN_PROCESS">In Process</option><option value="DONE">Done</option></select></div>
-      <div class="fgrp"><label>Derogación</label><div class="tw"><label class="tg"><input type="checkbox" id="f_dg"><span class="sl"></span></label><span class="tl" id="l_dg">No</span></div></div>
+      <div class="fgrp"><label>Derogación</label><div class="tw"><label class="tg"><input type="checkbox" id="f_dg" onchange="onDgToggle()"><span class="sl"></span></label><span class="tl" id="l_dg">No</span></div></div>
+      <div class="fgrp" id="fg_dgDoc" style="display:none"><label>Documento de Derogación <span class="req">*</span></label><input type="text" id="f_dgDoc" placeholder="Nombre del documento..."></div>
     </div>
   </div>
   <div class="fsec"><div class="fsh"><div class="fi t">👥</div><h2>Responsables<span>Personas del contrato</span></h2></div>
@@ -631,8 +638,8 @@
 
 <script src="src/js/01-config.js?v=109"></script>
 <script src="src/js/02-supabase-auth.js?v=108"></script>
-<script src="src/js/03-utils.js?v=113"></script>
-<script src="src/js/04-contracts.js?v=123"></script>
+<script src="src/js/03-utils.js?v=114"></script>
+<script src="src/js/04-contracts.js?v=124"></script>
 <script src="src/js/05-indices.js?v=130"></script>
 <script src="src/js/06-licit-prov.js?v=110"></script>
 <script src="src/js/07-polynomial.js?v=115"></script>
