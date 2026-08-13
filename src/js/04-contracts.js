@@ -119,7 +119,6 @@ function renderDossierHtml(c){
   // AVE \u2014 no se recalcula con el TC de hoy). AVEs viejos sin montoUsd guardado caen a un
   // estimado con el TC actual, marcado como tal. Si el contrato ya est\u00e1 en USD no hace
   // falta columna de equivalente.
-  var aveColCount=7;
   function enmAsocLabel(a){
     if(!a.enmRef) return '\u2014';
     var lbl='Enm. N\u00b0'+a.enmRef;
@@ -142,8 +141,16 @@ function renderDossierHtml(c){
     var estTag=estimated?' <span style="color:#9ca3af">(TC actual)</span>':'';
     return '<td class="mono" style="text-align:right">'+arsLine+'<div style="font-size:10.5px;color:#6b7280;white-space:nowrap">\u2248 '+_m(usdVal)+' USD'+estTag+'</div></td>';
   }
+  // "Historial del Contrato" \u2014 no es solo el historial de AVEs: arranca con el Monto Inicial
+  // (l\u00ednea base, Target Value = ese mismo monto) y de ah\u00ed en m\u00e1s cada AVE va sumando al
+  // acumulado, as\u00ed se ve la evoluci\u00f3n completa del Target Value desde el origen del contrato.
   var cumTV=montoBase;
-  var aveRows=aves.length?aves.slice().sort(function(a,b){return new Date(a.fecha)-new Date(b.fecha);}).map(function(a){
+  var initUsd=tcc>0?montoBase/tcc:0;
+  var initRow='<tr style="background:#f8fafc"><td><span class="tag" style="background:#dcfce7;color:#166534;white-space:nowrap">\u{1F7E2} Monto Inicial</span></td><td style="white-space:nowrap">'+_d(c.fechaIni)+'</td><td>\u2014</td><td style="font-size:11px">\u2014</td>'
+    +moneyCell(montoBase,initUsd,false,false)
+    +moneyCell(montoBase,initUsd,true,false)
+    +'<td style="font-size:12px;color:#6b7280">Monto inicial del contrato</td></tr>';
+  var aveRows=initRow+aves.slice().sort(function(a,b){return new Date(a.fecha)-new Date(b.fecha);}).map(function(a){
     var isPoly=a.tipo==='POLINOMICA';
     var tipoTxt=isPoly?'\u{1F504} AVE Polin\u00f3mica':(a.ajustable?'\u{1F535} AVE Owner Ajustable':'\u{1F535} AVE Owner Spot');
     var tipoBdg='<span class="tag '+(isPoly?'poly':'owner')+'" style="white-space:nowrap">'+tipoTxt+'</span>';
@@ -156,7 +163,7 @@ function renderDossierHtml(c){
       +moneyCell(a.monto||0,usdVal,false,a.montoUsd==null)
       +moneyCell(cumTV,tvUsd,true,false)
       +obsCell+'</tr>';
-  }).join(''):'<tr><td colspan="'+aveColCount+'" class="empty-cell">Sin AVEs registrados</td></tr>';
+  }).join('');
   // Fuente primaria: c.rfqOferentes (lista {nombre,cotizo} armada de a uno en el
   // formulario de edici\u00f3n). Si el contrato es de antes de ese campo, se cae a los
   // campos viejos en texto libre (Participantes/Oferentes) y por \u00faltimo a LICIT_DB
@@ -366,7 +373,7 @@ function renderDossierHtml(c){
 +'<div class="sc"><div class="slbl">Valor Total Vigente (c/AVEs)</div><div class="sval g">'+_m(totalConAVE)+'</div><div class="ssub">'+_e(c.mon||'ARS')+'</div></div>'
 +'<div class="sc"><div class="slbl">Vigencia</div><div class="sval o" style="font-size:13px">'+_d(c.fechaIni)+' \u2192 '+_d(c.fechaFin)+'</div><div class="ssub">'+(c.plazo_meses||c.plazo?(c.plazo_meses||c.plazo)+' meses':'\u2014')+'</div></div>'
 +'</div>'
-+'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial de AVEs<span class="ct">'+aves.length+' registrados</span></div>'
++'<div class="sh"><span class="ico">&#x1F4CA;</span>Historial del Contrato<span class="ct">'+(aves.length+1)+' eventos</span></div>'
 +'<div class="tbl-wrap">'
 +'<div class="fin-row" style="border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden">'
 +'<div class="fin-tile poly"><div class="fin-label">Total AVE Polin\u00f3mica<span class="fin-tag">Ajuste de tarifa</span></div><div class="fin-value">'+_m(avePoly)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">'+avePolyList.length+' AVE(s)</div></div>'
