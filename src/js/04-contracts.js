@@ -100,18 +100,18 @@ function renderDossierHtml(c){
   function kv(lbl,val,full){return '<div class="kvi"'+(full?' style="grid-column:1/-1"':'')+'><div class="kvl">'+lbl+'</div><div class="kvv">'+val+'</div></div>';}
   var ultimaEnm=enms.length?enms[enms.length-1]:null;
   var enmTipoCls={ACTUALIZACION_TARIFAS:'tar',EXTENSION:'ext',SCOPE:'scope',CLAUSULAS:'claus',OTRO:'otro'};
-  var enmTipoLbl={ACTUALIZACION_TARIFAS:'\u{1F4D0} Act.Tarifas',EXTENSION:'\u{1F4C5} Extensi\u00f3n',SCOPE:'\u{1F527} Scope',CLAUSULAS:'\u{1F4CB} Cl\u00e1usulas',OTRO:'\u{1F4AC} Otro'};
-  var enmRows=enms.length?enms.map(function(e,i){
+  var enmTipoLbl={ACTUALIZACION_TARIFAS:'ACT.TARIFAS',EXTENSION:'EXTENSI\u00d3N',SCOPE:'SCOPE',CLAUSULAS:'CL\u00c1USULAS',OTRO:'OTRO'};
+  var enmRows=enms.length?enms.map(function(e){
     var ts=(typeof enmTipos==='function'?enmTipos(e):[e.tipo||'otro'])||['otro'];
     var tagsHtml=ts.map(function(t){return '<span class="tag '+(enmTipoCls[t]||'otro')+'">'+(enmTipoLbl[t]||_e(t))+'</span>';}).join(' ');
-    var extraParts=[];
-    if(ts.indexOf('EXTENSION')>=0&&e.fechaFinNueva) extraParts.push('Nueva fecha fin: '+_d(e.fechaFinNueva));
+    var detalleParts=[];
+    if(ts.indexOf('EXTENSION')>=0&&e.fechaFinNueva) detalleParts.push('Nueva fecha fin: '+_d(e.fechaFinNueva));
     if(ts.indexOf('ACTUALIZACION_TARIFAS')>=0){
-      if(Array.isArray(e.tramos)&&e.tramos.length) extraParts.push(e.tramos.map(function(t){return '+'+((t.pctPoli||0)*100).toFixed(2)+'% ('+(formatMonth(t.basePeriodo||'')||t.basePeriodo||'\u2014')+' \u2192 '+(formatMonth(t.nuevoPeriodo||'')||t.nuevoPeriodo||'\u2014')+')';}).join(' \u00b7 '));
-      else if(e.pctPoli) extraParts.push('+'+((e.pctPoli||0)*100).toFixed(2)+'% ('+(formatMonth(e.basePeriodo||'')||e.basePeriodo||'\u2014')+' \u2192 '+(formatMonth(e.nuevoPeriodo||'')||e.nuevoPeriodo||'\u2014')+')');
+      if(Array.isArray(e.tramos)&&e.tramos.length) detalleParts.push(e.tramos.map(function(t){return '+'+((t.pctPoli||0)*100).toFixed(2)+'% '+(formatMonth(t.basePeriodo||'')||t.basePeriodo||'\u2014')+'\u2192'+(formatMonth(t.nuevoPeriodo||'')||t.nuevoPeriodo||'\u2014');}).join(' \u00b7 '));
+      else if(e.pctPoli) detalleParts.push('+'+((e.pctPoli||0)*100).toFixed(2)+'% '+(formatMonth(e.basePeriodo||'')||e.basePeriodo||'\u2014')+'\u2192'+(formatMonth(e.nuevoPeriodo||'')||e.nuevoPeriodo||'\u2014'));
     }
-    var extra=extraParts.length?'<div style="font-size:11px;color:#6b7280;margin-top:3px">'+_e(extraParts.join(' \u00b7 '))+'</div>':'';
-    return '<tr><td>'+(i+1)+'</td><td><strong>N\u00b0'+_e(e.num)+'</strong>'+(e.superseded?' <span class="tag otro" style="font-size:9px">SUPERSEDED</span>':'')+'</td><td>'+_d((e.fecha||'').substring(0,10))+'</td><td>'+tagsHtml+'</td><td>'+_e(e.descripcion||e.motivo||'\u2014')+extra+'</td></tr>';
+    var detalle=detalleParts.length?_e(detalleParts.join(' \u00b7 ')):'<span style="color:#cbd5e1">\u2014</span>';
+    return '<tr'+(e.superseded?' style="opacity:.5"':'')+'><td><strong>N\u00b0'+_e(e.num)+'</strong></td><td>'+tagsHtml+(e.superseded?' <span class="tag otro" style="font-size:9px">SUPERSEDED</span>':'')+'</td><td style="font-size:12px">'+detalle+'</td><td style="font-size:12px;color:#6b7280">'+_d((e.fecha||'').substring(0,10))+'</td><td>'+_e(e.descripcion||e.motivo||'\u2014')+'</td></tr>';
   }).join(''):'<tr><td colspan="5" class="empty-cell">Sin enmiendas registradas</td></tr>';
   // Historial de AVEs: Tipo grande (Owner/Polin\u00f3mica \u2014 Spot vs Ajustable queda de detalle
   // secundario, no como categor\u00eda principal), monto en la moneda del contrato y su
@@ -119,7 +119,7 @@ function renderDossierHtml(c){
   // AVE \u2014 no se recalcula con el TC de hoy). AVEs viejos sin montoUsd guardado caen a un
   // estimado con el TC actual, marcado como tal. Si el contrato ya est\u00e1 en USD no hace
   // falta columna de equivalente.
-  var aveColCount=isUsdContract?7:9;
+  var aveColCount=7;
   function enmAsocLabel(a){
     if(!a.enmRef) return '\u2014';
     var lbl='Enm. N\u00b0'+a.enmRef;
@@ -132,26 +132,29 @@ function renderDossierHtml(c){
     }
     return lbl;
   }
+  // Monto AVE y Target Value van en una sola celda cada uno (moneda del contrato en negrita +
+  // equivalente USD chico debajo), en vez de columnas separadas \u2014 con 9 columnas la tabla no
+  // entraba en el ancho de la p\u00e1gina. Si el contrato ya est\u00e1 en USD no hace falta la l\u00ednea de
+  // equivalente.
+  function moneyCell(ars,usdVal,bold,estimated){
+    var arsLine='<div style="'+(bold?'font-weight:700;':'')+'white-space:nowrap">'+_m(ars)+' '+_e(c.mon||'ARS')+'</div>';
+    if(isUsdContract) return '<td class="mono" style="text-align:right">'+arsLine+'</td>';
+    var estTag=estimated?' <span style="color:#9ca3af">(TC actual)</span>':'';
+    return '<td class="mono" style="text-align:right">'+arsLine+'<div style="font-size:10.5px;color:#6b7280;white-space:nowrap">\u2248 '+_m(usdVal)+' USD'+estTag+'</div></td>';
+  }
   var cumTV=montoBase;
   var aveRows=aves.length?aves.slice().sort(function(a,b){return new Date(a.fecha)-new Date(b.fecha);}).map(function(a){
     var isPoly=a.tipo==='POLINOMICA';
     var tipoTxt=isPoly?'\u{1F504} AVE Polin\u00f3mica':(a.ajustable?'\u{1F535} AVE Owner Ajustable':'\u{1F535} AVE Owner Spot');
     var tipoBdg='<span class="tag '+(isPoly?'poly':'owner')+'" style="white-space:nowrap">'+tipoTxt+'</span>';
     cumTV+=(a.monto||0);
-    var usdCells='';
-    if(!isUsdContract){
-      var usdVal=a.montoUsd!=null?a.montoUsd:(tcc>0?(a.monto||0)/tcc:0);
-      var estTag=a.montoUsd!=null?'':' <span style="font-size:9px;color:#9ca3af">(TC actual)</span>';
-      var tvUsd=tcc>0?cumTV/tcc:0;
-      usdCells='<td class="mono" style="text-align:right;white-space:nowrap">'+_m(usdVal)+' USD'+estTag+'</td>'
-        +'<td class="mono" style="text-align:right;white-space:nowrap">'+_m(tvUsd)+' USD</td>';
-    }
+    var usdVal=a.montoUsd!=null?a.montoUsd:(tcc>0?(a.monto||0)/tcc:0);
+    var tvUsd=tcc>0?cumTV/tcc:0;
     var obsCell=a.concepto?('<td style="font-size:12px;color:#6b7280">'+_e(a.concepto)+'</td>'):'<td></td>';
     return '<tr><td>'+tipoBdg+'</td><td style="white-space:nowrap">'+_d((a.fecha||'').substring(0,10))+'</td><td>'+_e(a.periodo||'\u2014')+'</td>'
       +'<td style="font-size:11px">'+enmAsocLabel(a)+'</td>'
-      +'<td class="mono" style="text-align:right;white-space:nowrap">+'+_m(a.monto||0)+' '+_e(c.mon||'ARS')+'</td>'
-      +'<td class="mono" style="text-align:right;white-space:nowrap;font-weight:700">'+_m(cumTV)+' '+_e(c.mon||'ARS')+'</td>'
-      +usdCells
+      +moneyCell(a.monto||0,usdVal,false,a.montoUsd==null)
+      +moneyCell(cumTV,tvUsd,true,false)
       +obsCell+'</tr>';
   }).join(''):'<tr><td colspan="'+aveColCount+'" class="empty-cell">Sin AVEs registrados</td></tr>';
   // Fuente primaria: c.rfqOferentes (lista {nombre,cotizo} armada de a uno en el
@@ -186,8 +189,8 @@ function renderDossierHtml(c){
   var CSS=':root{--navy:#003875;--orange:#FF6900;--poly:#b45309;--poly-bg:#fef3c7;--owner:#0f766e;--owner-bg:#ccfbf1;--total:#059669;--total-bg:#d1fae5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#eef1f5}'
 +'*{box-sizing:border-box;margin:0;padding:0}'
 +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:var(--ink);background:var(--bg);padding:24px 16px}'
-+'.page{background:#fff;max-width:1080px;margin:0 auto 28px;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(15,35,60,.12);border:1px solid #e2e6ec}'
-+'.hdr{background:linear-gradient(135deg,var(--navy),#004d99);color:#fff;padding:22px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}'
++'.page{background:#fff;max-width:1080px;margin:0 auto 28px;border-radius:14px;box-shadow:0 8px 30px rgba(15,35,60,.12);border:1px solid #e2e6ec}'
++'.hdr{background:linear-gradient(135deg,var(--navy),#004d99);color:#fff;padding:22px 28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-radius:13px 13px 0 0}'
 +'.hdr-badge{background:var(--orange);color:#fff;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:5px 12px;border-radius:99px;flex-shrink:0}'
 +'.hdr-main{flex:1;min-width:240px}'
 +'.hdr-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.6);margin-bottom:4px;font-weight:600}'
@@ -370,7 +373,7 @@ function renderDossierHtml(c){
 +'<div class="fin-tile owner"><div class="fin-label">Total AVE Owner<span class="fin-tag">Otros conceptos</span></div><div class="fin-value">'+_m(aveOwner)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">'+aveOwnerList.length+' AVE(s)</div></div>'
 +'<div class="fin-tile total"><div class="fin-label">Total AVEs</div><div class="fin-value">'+_m(avePoly+aveOwner)+' '+_e(c.mon||'ARS')+'</div><div class="fin-usd">'+aves.length+' AVE(s)</div></div>'
 +'</div>'
-+'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Enm. Asociada</th><th>Monto AVE ('+_e(c.mon||'ARS')+')</th><th>Target Value ('+_e(c.mon||'ARS')+')</th>'+(isUsdContract?'':'<th>Monto AVE (Eq. USD)</th><th>Target Value (Eq. USD)</th>')+'<th>Observaciones</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
++'<table><thead><tr><th>Tipo</th><th>Fecha</th><th>Per\u00edodo</th><th>Enm. Asociada</th><th>Monto AVE</th><th>Target Value</th><th>Observaciones</th></tr></thead><tbody>'+aveRows+'</tbody></table>'
 +'<div style="font-size:10.5px;color:#9ca3af;margin-top:10px;line-height:1.6">'
 +'<strong>AVE Polin\u00f3mica</strong>: ajuste generado por f\u00f3rmula polin\u00f3mica de tarifas (incluye los ajustes que corresponden a un AVE Owner Ajustable). '
 +'<strong>AVE Owner Spot</strong>: ajuste puntual \u00fanico (no participa de futuras actualizaciones). '
@@ -378,7 +381,7 @@ function renderDossierHtml(c){
 +'</div>'
 +'</div>'
 +'<div class="sh"><span class="ico">&#x1F4CB;</span>Enmiendas<span class="ct">'+enms.length+' registradas</span></div>'
-+'<div class="tbl-wrap"><table><thead><tr><th>#</th><th>N\u00b0 Enm.</th><th>Fecha</th><th>Tipo</th><th>Descripci\u00f3n</th></tr></thead><tbody>'+enmRows+'</tbody></table></div>'
++'<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Tipo / Concepto</th><th>Detalle</th><th>Fecha</th><th>Descripci\u00f3n</th></tr></thead><tbody>'+enmRows+'</tbody></table></div>'
 +'</div>'
 +'</body></html>';
 }
