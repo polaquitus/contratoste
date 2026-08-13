@@ -169,9 +169,6 @@ function renderDossierHtml(c){
   // campos viejos en texto libre (Participantes/Oferentes) y por \u00faltimo a LICIT_DB
   // (m\u00f3dulo Licitaciones aparte, vinculado por N\u00b0 de contrato).
   function parseNames(txt){ return String(txt||'').split(/\s*-\s*/).map(function(s){return s.trim();}).filter(Boolean); }
-  function ofrList(names){
-    return names.length?names.map(function(n,i){return '<div class="ofr-row"><span class="ofr-num">'+(i+1)+'</span><span class="ofr-name">'+_e(n)+'</span></div>';}).join(''):'<div class="empty-cell" style="padding:8px 0">Sin registros</div>';
-  }
   var invitadosArr,recibidosArr;
   if(Array.isArray(c.rfqOferentes)&&c.rfqOferentes.length){
     invitadosArr=c.rfqOferentes.map(function(o){return o.nombre;});
@@ -185,8 +182,14 @@ function renderDossierHtml(c){
   }
   var nPartic=invitadosArr.length||'\u2014';
   var nOfrs=recibidosArr.length||(c.cof!=null&&c.cof!==''?c.cof:'\u2014');
-  var invitadosHtml=ofrList(invitadosArr);
-  var recibidosHtml=ofrList(recibidosArr);
+  // Una sola lista de Invitados (no dos listas repitiendo los mismos nombres) \u2014 el que
+  // efectivamente ofert\u00f3 se marca con una etiqueta verde "Ofert\u00f3" al lado del nombre.
+  var recibidosSet={};
+  recibidosArr.forEach(function(n){recibidosSet[String(n).trim().toLowerCase()]=true;});
+  var invitadosHtml=invitadosArr.length?invitadosArr.map(function(n,i){
+    var got=!!recibidosSet[String(n).trim().toLowerCase()];
+    return '<div class="ofr-row"><span class="ofr-num">'+(i+1)+'</span><span class="ofr-name">'+_e(n)+'</span>'+(got?'<span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:99px;margin-left:6px;white-space:nowrap">Ofert\u00f3</span>':'')+'</div>';
+  }).join(''):'<div class="empty-cell" style="padding:8px 0">Sin registros</div>';
   // Legacy: contratos cargados antes de este campo no tienen fueComite guardado \u2014 si ya
   // tienen CC Date cargada (c.cc), se infiere que s\u00ed pasaron por comit\u00e9 en vez de mostrar
   // "NO" por default, que ser\u00eda incorrecto para la mayor\u00eda de esos contratos viejos.
@@ -346,6 +349,7 @@ function renderDossierHtml(c){
 +'<div class="contact"><div class="contact-av">&#x1F4CB;</div><div><div class="contact-role">Administrator</div><div class="contact-name">'+_e(c.rtec||'\u2014')+'</div></div></div>'
 +'<div class="contact"><div class="contact-av">&#x1F3E2;</div><div><div class="contact-role">Contractor</div><div class="contact-name">'+_e(c.cont||'\u2014')+'</div>'+(c.vend?'<div style="font-size:10.5px;color:#6b7280" class="mono">'+_e(c.vend)+'</div>':'')+'</div></div>'
 +'</div>'
++'<div class="card"><div class="card-title" style="display:flex;align-items:center;flex-wrap:wrap">Invitados <span class="ofcnt">'+invitadosArr.length+'</span><span style="margin-left:auto;font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:99px;text-transform:none;letter-spacing:0">'+recibidosArr.length+' ofertaron</span></div><div class="card-body" style="padding-top:8px;padding-bottom:8px">'+invitadosHtml+'</div></div>'
 +'</div>'
 +'</div>'
 +'<div class="grid2b">'
@@ -359,10 +363,6 @@ function renderDossierHtml(c){
 +'<div class="sr"><div class="srl">Head of Domain</div><div class="srs"></div></div>'
 +'<div class="sr"><div class="srl">C&amp;P Manager</div><div class="srs"></div></div>'
 +'</div></div>'
-+'</div>'
-+'<div class="ofrs">'
-+'<div><div class="oftit">Invitados <span class="ofcnt">'+invitadosArr.length+'</span></div>'+invitadosHtml+'</div>'
-+'<div><div class="oftit">Ofertas recibidas <span class="ofcnt">'+recibidosArr.length+'</span></div>'+recibidosHtml+'</div>'
 +'</div>'
 +'</div>'
 +'</div>'
