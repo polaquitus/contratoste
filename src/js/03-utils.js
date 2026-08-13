@@ -398,7 +398,10 @@ async function guardar(){
     resp:gv('f_resp'),btar:gv('f_btar'),det:gv('f_det'),
     plazo:parseInt(document.getElementById('f_plazo').value)||0,
     poly:getPoly(),
-    tcontr:gv('f_tcontr'),cc:gv('f_cc')||null,
+    tcontr:gv('f_tcontr'),
+    // cc (CC Date) ya no tiene campo propio en el formulario — reemplazado por Fecha de
+    // Comité (comiteFecha). Se preserva el valor viejo (spread de "old" más arriba) para
+    // contratos ya cargados, en vez de pisarlo a null en cada guardado.
     // Invitados/Ofertas RFQ: se guarda la lista completa (rfqOferentes, fuente de verdad) y
     // además cof/oferentes en el formato viejo (cantidad y nombres separados por " - ") por
     // compatibilidad con lecturas legacy que todavía puedan depender de esos dos campos.
@@ -493,7 +496,7 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_cc','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_dgDoc'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_dgDoc'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));

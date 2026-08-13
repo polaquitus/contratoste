@@ -289,7 +289,7 @@ function renderDossierHtml(c){
 +'</div>'
 +'<div class="grid2b">'
 +'<div class="card"><div class="card-title">Estrategia de Contrataci\u00f3n</div><div class="card-body"><div class="kv">'
-+kv('Estrategia',_e(c.cprov||'RFQ'))+kv('CC',_e(c.cc||'\u2014'))+kv('CC MoM',_e(c.cof||'\u2014'))+kv('Respuestas recibidas',String(nOfrs))
++kv('Estrategia',_e(c.cprov||'RFQ'))+kv('CC',_e(c.cc||(c.comiteFecha?_d(c.comiteFecha):'\u2014')))+kv('CC MoM',_e(c.cof||'\u2014'))+kv('Respuestas recibidas',String(nOfrs))
 +'</div></div></div>'
 +'<div class="card"><div class="card-title">Recomendaci\u00f3n de Adjudicaci\u00f3n</div><div class="card-body" style="padding-top:12px">'
 +'<div style="font-size:14px;font-weight:800;color:#111827;margin-bottom:2px">'+_e(c.cont||'\u2014')+'</div>'
@@ -1409,7 +1409,7 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_btar').value=c.btar||'';document.getElementById('f_det').value=c.det||'';
   calcPlazo();setPoly(c.poly);
   document.getElementById('f_tcontr').value=c.tcontr||'';onContrCh();
-  document.getElementById('f_cc').value=c.cc||'';document.getElementById('f_ariba').value=c.ariba||'';
+  document.getElementById('f_ariba').value=c.ariba||'';
   // rfqOferentes es la fuente de verdad; si el contrato es de antes de este campo, se
   // reconstruye una vez desde los campos viejos (Participantes/Oferentes en texto libre)
   // para no perder lo ya cargado — se marca cotizo=true a los nombres que también
