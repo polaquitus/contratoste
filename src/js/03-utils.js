@@ -449,6 +449,15 @@ async function guardar(){
     claus2Horario:gv('f_cl2Horario')||null,
     claus3Inc:document.getElementById('f_cl3Inc').checked,
     claus4Inc:document.getElementById('f_cl4Inc').checked,
+    claus5Inc:document.getElementById('f_cl5Inc').checked,
+    claus6Inc:document.getElementById('f_cl6Inc').checked,
+    claus7Inc:document.getElementById('f_cl7Inc').checked,
+    claus8Inc:document.getElementById('f_cl8Inc').checked,
+    claus9Inc:document.getElementById('f_cl9Inc').checked,
+    claus10Inc:document.getElementById('f_cl10Inc').checked,
+    claus11Inc:document.getElementById('f_cl11Inc').checked,
+    claus12Inc:document.getElementById('f_cl12Inc').checked,
+    claus13Inc:document.getElementById('f_cl13Inc').checked,
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
     fueComite:document.getElementById('f_fueComite').checked,
@@ -535,8 +544,9 @@ function resetForm(){
   document.getElementById('formErrBanner')?.remove();
   ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal','f_cl2Horario'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   ['f_alcAsr','f_alcApi','f_alcTdf','f_alcNqn','f_alcBa'].forEach(id=>{const e=document.getElementById(id);if(e)e.checked=false;});
-  ['f_cl1Inc','f_cl2Inc','f_cl3Inc','f_cl4Inc'].forEach(id=>{const e=document.getElementById(id);if(e)e.checked=true;});
-  if(typeof onClausToggle==='function'){onClausToggle('cl1Inc');onClausToggle('cl2Inc');onClausToggle('cl3Inc');onClausToggle('cl4Inc');}
+  const clausIds=['cl1Inc','cl2Inc','cl3Inc','cl4Inc','cl5Inc','cl6Inc','cl7Inc','cl8Inc','cl9Inc','cl10Inc','cl11Inc','cl12Inc','cl13Inc'];
+  clausIds.forEach(id=>{const e=document.getElementById('f_'+id);if(e)e.checked=true;});
+  if(typeof onClausToggle==='function')clausIds.forEach(onClausToggle);
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
