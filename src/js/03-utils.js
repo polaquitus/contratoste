@@ -315,6 +315,11 @@ function onFaxToggle(key){
   document.getElementById('l_fax'+key+'Sent').textContent=on?'Sí':'No';
   document.getElementById('fg_fax'+key+'Nombre').style.display=on?'':'none';
 }
+function onClausToggle(key){
+  const on=document.getElementById('f_'+key).checked;
+  document.getElementById('l_'+key).textContent=on?'Sí':'No';
+  if(key==='cl2Inc'){const el=document.getElementById('fg_cl2Horario');if(el)el.style.display=on?'':'none';}
+}
 function handleFiles(fl){for(const f of fl){if(files.length>=10)return;const r=new FileReader();r.onload=e=>{files.push({name:f.name,size:f.size,data:e.target.result});renderFL()};r.readAsDataURL(f);}}
 function rmFile(i){files.splice(i,1);renderFL();}
 function renderFL(){document.getElementById('fList').innerHTML=files.map((f,i)=>`<div class="fli"><span>📄</span><span class="fn">${esc(f.name)}</span><span class="fs">${(f.size/1024).toFixed(0)}KB</span><button class="fd" onclick="rmFile(${i})">✕</button></div>`).join('');}
@@ -434,6 +439,25 @@ async function guardar(){
     faxApiSent:document.getElementById('f_faxApiSent').checked,
     faxApiNombre:document.getElementById('f_faxApiSent').checked?(gv('f_faxApiNombre')||null):null,
     faxApiMonto:gvMonto('faxApiMonto'),
+    alcanceAsr:document.getElementById('f_alcAsr').checked,
+    alcanceApi:document.getElementById('f_alcApi').checked,
+    alcanceTdf:document.getElementById('f_alcTdf').checked,
+    alcanceNqn:document.getElementById('f_alcNqn').checked,
+    alcanceBa:document.getElementById('f_alcBa').checked,
+    claus1Inc:document.getElementById('f_cl1Inc').checked,
+    claus2Inc:document.getElementById('f_cl2Inc').checked,
+    claus2Horario:gv('f_cl2Horario')||null,
+    claus3Inc:document.getElementById('f_cl3Inc').checked,
+    claus4Inc:document.getElementById('f_cl4Inc').checked,
+    claus5Inc:document.getElementById('f_cl5Inc').checked,
+    claus6Inc:document.getElementById('f_cl6Inc').checked,
+    claus7Inc:document.getElementById('f_cl7Inc').checked,
+    claus8Inc:document.getElementById('f_cl8Inc').checked,
+    claus9Inc:document.getElementById('f_cl9Inc').checked,
+    claus10Inc:document.getElementById('f_cl10Inc').checked,
+    claus11Inc:document.getElementById('f_cl11Inc').checked,
+    claus12Inc:document.getElementById('f_cl12Inc').checked,
+    claus13Inc:document.getElementById('f_cl13Inc').checked,
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
     fueComite:document.getElementById('f_fueComite').checked,
@@ -518,7 +542,11 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal','f_cl2Horario'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_alcAsr','f_alcApi','f_alcTdf','f_alcNqn','f_alcBa'].forEach(id=>{const e=document.getElementById(id);if(e)e.checked=false;});
+  const clausIds=['cl1Inc','cl2Inc','cl3Inc','cl4Inc','cl5Inc','cl6Inc','cl7Inc','cl8Inc','cl9Inc','cl10Inc','cl11Inc','cl12Inc','cl13Inc'];
+  clausIds.forEach(id=>{const e=document.getElementById('f_'+id);if(e)e.checked=true;});
+  if(typeof onClausToggle==='function')clausIds.forEach(onClausToggle);
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
