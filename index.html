@@ -33,7 +33,7 @@
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v156</span>
+    <span class="ver" id="sbVerBadge">v157</span>
   </div>
   <!-- Nav -->
   <nav class="sb-nav">
@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v156-fix-evolucion-eje-x</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v157-monto-cmp-val</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -506,7 +506,7 @@
   <div class="fsec"><div class="fsh"><div class="fi a">⚖️</div><h2>Tipo de Contratación<span>Adjudicación</span></h2></div>
     <div class="fg">
       <div class="fgrp"><label>Tipo <span class="req">*</span></label><select id="f_tcontr" onchange="onContrCh()"><option value="">—</option><option>DIRECTA</option><option>RFQ MAIL</option><option>RFQ ARIBA</option></select></div>
-      <div class="fgrp"><label>¿Fue a Comité?</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_fueComite" onchange="onFueComiteToggle()"><span class="sl"></span></label><span class="tl" id="l_fueComite">No</span></div><select id="f_comiteMonto" title="Monto que justifica ir (o no) a Comité" style="width:150px"><option value="">Monto...</option><option value="LT250">&lt; 250 KUSD</option><option value="GT250">&gt; 250 KUSD</option><option value="GT500">&gt; 500 KUSD</option><option value="GT1000">&gt; 1000 KUSD</option></select></div></div>
+      <div class="fgrp"><label>¿Fue a Comité?</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_fueComite" onchange="onFueComiteToggle()"><span class="sl"></span></label><span class="tl" id="l_fueComite">No</span></div><select id="f_comiteMontoCmp" title="Comparador" style="width:56px"><option value="">–</option><option value="LT">&lt;</option><option value="GT">&gt;</option></select><select id="f_comiteMontoVal" title="Monto que justifica ir (o no) a Comité" style="width:110px"><option value="">Monto...</option><option value="50">50 KUSD</option><option value="100">100 KUSD</option><option value="250">250 KUSD</option><option value="500">500 KUSD</option><option value="1000">1000 KUSD</option></select></div></div>
     </div>
     <div class="fgrp" id="fg_comiteSi" style="display:none;margin-top:12px">
       <div class="fg" style="margin-bottom:12px">
@@ -541,9 +541,9 @@
   </div>
   <div class="fsec"><div class="fsh"><div class="fi g">📠</div><h2>Faxes<span>Notificación a operadores de yacimiento</span></h2></div>
     <div class="fg">
-      <div class="fgrp"><label>Aguada San Roque</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_faxAsrSent" onchange="onFaxToggle('Asr')"><span class="sl"></span></label><span class="tl" id="l_faxAsrSent">No</span></div><select id="f_faxAsrMonto" title="Monto que justifica el envío (o no) del fax" style="width:150px"><option value="">Monto...</option><option value="LT250">&lt; 250 KUSD</option><option value="GT250">&gt; 250 KUSD</option><option value="GT500">&gt; 500 KUSD</option><option value="GT1000">&gt; 1000 KUSD</option></select></div></div>
+      <div class="fgrp"><label>Aguada San Roque</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_faxAsrSent" onchange="onFaxToggle('Asr')"><span class="sl"></span></label><span class="tl" id="l_faxAsrSent">No</span></div><select id="f_faxAsrMontoCmp" title="Comparador" style="width:56px"><option value="">–</option><option value="LT">&lt;</option><option value="GT">&gt;</option></select><select id="f_faxAsrMontoVal" title="Monto que justifica el envío (o no) del fax" style="width:110px"><option value="">Monto...</option><option value="50">50 KUSD</option><option value="100">100 KUSD</option><option value="250">250 KUSD</option><option value="500">500 KUSD</option><option value="1000">1000 KUSD</option></select></div></div>
       <div class="fgrp" id="fg_faxAsrNombre" style="display:none"><label>Nombre del Fax <span class="req">*</span></label><input type="text" id="f_faxAsrNombre" placeholder="Nombre/referencia del fax..."></div>
-      <div class="fgrp"><label>Aguada Pichana</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_faxApiSent" onchange="onFaxToggle('Api')"><span class="sl"></span></label><span class="tl" id="l_faxApiSent">No</span></div><select id="f_faxApiMonto" title="Monto que justifica el envío (o no) del fax" style="width:150px"><option value="">Monto...</option><option value="LT250">&lt; 250 KUSD</option><option value="GT250">&gt; 250 KUSD</option><option value="GT500">&gt; 500 KUSD</option><option value="GT1000">&gt; 1000 KUSD</option></select></div></div>
+      <div class="fgrp"><label>Aguada Pichana</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="tw"><label class="tg"><input type="checkbox" id="f_faxApiSent" onchange="onFaxToggle('Api')"><span class="sl"></span></label><span class="tl" id="l_faxApiSent">No</span></div><select id="f_faxApiMontoCmp" title="Comparador" style="width:56px"><option value="">–</option><option value="LT">&lt;</option><option value="GT">&gt;</option></select><select id="f_faxApiMontoVal" title="Monto que justifica el envío (o no) del fax" style="width:110px"><option value="">Monto...</option><option value="50">50 KUSD</option><option value="100">100 KUSD</option><option value="250">250 KUSD</option><option value="500">500 KUSD</option><option value="1000">1000 KUSD</option></select></div></div>
       <div class="fgrp" id="fg_faxApiNombre" style="display:none"><label>Nombre del Fax <span class="req">*</span></label><input type="text" id="f_faxApiNombre" placeholder="Nombre/referencia del fax..."></div>
     </div>
   </div>
@@ -662,8 +662,8 @@
 
 <script src="src/js/01-config.js?v=109"></script>
 <script src="src/js/02-supabase-auth.js?v=108"></script>
-<script src="src/js/03-utils.js?v=118"></script>
-<script src="src/js/04-contracts.js?v=134"></script>
+<script src="src/js/03-utils.js?v=119"></script>
+<script src="src/js/04-contracts.js?v=135"></script>
 <script src="src/js/05-indices.js?v=130"></script>
 <script src="src/js/06-licit-prov.js?v=110"></script>
 <script src="src/js/07-polynomial.js?v=115"></script>

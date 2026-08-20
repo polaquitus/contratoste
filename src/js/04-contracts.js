@@ -195,7 +195,7 @@ function renderDossierHtml(c){
   // "NO" por default, que ser\u00eda incorrecto para la mayor\u00eda de esos contratos viejos.
   var fueComiteVal = c.fueComite!=null ? c.fueComite : !!c.cc;
   var comiteResultadoLbl={APROBADO:'✅ Aprobado',APROBADO_OBS:'🟡 Aprobado con observaciones',NO_APROBADO:'🔴 No aprobado'};
-  var montoKusdLbl={LT250:'< 250 KUSD',GT250:'> 250 KUSD',GT500:'> 500 KUSD',GT1000:'> 1000 KUSD'};
+  var montoKusdLbl=function(code){var m=String(code||'').match(/^(LT|GT)(\d+)$/);return m?(m[1]==='LT'?'< ':'> ')+m[2]+' KUSD':code;};
 
   var CSS=':root{--navy:#003875;--orange:#FF6900;--poly:#b45309;--poly-bg:#fef3c7;--owner:#0f766e;--owner-bg:#ccfbf1;--total:#059669;--total-bg:#d1fae5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#eef1f5}'
 +'*{box-sizing:border-box;margin:0;padding:0}'
@@ -323,8 +323,8 @@ function renderDossierHtml(c){
 +kv('\u00daltima Enmienda',ultimaEnm?('N\u00b0'+_e(ultimaEnm.num)):'\u2014')
 +kv('Derogations',c.dg?'YES':'NO')
 +(c.dg&&c.dgDoc?kv('Doc. Derogación',_e(c.dgDoc)):'')
-+kv('Fax Aguada San Roque',(c.faxAsrSent?'✅ Enviado — '+_e(c.faxAsrNombre||'—'):'No enviado')+(c.faxAsrMonto?' · '+_e(montoKusdLbl[c.faxAsrMonto]||c.faxAsrMonto):''))
-+kv('Fax Aguada Pichana',(c.faxApiSent?'✅ Enviado — '+_e(c.faxApiNombre||'—'):'No enviado')+(c.faxApiMonto?' · '+_e(montoKusdLbl[c.faxApiMonto]||c.faxApiMonto):''))
++kv('Fax Aguada San Roque',(c.faxAsrSent?'✅ Enviado — '+_e(c.faxAsrNombre||'—'):'No enviado')+(c.faxAsrMonto?' · '+_e(montoKusdLbl(c.faxAsrMonto)):''))
++kv('Fax Aguada Pichana',(c.faxApiSent?'✅ Enviado — '+_e(c.faxApiNombre||'—'):'No enviado')+(c.faxApiMonto?' · '+_e(montoKusdLbl(c.faxApiMonto)):''))
 +'</div></div></div>'
 +'<div class="card"><div class="card-title">Estrategia de Contrataci\u00f3n</div><div class="card-body"><div class="kv">'
 +kv('Tipo de Adjudicaci\u00f3n',_e(c.tcontr||'\u2014'))
@@ -335,7 +335,7 @@ function renderDossierHtml(c){
 +kv('Invitados',String(nPartic))
 +kv('Ofertas recibidas',String(nOfrs))
 +kv('\u00bfFue a Comit\u00e9?',fueComiteVal?'S\u00cd':'NO',true)
-+(c.comiteMonto?kv('Monto',_e(montoKusdLbl[c.comiteMonto]||c.comiteMonto)):'')
++(c.comiteMonto?kv('Monto',_e(montoKusdLbl(c.comiteMonto))):'')
 +(fueComiteVal?(c.comiteFecha?kv('Fecha de Comit\u00e9',_d(c.comiteFecha)):'')+(c.comiteResultado?kv('Resultado',_e(comiteResultadoLbl[c.comiteResultado]||c.comiteResultado)):''):'')
 +'</div>'
 +(fueComiteVal&&c.comiteObs?'<div style="padding:4px 4px 10px"><div class="kvl">Observaciones del Comit\u00e9</div><div style="font-size:12.5px;color:#6b7280;font-style:italic;margin-top:3px">'+_e(c.comiteObs)+'</div></div>':'')
@@ -1504,17 +1504,17 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_comiteFecha').value=c.comiteFecha||'';
   document.getElementById('f_comiteResultado').value=c.comiteResultado||'APROBADO';
   document.getElementById('f_comiteObs').value=c.comiteObs||'';
-  document.getElementById('f_comiteMonto').value=c.comiteMonto||'';
+  setMonto('comiteMonto',c.comiteMonto);
   onFueComiteToggle();
   document.getElementById('f_dg').checked=!!c.dg;
   document.getElementById('f_dgDoc').value=c.dgDoc||'';
   onDgToggle();
   document.getElementById('f_faxAsrSent').checked=!!c.faxAsrSent;
   document.getElementById('f_faxAsrNombre').value=c.faxAsrNombre||'';
-  document.getElementById('f_faxAsrMonto').value=c.faxAsrMonto||'';
+  setMonto('faxAsrMonto',c.faxAsrMonto);
   document.getElementById('f_faxApiSent').checked=!!c.faxApiSent;
   document.getElementById('f_faxApiNombre').value=c.faxApiNombre||'';
-  document.getElementById('f_faxApiMonto').value=c.faxApiMonto||'';
+  setMonto('faxApiMonto',c.faxApiMonto);
   onFaxToggle('Asr');onFaxToggle('Api');
   document.getElementById('f_alcAsr').checked=!!c.alcanceAsr;
   document.getElementById('f_alcApi').checked=!!c.alcanceApi;
