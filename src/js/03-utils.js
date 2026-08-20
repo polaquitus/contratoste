@@ -318,7 +318,56 @@ function onFaxToggle(key){
 function onClausToggle(key){
   const on=document.getElementById('f_'+key).checked;
   document.getElementById('l_'+key).textContent=on?'Sí':'No';
-  if(key==='cl2Inc'){const el=document.getElementById('fg_cl2Horario');if(el)el.style.display=on?'':'none';}
+}
+function openClausulado(){
+  document.getElementById('clausuladoScreen').style.display='block';
+  document.body.style.overflow='hidden';
+  renderCl2Preview();renderCl4Preview();renderCl5Preview();
+}
+function closeClausulado(){
+  document.getElementById('clausuladoScreen').style.display='none';
+  document.body.style.overflow='';
+}
+function renderCl2Preview(){
+  const dd=gv('f_cl2DiaDesde'),dh=gv('f_cl2DiaHasta'),hd=gv('f_cl2HoraDesde'),hh=gv('f_cl2HoraHasta');
+  const el=document.getElementById('cl2Preview');if(!el)return;
+  el.textContent='"...el cual será de '+dd.toLowerCase()+' a '+dh.toLowerCase()+' de '+(hd||'—')+' a '+(hh||'—')+' hs."';
+}
+function renderCl4Preview(){
+  const el=document.getElementById('cl4Preview');if(!el)return;
+  const hasPoly=document.getElementById('f_hasPoly')?.checked;
+  const trigA=document.getElementById('f_trigA')?.checked;
+  const trigB=document.getElementById('f_trigB')?.checked;
+  const trigBpct=gv('f_trigBpct');
+  let html='<div style="font-weight:700;margin-bottom:4px">Redeterminación de tarifas (según la Cláusula de Redeterminación de Precios de arriba)</div>';
+  html+='<div>'+(hasPoly?'✅':'❌')+' Guía de fórmula polinómica — '+(hasPoly?'incluida':'no incluida, sin fórmula polinómica cargada')+'</div>';
+  html+='<div>'+(trigA?'✅':'❌')+' Opción A) — variación de mano de obra por CCT homologado — '+(trigA?'incluida':'no incluida, sin ese gatillo')+'</div>';
+  html+='<div>'+(trigB?'✅':'❌')+' Opción B) — variación acumulada'+(trigB&&trigBpct?' ≥ '+trigBpct+'%':' ≥ 15%')+' — '+(trigB?'incluida':'no incluida, sin ese gatillo')+'</div>';
+  el.innerHTML=html;
+}
+function renderCl5Preview(){
+  const el=document.getElementById('cl5Preview');if(!el)return;
+  const asr=document.getElementById('f_alcAsr')?.checked;
+  const api=document.getElementById('f_alcApi')?.checked;
+  const tdf=document.getElementById('f_alcTdf')?.checked;
+  const nqn=document.getElementById('f_alcNqn')?.checked;
+  const ba=document.getElementById('f_alcBa')?.checked;
+  const blocks=[];
+  if(asr)blocks.push('"SAN ROQUE U.T." · CUIT 30-66331467-6');
+  if(api)blocks.push('"AGUADA PICHANA ESTE U.T." · CUIT 30-67856451-2');
+  if(tdf)blocks.push('YACIMIENTO ÁREA CUENCA AUSTRAL I - TIERRA DEL FUEGO · CUIT 30-63681824-7');
+  if(nqn||ba)blocks.push('TOTAL AUSTRAL S.A. (Buenos Aires) · CUIT 30-56971934-4');
+  el.innerHTML=blocks.length
+    ? 'Se incluirán los bloques de facturación de: <ul style="margin:4px 0 0 18px;padding:0">'+blocks.map(b=>'<li>'+b+'</li>').join('')+'</ul>'
+    : 'Marcá el Alcance del Contrato arriba para ver qué bloque de facturación (CUIT) corresponde.';
+}
+function onCl5FdoToggle(){
+  const on=document.getElementById('f_cl5FdoGtia').checked;
+  document.getElementById('l_cl5FdoGtia').textContent=on?'Sí':'No';
+  const el=document.getElementById('cl5FdoPreview');if(!el)return;
+  el.textContent=on
+    ? '"Las Partes aceptan que la facturación de los Servicios contratados bajo el presente acuerdo, se efectuará..." (texto completo del Fondo de Garantía)'
+    : '"No requiere del Fondo de Garantía."';
 }
 function handleFiles(fl){for(const f of fl){if(files.length>=10)return;const r=new FileReader();r.onload=e=>{files.push({name:f.name,size:f.size,data:e.target.result});renderFL()};r.readAsDataURL(f);}}
 function rmFile(i){files.splice(i,1);renderFL();}
@@ -446,10 +495,14 @@ async function guardar(){
     alcanceBa:document.getElementById('f_alcBa').checked,
     claus1Inc:document.getElementById('f_cl1Inc').checked,
     claus2Inc:document.getElementById('f_cl2Inc').checked,
-    claus2Horario:gv('f_cl2Horario')||null,
+    claus2DiaDesde:gv('f_cl2DiaDesde')||null,
+    claus2DiaHasta:gv('f_cl2DiaHasta')||null,
+    claus2HoraDesde:gv('f_cl2HoraDesde')||null,
+    claus2HoraHasta:gv('f_cl2HoraHasta')||null,
     claus3Inc:document.getElementById('f_cl3Inc').checked,
     claus4Inc:document.getElementById('f_cl4Inc').checked,
     claus5Inc:document.getElementById('f_cl5Inc').checked,
+    claus5FondoGarantia:document.getElementById('f_cl5FdoGtia').checked,
     claus6Inc:document.getElementById('f_cl6Inc').checked,
     claus7Inc:document.getElementById('f_cl7Inc').checked,
     claus8Inc:document.getElementById('f_cl8Inc').checked,
@@ -457,6 +510,7 @@ async function guardar(){
     claus10Inc:document.getElementById('f_cl10Inc').checked,
     claus11Inc:document.getElementById('f_cl11Inc').checked,
     claus12Inc:document.getElementById('f_cl12Inc').checked,
+    claus12Tipo:gv('f_cl12Tipo')||null,
     claus13Inc:document.getElementById('f_cl13Inc').checked,
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
@@ -542,11 +596,18 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal','f_cl2Horario'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal','f_cl2HoraDesde','f_cl2HoraHasta'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   ['f_alcAsr','f_alcApi','f_alcTdf','f_alcNqn','f_alcBa'].forEach(id=>{const e=document.getElementById(id);if(e)e.checked=false;});
   const clausIds=['cl1Inc','cl2Inc','cl3Inc','cl4Inc','cl5Inc','cl6Inc','cl7Inc','cl8Inc','cl9Inc','cl10Inc','cl11Inc','cl12Inc','cl13Inc'];
   clausIds.forEach(id=>{const e=document.getElementById('f_'+id);if(e)e.checked=true;});
   if(typeof onClausToggle==='function')clausIds.forEach(onClausToggle);
+  const cl2dd=document.getElementById('f_cl2DiaDesde');if(cl2dd)cl2dd.value='Lunes';
+  const cl2dh=document.getElementById('f_cl2DiaHasta');if(cl2dh)cl2dh.value='Viernes';
+  const cl2hd=document.getElementById('f_cl2HoraDesde');if(cl2hd)cl2hd.value='08:00';
+  const cl2hh=document.getElementById('f_cl2HoraHasta');if(cl2hh)cl2hh.value='19:00';
+  const cl5f=document.getElementById('f_cl5FdoGtia');if(cl5f)cl5f.checked=false;
+  if(typeof onCl5FdoToggle==='function')onCl5FdoToggle();
+  const cl12t=document.getElementById('f_cl12Tipo');if(cl12t)cl12t.value='';
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));

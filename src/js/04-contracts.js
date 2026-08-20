@@ -1523,10 +1523,15 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_alcBa').checked=!!c.alcanceBa;
   document.getElementById('f_cl1Inc').checked = c.claus1Inc!=null ? !!c.claus1Inc : true;
   document.getElementById('f_cl2Inc').checked = c.claus2Inc!=null ? !!c.claus2Inc : true;
-  document.getElementById('f_cl2Horario').value=c.claus2Horario||'';
+  document.getElementById('f_cl2DiaDesde').value=c.claus2DiaDesde||'Lunes';
+  document.getElementById('f_cl2DiaHasta').value=c.claus2DiaHasta||'Viernes';
+  document.getElementById('f_cl2HoraDesde').value=c.claus2HoraDesde||'08:00';
+  document.getElementById('f_cl2HoraHasta').value=c.claus2HoraHasta||'19:00';
   document.getElementById('f_cl3Inc').checked = c.claus3Inc!=null ? !!c.claus3Inc : true;
   document.getElementById('f_cl4Inc').checked = c.claus4Inc!=null ? !!c.claus4Inc : true;
   document.getElementById('f_cl5Inc').checked = c.claus5Inc!=null ? !!c.claus5Inc : true;
+  document.getElementById('f_cl5FdoGtia').checked = !!c.claus5FondoGarantia;
+  if(typeof onCl5FdoToggle==='function')onCl5FdoToggle();
   document.getElementById('f_cl6Inc').checked = c.claus6Inc!=null ? !!c.claus6Inc : true;
   document.getElementById('f_cl7Inc').checked = c.claus7Inc!=null ? !!c.claus7Inc : true;
   document.getElementById('f_cl8Inc').checked = c.claus8Inc!=null ? !!c.claus8Inc : true;
@@ -1534,6 +1539,7 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_cl10Inc').checked = c.claus10Inc!=null ? !!c.claus10Inc : true;
   document.getElementById('f_cl11Inc').checked = c.claus11Inc!=null ? !!c.claus11Inc : true;
   document.getElementById('f_cl12Inc').checked = c.claus12Inc!=null ? !!c.claus12Inc : true;
+  document.getElementById('f_cl12Tipo').value=c.claus12Tipo||'';
   document.getElementById('f_cl13Inc').checked = c.claus13Inc!=null ? !!c.claus13Inc : true;
   ['cl1Inc','cl2Inc','cl3Inc','cl4Inc','cl5Inc','cl6Inc','cl7Inc','cl8Inc','cl9Inc','cl10Inc','cl11Inc','cl12Inc','cl13Inc'].forEach(onClausToggle);
   document.getElementById('f_rtec').value=c.rtec||'';document.getElementById('f_tc').value=c.tc||'';
