@@ -322,6 +322,8 @@ function renderDossierHtml(c){
 +kv('\u00daltima Enmienda',ultimaEnm?('N\u00b0'+_e(ultimaEnm.num)):'\u2014')
 +kv('Derogations',c.dg?'YES':'NO')
 +(c.dg&&c.dgDoc?kv('Doc. Derogación',_e(c.dgDoc)):'')
++kv('Fax Aguada San Roque',c.faxAsrSent?('✅ Enviado — '+_e(c.faxAsrNombre||'—')):'No enviado')
++kv('Fax Aguada Pichana',c.faxApiSent?('✅ Enviado — '+_e(c.faxApiNombre||'—')):'No enviado')
 +'</div></div></div>'
 +'<div class="card"><div class="card-title">Estrategia de Contrataci\u00f3n</div><div class="card-body"><div class="kv">'
 +kv('Tipo de Adjudicaci\u00f3n',_e(c.tcontr||'\u2014'))
@@ -1501,6 +1503,11 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_dg').checked=!!c.dg;
   document.getElementById('f_dgDoc').value=c.dgDoc||'';
   onDgToggle();
+  document.getElementById('f_faxAsrSent').checked=!!c.faxAsrSent;
+  document.getElementById('f_faxAsrNombre').value=c.faxAsrNombre||'';
+  document.getElementById('f_faxApiSent').checked=!!c.faxApiSent;
+  document.getElementById('f_faxApiNombre').value=c.faxApiNombre||'';
+  onFaxToggle('Asr');onFaxToggle('Api');
   document.getElementById('f_rtec').value=c.rtec||'';document.getElementById('f_tc').value=c.tc||'';
   document.getElementById('f_own').value=c.own||'';document.getElementById('f_asset').value=c.asset||'';document.getElementById('f_cprov').value=c.cprov||'';
   document.getElementById('f_vend').value=c.vend||'';document.getElementById('f_fax').value=c.fax||'';

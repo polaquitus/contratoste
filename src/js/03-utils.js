@@ -310,6 +310,11 @@ function onDgToggle(){
   document.getElementById('l_dg').textContent=on?'Sí':'No';
   document.getElementById('fg_dgDoc').style.display=on?'':'none';
 }
+function onFaxToggle(key){
+  const on=document.getElementById('f_fax'+key+'Sent').checked;
+  document.getElementById('l_fax'+key+'Sent').textContent=on?'Sí':'No';
+  document.getElementById('fg_fax'+key+'Nombre').style.display=on?'':'none';
+}
 function handleFiles(fl){for(const f of fl){if(files.length>=10)return;const r=new FileReader();r.onload=e=>{files.push({name:f.name,size:f.size,data:e.target.result});renderFL()};r.readAsDataURL(f);}}
 function rmFile(i){files.splice(i,1);renderFL();}
 function renderFL(){document.getElementById('fList').innerHTML=files.map((f,i)=>`<div class="fli"><span>📄</span><span class="fn">${esc(f.name)}</span><span class="fs">${(f.size/1024).toFixed(0)}KB</span><button class="fd" onclick="rmFile(${i})">✕</button></div>`).join('');}
@@ -373,6 +378,10 @@ async function guardar(){
   if(comiteJustifEl)comiteJustifEl.classList.toggle('err',!document.getElementById('f_fueComite').checked&&!gv('f_comiteJustif'));
   const dgDocEl=document.getElementById('f_dgDoc');
   if(dgDocEl)dgDocEl.classList.toggle('err',document.getElementById('f_dg').checked&&!gv('f_dgDoc'));
+  const faxAsrEl=document.getElementById('f_faxAsrNombre');
+  if(faxAsrEl)faxAsrEl.classList.toggle('err',document.getElementById('f_faxAsrSent').checked&&!gv('f_faxAsrNombre'));
+  const faxApiEl=document.getElementById('f_faxApiNombre');
+  if(faxApiEl)faxApiEl.classList.toggle('err',document.getElementById('f_faxApiSent').checked&&!gv('f_faxApiNombre'));
   if(gv('f_ini')&&gv('f_fin')&&new Date(gv('f_fin'))<new Date(gv('f_ini'))){document.getElementById('f_fin').classList.add('err');er.push('Fecha Fin anterior a Inicio');}
   if(!editId&&gv('f_num')&&window.DB.find(c=>c.num===gv('f_num'))){document.getElementById('f_num').classList.add('err');er.push('N° de contrato ya existe');}
   if(er.length){
@@ -413,6 +422,10 @@ async function guardar(){
     dd:gv('f_dd')||null,pr:gv('f_pr')||null,
     sq:gv('f_sq')||null,dg:document.getElementById('f_dg').checked,
     dgDoc:document.getElementById('f_dg').checked?(gv('f_dgDoc')||null):null,
+    faxAsrSent:document.getElementById('f_faxAsrSent').checked,
+    faxAsrNombre:document.getElementById('f_faxAsrSent').checked?(gv('f_faxAsrNombre')||null):null,
+    faxApiSent:document.getElementById('f_faxApiSent').checked,
+    faxApiNombre:document.getElementById('f_faxApiSent').checked?(gv('f_faxApiNombre')||null):null,
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
     fueComite:document.getElementById('f_fueComite').checked,
@@ -496,13 +509,16 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_dgDoc'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_dgDoc','f_faxAsrNombre','f_faxApiNombre'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
   ['secRfq','secAr'].forEach(id=>document.getElementById(id).classList.remove('vis'));
   document.getElementById('f_dg').checked=false;
   if(typeof onDgToggle==='function')onDgToggle();
+  document.getElementById('f_faxAsrSent').checked=false;
+  document.getElementById('f_faxApiSent').checked=false;
+  if(typeof onFaxToggle==='function'){onFaxToggle('Asr');onFaxToggle('Api');}
   const comiteResEl=document.getElementById('f_comiteResultado');if(comiteResEl)comiteResEl.value='APROBADO';
   ['f_ddStatus','f_prStatus','f_sqStatus'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='PENDING';});
   document.getElementById('f_fueComite').checked=false;

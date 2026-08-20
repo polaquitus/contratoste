@@ -33,7 +33,7 @@
   <div class="sb-env">
     <span class="dot"></span>
     <span class="lab"><strong>Producción</strong> · sincronizado</span>
-    <span class="ver" id="sbVerBadge">v152</span>
+    <span class="ver" id="sbVerBadge">v153</span>
   </div>
   <!-- Nav -->
   <nav class="sb-nav">
@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v152-invitados-unificado</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v153-faxes-asr-api</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -522,6 +522,14 @@
       <div class="fgrp" id="fg_dgDoc" style="display:none"><label>Documento de Derogación <span class="req">*</span></label><input type="text" id="f_dgDoc" placeholder="Nombre del documento..."></div>
     </div>
   </div>
+  <div class="fsec"><div class="fsh"><div class="fi g">📠</div><h2>Faxes<span>Notificación a operadores de yacimiento</span></h2></div>
+    <div class="fg">
+      <div class="fgrp"><label>Aguada San Roque</label><div class="tw"><label class="tg"><input type="checkbox" id="f_faxAsrSent" onchange="onFaxToggle('Asr')"><span class="sl"></span></label><span class="tl" id="l_faxAsrSent">No</span></div></div>
+      <div class="fgrp" id="fg_faxAsrNombre" style="display:none"><label>Nombre del Fax <span class="req">*</span></label><input type="text" id="f_faxAsrNombre" placeholder="Nombre/referencia del fax..."></div>
+      <div class="fgrp"><label>Aguada Pichana</label><div class="tw"><label class="tg"><input type="checkbox" id="f_faxApiSent" onchange="onFaxToggle('Api')"><span class="sl"></span></label><span class="tl" id="l_faxApiSent">No</span></div></div>
+      <div class="fgrp" id="fg_faxApiNombre" style="display:none"><label>Nombre del Fax <span class="req">*</span></label><input type="text" id="f_faxApiNombre" placeholder="Nombre/referencia del fax..."></div>
+    </div>
+  </div>
   <div class="fsec"><div class="fsh"><div class="fi t">👥</div><h2>Responsables<span>Personas del contrato</span></h2></div>
     <div class="fg">
       <div class="fgrp"><label>Resp. Técnico <span class="req">*</span></label><select id="f_rtec"><option value="">—</option><option>Adrian Alberto ANGELONI</option><option>Adrian Gustavo RAMIREZ</option><option>Adrian OBINO</option><option>Adriano D'AGOSTINO</option><option>Aldo Claudio FIORINI</option><option>Alejandro Angel PIGNATELLI</option><option>Alejandro LAGUTO</option><option>Alejandro Martin CADOCHE WOLF</option><option>Alejo Nicolas CORDOBA</option><option>Ana Chiquinquira LEAÑEZ PERNALETE</option><option>Anahi Del Valle MARIN MORAN</option><option>Andrea SANCHEZ</option><option>Andres PRUSCINO</option><option>Angelica STEINBACH</option><option>Astrid Belen TERRIZZANO</option><option>Barbara Camila ALVAREZ OYARZO</option><option>Bernardo COLLAZO BENITEZ</option><option>Bruno GIGLI</option><option>Carlos ALVAREZ LUGANO</option><option>Carlos GALLARDO</option><option>Carlos Gabriel LIZARZUAY</option><option>David Sidney ARMSTRONG</option><option>Diego Hernan FEIJOO</option><option>Diego Luis SERVIERES</option><option>EDITH BASILICO</option><option>Edgar DOUMA</option><option>Emiliano Martin BODNARIN</option><option>Emilio Sebastian SAPORITO</option><option>Eugenia FERNANDEZ BOTTARO</option><option>Eugenia FERNANDEZ PUENTE</option><option>Eva Maria Rosa CESPEDES</option><option>Fabiana Alejandra DI TATA</option><option>Facundo ALANIZ</option><option>Facundo Gabriel ALRIC</option><option>Facundo Nicolas MAHONA</option><option>Federico Claudio VAZQUEZ FERNANDEZ</option><option>Federico LOPEZ KUPERMAN</option><option>Fernando Javier PUENTES GALLY</option><option>Fernando Martin GRANDOLI</option><option>Fernando Oscar BENITEZ</option><option>Flavia SEGOVIA</option><option>Florencia Melina CALVET</option><option>Francisco BOGADO</option><option>Francisco GOYENECHEA</option><option>Francisco Javier CACERES DIAZ</option><option>GABRIELA GARCIA</option><option>Gabriela ROSELLO</option><option>Gaston CORSO</option><option>Gaston Christian ORDEN VILLALBA</option><option>Gonzalo Lorenzo ARUFE</option><option>Gonzalo Martin LOPEZ</option><option>Hector Pablo COGGIOLA</option><option>Hernan RIZZA</option><option>J0123952</option><option>Jefe de Base</option><option>Jefe de Obras Civiles</option><option>Jessica Elizabeth DE</option><option>Jesús Oscar GUILARTE ZABALA</option><option>Joaquin DELLA VEDOVA</option><option>Jorge Luis MILLER</option><option>Jorge Nicolas SANTANDER</option><option>Jose Gabriel AZNAREZ</option><option>L1006741</option><option>Laura REY</option><option>Leandro Alberto MARZENIUK</option><option>Leandro KOLTON</option><option>Leonardo Alfredo GOMEZ</option><option>Lorena FAVALE</option><option>Lucas Julian MARTIN</option><option>Luciano VIOTTO</option><option>Luis Atilio RIOLFO</option><option>Luis Emilio UBERTI</option><option>Luis Sebastian CORREGIDOR</option><option>Marcelo Gustavo REINO</option><option>Marcelo Javier RIOS</option><option>Maria Cecilia IRIGOITIA</option><option>Maria Claudia BORBOLLA</option><option>Maria Giselle PEREZ</option><option>Maria Ines AVILA</option><option>Maria Laura GERMANIER</option><option>Maria Silvia TRAVERSO</option><option>Maria Sol LEONARDIS</option><option>Maria-Soledad DE GRAZIA</option><option>Mariana SAINZ TRAPAGA</option><option>Martin Cesar FERRANDO VILLOSLADA</option><option>Martin SOUCARROS</option><option>Martín ZALAZAR</option><option>Matias BERTOLA</option><option>Mauro ELIAS</option><option>Mauro Ivo DI CALOGERO</option><option>Maximiliano Pedro PAPONI</option><option>Micaela CAMINO</option><option>Miguel Angel ARAÑO</option><option>Myriam MACCIERATESSI</option><option>Natalia SCARICABAROZZI</option><option>Nicolas TORRES CABRERA</option><option>Pablo Ariel CHILLEMI</option><option>Philippe JEANNET</option><option>Pierre LECLERC</option><option>Ramiro SAAVEDRA</option><option>Ricardo Jose SERAFIN</option><option>Rodrigo Daniel BIANCHI</option><option>Rodrigo E DUARTE</option><option>SEBASTIAN PEREZ PERUGORRIA</option><option>SERGIO CAPECE</option><option>SILVIA CRISTINA DOMINGUEZ</option><option>Salvador CERVERA NOVO</option><option>Salvador Emanuel GRIFFO</option><option>Samuel Eduardo BECKMANN GLARDON</option><option>Santiago DE WAVRIN</option><option>Santiago Hernan SOTO</option><option>Sebastian Matias PARODI</option><option>Sergio POZZONI</option><option>Superintendente de Logistica</option><option>Sébastien FOURNEL</option><option>Tamara Denise MADERA</option><option>Walter FERNANDEZ FERNANDEZ</option><option>Walter Ruben SCHMIDT</option><option>Yamil Aron GULMAN</option><option>Yanel DOMINGUEZ</option></select></div>
@@ -637,8 +645,8 @@
 
 <script src="src/js/01-config.js?v=109"></script>
 <script src="src/js/02-supabase-auth.js?v=108"></script>
-<script src="src/js/03-utils.js?v=115"></script>
-<script src="src/js/04-contracts.js?v=130"></script>
+<script src="src/js/03-utils.js?v=116"></script>
+<script src="src/js/04-contracts.js?v=131"></script>
 <script src="src/js/05-indices.js?v=130"></script>
 <script src="src/js/06-licit-prov.js?v=110"></script>
 <script src="src/js/07-polynomial.js?v=115"></script>
