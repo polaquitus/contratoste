@@ -343,6 +343,12 @@ function renderRfqOferentes(){
   const nOfr=document.getElementById('rfq_nOfr');if(nOfr)nOfr.textContent=rfqOfrs.filter(o=>o.cotizo).length;
 }
 function gv(id){return(document.getElementById(id).value||'').trim();}
+function gvMonto(prefix){const cmp=gv('f_'+prefix+'Cmp'),val=gv('f_'+prefix+'Val');return (cmp&&val)?(cmp+val):null;}
+function setMonto(prefix,stored){
+  const m=String(stored||'').match(/^(LT|GT)(\d+)$/);
+  document.getElementById('f_'+prefix+'Cmp').value=m?m[1]:'';
+  document.getElementById('f_'+prefix+'Val').value=m?m[2]:'';
+}
 
 // Una enmienda puede combinar varios conceptos a la vez (enm.tipos, array —
 // ej. ['EXTENSION','ACTUALIZACION_TARIFAS']). enm.tipo (string, singular) se
@@ -424,14 +430,14 @@ async function guardar(){
     dgDoc:document.getElementById('f_dg').checked?(gv('f_dgDoc')||null):null,
     faxAsrSent:document.getElementById('f_faxAsrSent').checked,
     faxAsrNombre:document.getElementById('f_faxAsrSent').checked?(gv('f_faxAsrNombre')||null):null,
-    faxAsrMonto:gv('f_faxAsrMonto')||null,
+    faxAsrMonto:gvMonto('faxAsrMonto'),
     faxApiSent:document.getElementById('f_faxApiSent').checked,
     faxApiNombre:document.getElementById('f_faxApiSent').checked?(gv('f_faxApiNombre')||null):null,
-    faxApiMonto:gv('f_faxApiMonto')||null,
+    faxApiMonto:gvMonto('faxApiMonto'),
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
     fueComite:document.getElementById('f_fueComite').checked,
-    comiteMonto:gv('f_comiteMonto')||null,
+    comiteMonto:gvMonto('comiteMonto'),
     comiteJustif:document.getElementById('f_fueComite').checked?null:(gv('f_comiteJustif')||null),
     comiteFecha:document.getElementById('f_fueComite').checked?(gv('f_comiteFecha')||null):null,
     comiteResultado:document.getElementById('f_fueComite').checked?(gv('f_comiteResultado')||null):null,
@@ -512,7 +518,7 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMonto','f_dgDoc','f_faxAsrNombre','f_faxAsrMonto','f_faxApiNombre','f_faxApiMonto'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMontoCmp','f_comiteMontoVal','f_dgDoc','f_faxAsrNombre','f_faxAsrMontoCmp','f_faxAsrMontoVal','f_faxApiNombre','f_faxApiMontoCmp','f_faxApiMontoVal'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
