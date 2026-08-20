@@ -1099,19 +1099,22 @@ function renderDet(){
           if(endDateStr>lastPt.fecha) pts.push({fecha:endDateStr, tipo:'now', label:(finD&&finD<hoy2)?'Fin de contrato':'Hoy', periodo:'', delta:0, val:lastPt.val});
           const colDot={base:'#16a34a',poly:'#b45309',owner:'#3399ff',now:'var(--p700)'};
           const W=760,H=280,padL=72,padR=20,padT=20,padB=42;
-          const xs=pts.map(p=>new Date(p.fecha+'T00:00:00').getTime());
           const ys=pts.map(p=>p.val);
-          const xMin=Math.min.apply(null,xs), xMax=Math.max.apply(null,xs);
+          const n=pts.length;
+          // Eje X categórico (un punto por evento, equiespaciado) en vez de escala lineal por
+          // fecha real: con AVEs agrupadas en pocas semanas dentro de un contrato de varios
+          // meses, la escala temporal dejaba casi todo el gráfico vacío y los puntos amontonados
+          // en un extremo. La fecha real de cada evento sigue disponible en su etiqueta y tooltip.
+          const xToPx=i=>n<=1?padL:padL+(W-padL-padR)*(i/(n-1));
           const yMin=0, yMax=(Math.max.apply(null,ys)*1.08)||1;
-          const xToPx=t=>padL+(W-padL-padR)*((t-xMin)/Math.max(1,xMax-xMin));
           const yToPx=v=>padT+(H-padT-padB)*(1-(v-yMin)/Math.max(1,yMax-yMin));
-          let path=''; pts.forEach((p,i)=>{const x=xToPx(new Date(p.fecha+'T00:00:00').getTime()),y=yToPx(p.val);path+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' ';});
-          const areaPath=path+'L'+xToPx(xMax).toFixed(1)+','+yToPx(0).toFixed(1)+' L'+xToPx(xMin).toFixed(1)+','+yToPx(0).toFixed(1)+' Z';
+          let path=''; pts.forEach((p,i)=>{const x=xToPx(i),y=yToPx(p.val);path+=(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1)+' ';});
+          const areaPath=path+'L'+xToPx(n-1).toFixed(1)+','+yToPx(0).toFixed(1)+' L'+xToPx(0).toFixed(1)+','+yToPx(0).toFixed(1)+' Z';
           const yTicks=[]; for(let i=0;i<=4;i++){ const v=yMin+(yMax-yMin)*i/4; yTicks.push(v); }
           const yGrid=yTicks.map(v=>{const y=yToPx(v); return '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="var(--g100)"/><text x="'+(padL-8)+'" y="'+(y+3).toFixed(1)+'" fill="var(--g500)" font-size="10" text-anchor="end" font-family="JetBrains Mono,monospace">'+fmtCompactNum(v)+'</text>';}).join('');
-          const xTicks=[]; for(let i=0;i<=4;i++){ xTicks.push(xMin+(xMax-xMin)*i/4); }
-          const xGrid=xTicks.map(t=>{const x=xToPx(t); const d=new Date(t); const lbl=String(d.getFullYear()).slice(2)+'·'+String(d.getMonth()+1).padStart(2,'0'); return '<line x1="'+x.toFixed(1)+'" x2="'+x.toFixed(1)+'" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--g50)"/><text x="'+x.toFixed(1)+'" y="'+(H-padB+16)+'" fill="var(--g500)" font-size="10" text-anchor="middle" font-family="JetBrains Mono,monospace">'+lbl+'</text>';}).join('');
-          const dots=pts.map(p=>{const x=xToPx(new Date(p.fecha+'T00:00:00').getTime()),y=yToPx(p.val); const col=colDot[p.tipo]||'var(--p700)'; const tip=p.label+' · '+fD(p.fecha)+' · '+(c.mon||'ARS')+' '+fN(p.val)+(p.delta?' (+'+fN(p.delta)+')':'')+(p.periodo?' · período '+(formatMonth(p.periodo)||p.periodo):''); return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="'+col+'" stroke="#fff" stroke-width="2"><title>'+esc(tip)+'</title></circle>';}).join('');
+          const xLabelStep=Math.max(1,Math.ceil(n/12));
+          const xGrid=pts.map((p,i)=>{const x=xToPx(i); const showLbl=(i%xLabelStep===0)||(i===n-1); const d=new Date(p.fecha+'T00:00:00'); const lbl=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(2); return '<line x1="'+x.toFixed(1)+'" x2="'+x.toFixed(1)+'" y1="'+padT+'" y2="'+(H-padB)+'" stroke="var(--g50)"/>'+(showLbl?'<text x="'+x.toFixed(1)+'" y="'+(H-padB+16)+'" fill="var(--g500)" font-size="9.5" text-anchor="middle" font-family="JetBrains Mono,monospace">'+lbl+'</text>':'');}).join('');
+          const dots=pts.map((p,i)=>{const x=xToPx(i),y=yToPx(p.val); const col=colDot[p.tipo]||'var(--p700)'; const tip=p.label+' · '+fD(p.fecha)+' · '+(c.mon||'ARS')+' '+fN(p.val)+(p.delta?' (+'+fN(p.delta)+')':'')+(p.periodo?' · período '+(formatMonth(p.periodo)||p.periodo):''); return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="'+col+'" stroke="#fff" stroke-width="2"><title>'+esc(tip)+'</title></circle>';}).join('');
           const svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:300px;display:block">'
             +'<defs><linearGradient id="evolGrad'+c.id+'" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="var(--p600)" stop-opacity=".18"/><stop offset="100%" stop-color="var(--p600)" stop-opacity="0"/></linearGradient></defs>'
             +xGrid+yGrid
