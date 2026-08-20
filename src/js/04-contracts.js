@@ -1513,6 +1513,17 @@ function editCont(id){const c=window.DB.find(x=>x.id===id);if(!c)return;document
   document.getElementById('f_faxApiNombre').value=c.faxApiNombre||'';
   document.getElementById('f_faxApiMonto').value=c.faxApiMonto||'';
   onFaxToggle('Asr');onFaxToggle('Api');
+  document.getElementById('f_alcAsr').checked=!!c.alcanceAsr;
+  document.getElementById('f_alcApi').checked=!!c.alcanceApi;
+  document.getElementById('f_alcTdf').checked=!!c.alcanceTdf;
+  document.getElementById('f_alcNqn').checked=!!c.alcanceNqn;
+  document.getElementById('f_alcBa').checked=!!c.alcanceBa;
+  document.getElementById('f_cl1Inc').checked = c.claus1Inc!=null ? !!c.claus1Inc : true;
+  document.getElementById('f_cl2Inc').checked = c.claus2Inc!=null ? !!c.claus2Inc : true;
+  document.getElementById('f_cl2Horario').value=c.claus2Horario||'';
+  document.getElementById('f_cl3Inc').checked = c.claus3Inc!=null ? !!c.claus3Inc : true;
+  document.getElementById('f_cl4Inc').checked = c.claus4Inc!=null ? !!c.claus4Inc : true;
+  onClausToggle('cl1Inc');onClausToggle('cl2Inc');onClausToggle('cl3Inc');onClausToggle('cl4Inc');
   document.getElementById('f_rtec').value=c.rtec||'';document.getElementById('f_tc').value=c.tc||'';
   document.getElementById('f_own').value=c.own||'';document.getElementById('f_asset').value=c.asset||'';document.getElementById('f_cprov').value=c.cprov||'';
   document.getElementById('f_vend').value=c.vend||'';document.getElementById('f_fax').value=c.fax||'';
