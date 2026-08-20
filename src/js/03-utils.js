@@ -424,11 +424,14 @@ async function guardar(){
     dgDoc:document.getElementById('f_dg').checked?(gv('f_dgDoc')||null):null,
     faxAsrSent:document.getElementById('f_faxAsrSent').checked,
     faxAsrNombre:document.getElementById('f_faxAsrSent').checked?(gv('f_faxAsrNombre')||null):null,
+    faxAsrMonto:gv('f_faxAsrMonto')||null,
     faxApiSent:document.getElementById('f_faxApiSent').checked,
     faxApiNombre:document.getElementById('f_faxApiSent').checked?(gv('f_faxApiNombre')||null):null,
+    faxApiMonto:gv('f_faxApiMonto')||null,
     ddStatus:gv('f_ddStatus')||'PENDING',prStatus:gv('f_prStatus')||'PENDING',
     sqStatus:gv('f_sqStatus')||'PENDING',
     fueComite:document.getElementById('f_fueComite').checked,
+    comiteMonto:gv('f_comiteMonto')||null,
     comiteJustif:document.getElementById('f_fueComite').checked?null:(gv('f_comiteJustif')||null),
     comiteFecha:document.getElementById('f_fueComite').checked?(gv('f_comiteFecha')||null):null,
     comiteResultado:document.getElementById('f_fueComite').checked?(gv('f_comiteResultado')||null):null,
@@ -509,7 +512,7 @@ async function guardar(){
 
 function resetForm(){
   document.getElementById('formErrBanner')?.remove();
-  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_dgDoc','f_faxAsrNombre','f_faxApiNombre'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
+  ['f_num','f_cont','f_tipo','f_mon','f_monto','f_ini','f_fin','f_resp','f_btar','f_det','f_tcontr','f_ariba','f_fev','f_fevFin','f_rtec','f_tc','f_own','f_asset','f_cprov','f_vend','f_fax','f_com','f_trigBpct','f_trigCmes','f_dd','f_pr','f_sq','f_comiteJustif','f_comiteFecha','f_comiteObs','f_comiteMonto','f_dgDoc','f_faxAsrNombre','f_faxAsrMonto','f_faxApiNombre','f_faxApiMonto'].forEach(id=>{const e=document.getElementById(id);if(e&&!e.disabled)e.value='';});
   rfqOfrs=[];renderRfqOferentes();
   const plazoEl=document.getElementById('f_plazo');if(plazoEl)plazoEl.value='';
   document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
