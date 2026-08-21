@@ -1234,13 +1234,12 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
     // Tablas de precios para este período — TODAS las que tengan period === periodYm
     var tableHtml='';
     var periodTables=tars.filter(function(t){ return String(t.period||'')===String(periodYm); });
-    function _renderOneTab(tab, koUse, lblShort){
+    function _renderOneTab(tab, koUse, lblShort, alreadyAdjusted){
       var cols=(tab.cols||[]).slice();
       var rowsArr=tab.rows||[];
       if(!rowsArr.length) return '';
       var priceColIdx=cols.findIndex(function(c){ return /precio|valor\s*unitario|tarifa|importe|mensual/i.test(String(c||'')); });
       if(priceColIdx<0) priceColIdx=cols.length-1;
-      var alreadyAdjusted=(tab.source==='POLI_SELECT'||tab.source==='POLINOMICA');
       var thead='<tr>';
       cols.forEach(function(col,i){
         var isPrice=(i===priceColIdx);
@@ -1270,11 +1269,18 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
       return '<table style="width:100%;border-collapse:collapse;margin:8pt 0 14pt"><thead>'+thead+'</thead><tbody>'+tbody+totalRow+'</tbody></table>';
     }
     if(periodTables.length){
+      // Ya es el tarifario propio de este período (sea cual sea su origen: manual, importado
+      // por IA, o generado por la actualización polinómica) — son los valores finales de ese
+      // período, no se vuelven a multiplicar por Ko. Antes esto dependía de tab.source, que la
+      // gran mayoría de tarifarios cargados a mano o por IA nunca tienen seteado, así que
+      // terminaba aplicando el Ko dos veces sobre precios que ya estaban actualizados.
       periodTables.forEach(function(tab){
-        tableHtml+='<div style="margin-bottom:8pt"><div style="font-size:10pt;font-weight:600;color:#334155;margin-bottom:4pt">'+esc(tab.name||'Tabla')+'</div>'+_renderOneTab(tab, koP, shortLbl)+'</div>';
+        tableHtml+='<div style="margin-bottom:8pt"><div style="font-size:10pt;font-weight:600;color:#334155;margin-bottom:4pt">'+esc(tab.name||'Tabla')+'</div>'+_renderOneTab(tab, koP, shortLbl, true)+'</div>';
       });
     } else if(baseTar&&baseTar.rows&&baseTar.rows.length){
-      tableHtml=_renderOneTab(baseTar, koP, shortLbl);
+      // No hay tarifario cargado para este período puntual: se proyecta desde el tarifario base
+      // multiplicando por el Ko del tramo.
+      tableHtml=_renderOneTab(baseTar, koP, shortLbl, false);
     } else {
       // Sin tarifario: tabla simple con Ko
       tableHtml='<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr style="background:#1b3f6e;color:#fff"><th style="padding:5px 8px;font-size:10px">Concepto</th><th style="padding:5px 8px;font-size:10px;text-align:right">Ko</th><th style="padding:5px 8px;font-size:10px;text-align:right">Var.</th></tr></thead><tbody><tr><td style="padding:5px 8px;font-size:11px">Actualización polinómica ('+label+')</td><td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700">'+koP.toFixed(4)+'</td><td style="padding:5px 8px;font-size:11px;text-align:right;color:'+( pctP>=0?'#16a34a':'#dc2626')+'">'+(pctP>=0?'+':'')+pctP+'%</td></tr></tbody></table>';
@@ -1287,6 +1293,50 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
   var periodosTexto=selPeriods.map(function(p,i){ return '<strong>'+fmtM(p)+'</strong>'+(i<selPeriods.length-1?' y ':''); }).join('');
 
   var polyFormula=contract.poly&&contract.poly.length?'Ko = '+contract.poly.map(function(p){return p.idx+' × '+(p.inc*100).toFixed(1)+'%';}).join(' + '):'Fórmula polinómica contractual';
+
+  // El cuerpo (OBJETO + secciones) se arma según el/los tipo/s reales de la enmienda
+  // (enmTipos: ACTUALIZACION_TARIFAS / EXTENSION / SCOPE / CLAUSULAS / OTRO) — antes siempre
+  // decía "2. PRECIO" con las tablas de tarifas, aunque la enmienda fuera de cláusulas o de
+  // ampliación de scope. Si una enmienda combina varios tipos, se listan en orden (tarifas
+  // primero, luego plazo, scope, cláusulas, otros) con la numeración de secciones corrida.
+  var enmTypesRaw=enmTipos(lastEnm);
+  var enmTypes=enmTypesRaw.length?enmTypesRaw:['ACTUALIZACION_TARIFAS'];
+  var TYPE_ORDER=['ACTUALIZACION_TARIFAS','EXTENSION','SCOPE','CLAUSULAS','OTRO'];
+  var orderedTypes=TYPE_ORDER.filter(function(t){ return enmTypes.indexOf(t)>=0; });
+  enmTypes.forEach(function(t){ if(orderedTypes.indexOf(t)<0) orderedTypes.push(t); });
+
+  var objetoItems=[], sections=[];
+  orderedTypes.forEach(function(t){
+    if(t==='ACTUALIZACION_TARIFAS'){
+      objetoItems.push('Establecer las tarifas para el mes de '+periodosTexto+' en adelante.'+
+        '<br><span style="font-size:9.5pt;color:#555">Fórmula aplicada: <em>'+esc(polyFormula)+'</em></span>');
+      sections.push({title:'PRECIO', body:
+        '<p>Se establecen las nuevas tarifas para aplicar a partir del <strong>01 de '+fmtM(selPeriods[0]||newPeriod)+'</strong>:</p>'+periodBlocks});
+    } else if(t==='EXTENSION'){
+      var finNueva=lastEnm.fechaFinNueva?fD(lastEnm.fechaFinNueva):'';
+      objetoItems.push('Extender el plazo del contrato'+(finNueva?(' hasta el '+finNueva):'')+'.');
+      sections.push({title:'PLAZO', body:
+        '<p>Se extiende la vigencia del contrato'+(finNueva?(' hasta el <strong>'+finNueva+'</strong>'):'')+', manteniendo vigentes el resto de las condiciones pactadas en la OFERTA.</p>'});
+    } else if(t==='SCOPE'){
+      var descScope=esc(lastEnm.descripcion||lastEnm.motivo||'');
+      objetoItems.push('Modificar el alcance del servicio contratado.');
+      sections.push({title:'ALCANCE DEL SERVICIO', body:
+        '<p>'+(descScope||'Se modifica el alcance del servicio contratado, conforme lo detallado en la presente enmienda.')+'</p>'});
+    } else if(t==='CLAUSULAS'){
+      var descCl=esc(lastEnm.descripcion||lastEnm.motivo||'');
+      objetoItems.push('Modificar y/o incorporar cláusulas de las Condiciones Particulares.');
+      sections.push({title:'CLÁUSULAS', body:
+        '<p>'+(descCl||'Se modifican y/o incorporan cláusulas de las Condiciones Particulares, conforme lo detallado en la presente enmienda.')+'</p>'});
+    } else {
+      var descOt=esc(lastEnm.descripcion||lastEnm.motivo||'');
+      objetoItems.push('Modificar las condiciones de la OFERTA según lo detallado a continuación.');
+      sections.push({title:'OTROS', body:
+        '<p>'+(descOt||'Se modifican las condiciones de la OFERTA conforme lo detallado en la presente enmienda.')+'</p>'});
+    }
+  });
+  var objetoHtml=objetoItems.map(function(txt,i){ return '<p style="margin-left:20pt">1.'+(i+1)+'&nbsp;&nbsp;'+txt+'</p>'; }).join('');
+  var sectionsHtml=sections.map(function(s,i){ return '<p class="section-title">'+(i+2)+'. '+s.title+'</p>'+s.body; }).join('');
+  var generalNum=sections.length+2;
 
   // Construir cuerpo (común a HTML print y Word .doc)
   var bodyHtml=
@@ -1313,12 +1363,9 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
     '<div class="page">'+
       '<p class="section-title">1. OBJETO</p>'+
       '<p>Por la presente Enmienda a las Condiciones Particulares y en uso del Artículo 2 &ldquo;Definiciones&rdquo; de las Condiciones Generales de la OFERTA N.°&nbsp;'+esc(contract.num)+' las Partes acuerdan lo que a continuación se detalla:</p>'+
-      '<p style="margin-left:20pt">1.1&nbsp;&nbsp;Establecer las tarifas para el mes de '+periodosTexto+' en adelante.</p>'+
-      '<p style="margin-left:20pt;font-size:9.5pt;color:#555;margin-top:6pt">Fórmula aplicada: <em>'+esc(polyFormula)+'</em></p>'+
-      '<p class="section-title">2. PRECIO</p>'+
-      '<p>Se establecen las nuevas tarifas para aplicar a partir del <strong>01 de '+fmtM(selPeriods[0]||newPeriod)+'</strong>:</p>'+
-      periodBlocks+
-      '<p class="section-title">3. GENERAL</p>'+
+      objetoHtml+
+      sectionsHtml+
+      '<p class="section-title">'+generalNum+'. GENERAL</p>'+
       '<p>Las restantes condiciones de la OFERTA permanecen vigentes e inalterables.</p>'+
       '<p>La presente PROPUESTA será considerada <u>aceptada</u> por la COMPAÑÍA <u>con la continuidad</u> en la demanda del servicio y/o <u>con el ingreso</u> de equipos y/o personal del OFERENTE a <u>las instalaciones</u> de la COMPAÑÍA.</p>'+
       '<p style="margin-top:14pt">Atentamente,</p>'+
