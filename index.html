@@ -69,7 +69,7 @@
 <main class="mn">
 <header class="tb">
   <div class="tb-left">
-    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v162-legales-texto-real</span></h1>
+    <h1 id="pgT">📋 Contratos <span class="bc" id="buildTag">v162-clausulado-al-final</span></h1>
   </div>
   <div class="tba" id="pgA">
     <div style="position:relative;width:100%;max-width:360px;">
@@ -474,12 +474,6 @@
       <div class="fgrp"><label>Plazo (meses) <span class="tip" data-t="Se calcula auto de las fechas">?</span></label><input type="number" id="f_plazo" disabled></div>
     </div>
   </div>
-  <div class="fsec"><div class="fsh"><div class="fi t">📑</div><h2>Clausulado del Contrato<span>Configuración del borrador Word</span></h2></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-      <div style="font-size:12.5px;color:var(--g600c);max-width:520px">Definí el alcance, los horarios, la facturación y qué cláusulas del modelo de Condiciones Particulares se incluyen en el contrato.</div>
-      <button type="button" class="btn btn-s" onclick="openClausulado()">📑 Configurar Clausulado →</button>
-    </div>
-  </div>
   <div id="clausuladoScreen" style="display:none;position:fixed;inset:0;background:#fff;z-index:500;overflow-y:auto">
     <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid var(--g200);padding:14px 24px;display:flex;align-items:center;gap:14px;z-index:1">
       <button type="button" class="btn btn-s" onclick="closeClausulado()">← Volver</button>
@@ -605,6 +599,12 @@
       <div class="fgrp"><label>Contacto Proveedor <span class="req">*</span></label><input type="text" id="f_cprov" placeholder="Nombre contacto"></div>
       <div class="fgrp"><label>N° Vendor</label><input type="text" id="f_vend"></div>
       <div class="fgrp"><label>PR # (si aplica)</label><input type="text" id="f_fax" placeholder="Ej: SR_TO_CP_91_2025_MZ"></div>
+    </div>
+  </div>
+  <div class="fsec"><div class="fsh"><div class="fi t">📑</div><h2>Clausulado del Contrato<span>Configuración del borrador Word</span></h2></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="font-size:12.5px;color:var(--g600c);max-width:520px">Definí el alcance, los horarios, la facturación y qué cláusulas del modelo de Condiciones Particulares se incluyen en el contrato.</div>
+      <button type="button" class="btn btn-s" onclick="openClausulado()">📑 Configurar Clausulado →</button>
     </div>
   </div>
   <div class="fsec"><div class="fsh"><div class="fi t">📎</div><h2>Adjuntos & Comentarios</h2></div>
