@@ -1199,9 +1199,15 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
   var Ko=lastEnm.ko||1;
   var pctKo=((Ko-1)*100);
 
-  // Períodos seleccionados para tablas (o solo el último si no hay selección)
-  var selPeriods=getSelectedAdjustmentMonths(cid).sort();
-  if(!selPeriods.length && newPeriod) selPeriods=[newPeriod];
+  // Tramos de ESTA enmienda puntual (lastEnm.tramos, o basePeriod/newPeriod si es de un solo
+  // tramo) — antes se usaba getSelectedAdjustmentMonths(cid), que lee un estado de UI global
+  // por contrato (localStorage) sin relación con qué enmienda se está descargando, así que el
+  // Word terminaba mostrando los períodos que hubiera seleccionados en la pantalla en ese
+  // momento (de otra enmienda, o ninguno) en vez de los que esa enmienda realmente aplicó.
+  var tramos=(Array.isArray(lastEnm.tramos)&&lastEnm.tramos.length)
+    ? lastEnm.tramos.slice().sort(function(a,b){ return String(a.nuevoPeriodo||'').localeCompare(String(b.nuevoPeriodo||'')); })
+    : (newPeriod ? [{basePeriodo:basePeriod, nuevoPeriodo:newPeriod, pctPoli:lastEnm.pctPoli}] : []);
+  var selPeriods=tramos.map(function(t){ return t.nuevoPeriodo; }).filter(Boolean);
 
   // Tarifarios del contrato
   var tars=contract.tarifarios||[];
@@ -1213,11 +1219,14 @@ function renderAmendmentHtml(contract, targetEnmNum, opts){
   var fmtM=function(ym){ if(!ym) return ''; var p=String(ym).substring(0,7).split('-'); if(p.length<2) return ym; return meses[parseInt(p[1],10)-1]+' de '+p[0]; };
   var fmtMShort=function(ym){ if(!ym) return ''; var p=String(ym).substring(0,7).split('-'); if(p.length<2) return ym; return meses[parseInt(p[1],10)-1].substring(0,3)+'-'+p[0].substring(2); };
 
-  // Generar bloques de tablas por período
+  // Generar bloques de tablas por período — cada tramo usa SU PROPIO basePeriodo (no uno
+  // compartido para toda la enmienda), porque una enmienda con varios tramos encadenados
+  // (ej: tramo1 base→jun, tramo2 jun→jul) tiene una base distinta en cada uno.
   var periodBlocks='';
-  selPeriods.forEach(function(periodYm){
-    var dPct=computePoliDeltaPct(contract,basePeriod,periodYm);
-    var koP=dPct!=null?(1+dPct/100):Ko;
+  tramos.forEach(function(tr){
+    var periodYm=tr.nuevoPeriodo;
+    var tramoBase=tr.basePeriodo||basePeriod;
+    var koP=tr.pctPoli!=null?(1+Number(tr.pctPoli)):(function(){ var dPct=computePoliDeltaPct(contract,tramoBase,periodYm); return dPct!=null?(1+dPct/100):Ko; })();
     var pctP=((koP-1)*100).toFixed(2);
     var label=fmtM(periodYm);
     var shortLbl=fmtMShort(periodYm);
