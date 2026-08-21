@@ -19,7 +19,10 @@
     'alcance:nqn':'Solo si Alcance incluye Neuquén',
     'alcance:ba_nqn':'Solo si Alcance incluye Neuquén o Buenos Aires',
     'fondoGarantia:true':'Solo si el contrato lleva Fondo de Garantía',
-    'fondoGarantia:false':'Solo si el contrato NO lleva Fondo de Garantía'
+    'fondoGarantia:false':'Solo si el contrato NO lleva Fondo de Garantía',
+    'hasPoly:true':'Solo si el contrato tiene fórmula polinómica',
+    'trigA:true':'Solo si está activo el Gatillo A (mano de obra / CCT)',
+    'trigB:true':'Solo si está activo el Gatillo B (variación acumulada)'
   };
   function showIfLabel(showIf){
     if(!showIf)return null;
@@ -44,7 +47,7 @@
   c2: {
     title: 'Horario de Trabajos',
     blocks: [
-      {type:'p', text:'Las actividades objeto del presente contrato deberán realizarse dentro del horario establecido por LA COMPAÑÍA, el cual será Ej: de lunes a viernes de 8:00 a 19:00 hrs.'},
+      {type:'p', text:'Las actividades objeto del presente contrato deberán realizarse dentro del horario establecido por LA COMPAÑÍA, el cual será {{HORARIO}}.'},
       {type:'p', text:'Todas las actividades deberán ser previamente acordadas con el representante de LA COMPAÑÍA. Cualquier trabajo fuera de este horario requerirá autorización expresa, previamente acordada por el representante de LA COMPAÑÍA.'}
     ]
   },
@@ -52,10 +55,10 @@
     title: 'Duración',
     blocks: [
       {type:'title', text:'3.1 Fecha de Inicio y fin del contrato'},
-      {type:'p', text:'Fecha de inicio:'},
-      {type:'p', text:'Fecha de finalización:'},
+      {type:'p', text:'Fecha de inicio: {{FECHA_INICIO}}'},
+      {type:'p', text:'Fecha de finalización: {{FECHA_FIN}}'},
       {type:'title', text:'3.2 Período operacional'},
-      {type:'p', text:'El período operacional que transcurre entre la fecha de inicio y la fecha de terminación será de'},
+      {type:'p', text:'El período operacional que transcurre entre la fecha de inicio y la fecha de terminación será de {{PLAZO}}.'},
       {type:'title', text:'3.3 Opción a prórroga'},
       {type:'p', text:'La COMPAÑIA podrá prorrogar el período operacional por un plazo similar o inferior, notificando su decisión al OFERENTE por escrito y con un aviso de 30 dias previos a la fecha de terminación del período operacional en curso, entendiendo que, durante tal extensión la COMPAÑIA tendrá derecho si el OFERENTE utilizara los mismos equipos / herramientas, etc., a solicitar la reducción del precio / tarifas en base a las amortizaciones de los mismos u otros conceptos, ya absorbidos durante el presente OFERTA.'}
     ]
@@ -63,18 +66,18 @@
   c4: {
     title: 'Precio',
     blocks: [
-      {type:'title', text:'4.1 Guía para revisión equitativa de precios y fórmula polinómica'},
-      {type:'p', text:'A los fines de mantener el equilibrio de la ecuación económico-financiera del presente contrato, el Contratista aplicará la fórmula polinómica informada en su propuesta, utilizando la distribución porcentual de los componentes e índices que forman parte de su estructura de costos, según lo declarado y aceptado por la Compañía.'},
-      {type:'p', text:'La proporción establecida se mantendrá sin modificaciones durante toda la vigencia del contrato.'},
-      {type:'p', text:'Los ajustes de tarifas se realizarán conforme al siguiente procedimiento:'},
-      {type:'title', text:'DETERMINACIÓN DE LOS % DE INCIDENCIA'},
-      {type:'p', text:'El Contratista ha definido los porcentajes de incidencia sobre el precio total del contrato para los conceptos que integran la fórmula polinómica, los cuales serán la base para cualquier redeterminación de precios.'},
-      {type:'title', text:'METODOLOGÍA DE REDETERMINACIÓN'},
-      {type:'p', text:'Una vez comenzada la ejecución del servicio, las partes acuerdan redeterminar las tarifas en las siguientes opciones:'},
-      {type:'subtitle', text:'OPCION A)'},
-      {type:'p', text:'En caso de verificarse una variación del componente de mano de obra de la estructura de costo consensuada con origen en acuerdos salariales homologados por el Ministerio de Trabajo de la Nación, en cuyo caso se revisará el precio del servicio en un todo de acuerdo a la estructura de costo mencionada, con los plazos de validez estipulados en la referida homologación.'},
-      {type:'subtitle', text:'OPCION B)'},
-      {type:'p', text:'Cuando exista una variación acumulada de quince por ciento (15%) en más o en menos de los costos del servicio conforme surja de la estructura de costo y la evolución de los índices asociados, considerando dicha variación acumulada partir del mes base (mes0) o desde la última redeterminación del precio acordada por las Partes.'},
+      {type:'title', text:'4.1 Guía para revisión equitativa de precios y fórmula polinómica', showIf:{hasPoly:true}},
+      {type:'p', text:'A los fines de mantener el equilibrio de la ecuación económico-financiera del presente contrato, el Contratista aplicará la fórmula polinómica informada en su propuesta, utilizando la distribución porcentual de los componentes e índices que forman parte de su estructura de costos, según lo declarado y aceptado por la Compañía.', showIf:{hasPoly:true}},
+      {type:'p', text:'La proporción establecida se mantendrá sin modificaciones durante toda la vigencia del contrato.', showIf:{hasPoly:true}},
+      {type:'p', text:'Los ajustes de tarifas se realizarán conforme al siguiente procedimiento:', showIf:{hasPoly:true}},
+      {type:'title', text:'DETERMINACIÓN DE LOS % DE INCIDENCIA', showIf:{hasPoly:true}},
+      {type:'p', text:'El Contratista ha definido los porcentajes de incidencia sobre el precio total del contrato para los conceptos que integran la fórmula polinómica, los cuales serán la base para cualquier redeterminación de precios.', showIf:{hasPoly:true}},
+      {type:'title', text:'METODOLOGÍA DE REDETERMINACIÓN', showIf:{hasPoly:true}},
+      {type:'p', text:'Una vez comenzada la ejecución del servicio, las partes acuerdan redeterminar las tarifas en las siguientes opciones:', showIf:{hasPoly:true}},
+      {type:'subtitle', text:'OPCION A)', showIf:{trigA:true}},
+      {type:'p', text:'En caso de verificarse una variación del componente de mano de obra de la estructura de costo consensuada con origen en acuerdos salariales homologados por el Ministerio de Trabajo de la Nación, en cuyo caso se revisará el precio del servicio en un todo de acuerdo a la estructura de costo mencionada, con los plazos de validez estipulados en la referida homologación.', showIf:{trigA:true}},
+      {type:'subtitle', text:'OPCION B)', showIf:{trigB:true}},
+      {type:'p', text:'Cuando exista una variación acumulada de quince por ciento (15%) en más o en menos de los costos del servicio conforme surja de la estructura de costo y la evolución de los índices asociados, considerando dicha variación acumulada partir del mes base (mes0) o desde la última redeterminación del precio acordada por las Partes.', showIf:{trigB:true}},
       {type:'p', text:'Las siguientes condiciones serán complementarias a lo expuesto precedentemente:'},
       {type:'item', text:'I. Los pagos adicionales remunerativos o no remunerativos, por única vez o según la frecuencia determinado por el gremio, que sean acordados por convenio y homologados serán reconocidos como reembolsable al costo más los impuestos aplicables.'},
       {type:'item', text:'II. No serán reconocidas variaciones que surjan de acuerdos particulares entre el Contratista y sus empleados o el gremio (ej: premios de por productividad).'},
@@ -755,5 +758,12 @@
   function boot(){ensureNav();ensureView();installGoHook();}
   document.addEventListener('DOMContentLoaded',function(){try{LegalesAdmin.boot();}catch(err){console.error('LegalesAdmin boot',err);}});
 
-  window.LegalesAdmin={boot:boot,show:showPage,reload:reload};
+  // Usado por el generador de Word (11-word-gen.js) para leer el clausulado
+  // vigente sin depender de que el usuario haya abierto la pantalla de Legales.
+  async function getData(){
+    if(!state.loaded)await reload();
+    return state.data;
+  }
+
+  window.LegalesAdmin={boot:boot,show:showPage,reload:reload,getData:getData,CLAUSE_ORDER:CLAUSE_ORDER,CLAUSE_TITLES:CLAUSE_TITLES};
 })();
